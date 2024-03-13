@@ -2,15 +2,14 @@
 这是一个基于 Cloudflare Worker 平台的脚本，在原版的基础上修改了显示 VLESS 配置信息转换为订阅内容。使用该脚本，你可以方便地将 VLESS 配置信息使用在线配置转换到 Clash 或 Singbox 等工具中。
 
 - 基础部署视频教程：https://www.youtube.com/watch?v=LeT4jQUh8ok
-- 快速部署视频教程：https://www.youtube.com/watch?v=Ea3wb5G08l4 ***最佳推荐!!!***
+- 快速部署视频教程：https://www.youtube.com/watch?v=59THrmJhmAw ***最佳推荐!!!***
 - 进阶使用视角教程：https://www.youtube.com/watch?v=s91zjpw3-P8
 
 Telegram交流群：[@CMLiussss](https://t.me/CMLiussss)
 
 # 风险提示
-- 当您使用 `let sub = 'sub.cmliussss.workers.dev';` 等非空参数时，您的worker节点配置将通过指定的订阅生成器创建完整的节点订阅信息。这种方式确实便捷，但同时意味着您的节点配置信息将被发送给订阅服务的提供者。
-- 如果您对此存有顾虑，可以通过将 `let sub = '';` 设置为空值，以保持您的edgetunnel节点配置的私密性。但这种方式需要您自行手动选择优选IP或域名，却更能保障你的信息安全；
-- 另外，您也可以选择自行部署 [WorkerVless2sub 订阅生成服务](https://github.com/cmliu/WorkerVless2sub)，这样既可以利用订阅生成器的便利，又能有效控制您的节点信息不被外泄。
+- 通过提交虚假的节点配置给订阅服务，避免节点配置信息泄露。***[#6](https://github.com/cmliu/edgetunnel/pull/6) 感谢 [fatkun](https://github.com/fatkun)***
+- 另外，您也可以选择自行部署 [WorkerVless2sub 订阅生成服务](https://github.com/cmliu/WorkerVless2sub)，这样既可以利用订阅生成器的便利。
    
 ## Workers 部署方法 [视频教程](https://www.youtube.com/watch?v=LeT4jQUh8ok&t=83s)
 1. 部署 Cloudflare Worker：
@@ -35,14 +34,9 @@ Telegram交流群：[@CMLiussss](https://t.me/CMLiussss)
    - 打开 [worker.js](https://github.com/cmliu/edgetunnel/blob/main/_worker.js) 文件，在第 12 行找到 `sub` 变量，将其修改为你部署的订阅生成器地址。例如 `let sub = 'sub.cmliussss.workers.dev';`，注意不要带https等协议信息和符号。
    - 注意，如果您使用了自己的订阅地址，要求订阅生成器的 `sub`域名 和 `[YOUR-WORKER-URL]`的域名 不同属一个顶级域名，否则会出现异常。您可以在 `sub` 变量赋值为 workers.dev 分配到的域名。
 
-5. 解决转换订阅的隐私问题：
-   - 搭建反代订阅转换工具，通过随机化服务器地址和节点账号密码，解决用户转换订阅的隐私问题。
-   - 可以参考[不良林psub项目](https://github.com/bulianglin/psub)自行搭建，视频原理以及教程 https://youtu.be/X7CC5jrgazo
-   - 注意，如果您使用了反代订阅转换工具，要求订阅转换工具的 `subconverter`域名 和 `[YOUR-WORKER-URL]`的域名 不同属一个顶级域名，否则会出现异常。您可以在 `subconverter` 变量赋值为 workers.dev 分配到的域名，注意不要带https等协议信息和符号。
-
 </details>
 
-## Pages 上传 部署方法 **最佳推荐!!!** [视频教程](https://www.youtube.com/watch?v=Ea3wb5G08l4)
+## Pages 上传 部署方法 **最佳推荐!!!** [视频教程](https://www.youtube.com/watch?v=59THrmJhmAw)
 1. 部署 Cloudflare Pages：
    - 下载 [worker.zip](https://raw.githubusercontent.com/cmliu/edgetunnel/main/worker.zip) 文件，并点上 Star !!!
    - 在 Cloudflare Pages 控制台中选择 `上传资产`后，为你的项目取名后点击 `创建项目`，然后上传你下载好的 [worker.zip](https://raw.githubusercontent.com/cmliu/edgetunnel/main/worker.zip) 文件后点击 `部署站点`。
@@ -75,14 +69,6 @@ Telegram交流群：[@CMLiussss](https://t.me/CMLiussss)
    - 之后在 Pages控制台的 `部署`选项卡，选择 `所有部署`> `最新部署最右的 ...`> `重试部署`，即可。
    - 注意，如果您使用了自己的订阅地址，要求订阅生成器的 `SUB`域名 和 `[YOUR-PAGES-URL]`的域名 不同属一个顶级域名，否则会出现异常。您可以在 `SUB` 变量赋值为 Pages.dev 分配到的域名。
 
-5. 解决转换订阅的隐私问题：
-   - 搭建反代订阅转换工具，通过随机化服务器地址和节点账号密码，解决用户转换订阅的隐私问题。
-   - 可以参考[不良林psub项目](https://github.com/bulianglin/psub)自行搭建，视频原理以及教程 https://youtu.be/X7CC5jrgazo
-   - 在 Pages控制台的 `设置`选项卡，选择 `环境变量`> `制作`> `编辑变量`> `添加变量`；
-   - 变量名设置为`SUBAPI`，对应的值为你部署的订阅生成器地址。例如 `psub.cmliucdn.workers.dev`，后点击 **保存**。注意不要带https等协议信息和符号。
-   - 之后在 Pages控制台的 `部署`选项卡，选择 `所有部署`> `最新部署最右的 ...`> `重试部署`，即可。
-   - 注意，如果您使用了反代订阅转换工具，要求订阅转换工具的 `SUBAPI`域名 和 `[YOUR-PAGES-URL]`的域名 不同属一个顶级域名，否则会出现异常。您可以在 `SUBAPI` 变量赋值为 workers.dev 分配到的域名，注意不要带https等协议信息和符号。
-
 </details>
 
 ## Pages GitHub 部署方法 [视频教程](https://www.youtube.com/watch?v=LeT4jQUh8ok&t=560s)
@@ -113,14 +99,6 @@ Telegram交流群：[@CMLiussss](https://t.me/CMLiussss)
    - 之后在 Pages控制台的 `部署`选项卡，选择 `所有部署`> `最新部署最右的 ...`> `重试部署`，即可。
    - 注意，如果您使用了自己的订阅地址，要求订阅生成器的 `SUB`域名 和 `[YOUR-PAGES-URL]`的域名 不同属一个顶级域名，否则会出现异常。您可以在 `SUB` 变量赋值为 Pages.dev 分配到的域名。
 
-5. 解决转换订阅的隐私问题：
-   - 搭建反代订阅转换工具，通过随机化服务器地址和节点账号密码，解决用户转换订阅的隐私问题。
-   - 可以参考[不良林psub项目](https://github.com/bulianglin/psub)自行搭建，视频原理以及教程 https://youtu.be/X7CC5jrgazo
-   - 在 Pages控制台的 `设置`选项卡，选择 `环境变量`> `制作`> `编辑变量`> `添加变量`；
-   - 变量名设置为`SUBAPI`，对应的值为你部署的订阅生成器地址。例如 `psub.cmliucdn.workers.dev`，后点击 **保存**。注意不要带https等协议信息和符号。
-   - 之后在 Pages控制台的 `部署`选项卡，选择 `所有部署`> `最新部署最右的 ...`> `重试部署`，即可。
-   - 注意，如果您使用了反代订阅转换工具，要求订阅转换工具的 `SUBAPI`域名 和 `[YOUR-PAGES-URL]`的域名 不同属一个顶级域名，否则会出现异常。您可以在 `SUBAPI` 变量赋值为 workers.dev 分配到的域名，注意不要带https等协议信息和符号。
-
 </details>
 
 ### 变量说明
@@ -142,8 +120,5 @@ Telegram交流群：[@CMLiussss](https://t.me/CMLiussss)
    - clash.meta（[Clash Nyanpasu](https://github.com/keiko233/clash-nyanpasu)，[clash-verge](https://github.com/zzzgydi/clash-verge/tree/main)，ClashX Meta）
    - sing-box（SFI）
 
-![image](https://github.com/cmliu/edgetunnel/assets/24787744/6e07c034-f0ef-4ae2-9fef-be13ef993f77)
-![image](https://github.com/cmliu/edgetunnel/assets/24787744/7c932cfa-3908-412a-ba47-c2be081486ed)
-
 # 感谢
-[zizifn](https://github.com/zizifn/edgetunnel)，[3Kmfi6HP](https://github.com/3Kmfi6HP/EDtunnel)，[Stanley-baby](https://github.com/Stanley-baby)、[ACL4SSR](https://github.com/ACL4SSR)、[SHIJS1999](https://github.com/SHIJS1999/cloudflare-worker-vless-ip)
+[zizifn](https://github.com/zizifn/edgetunnel)，[3Kmfi6HP](https://github.com/3Kmfi6HP/EDtunnel)，[Stanley-baby](https://github.com/Stanley-baby)、[ACL4SSR](https://github.com/ACL4SSR)、[SHIJS1999](https://github.com/SHIJS1999/cloudflare-worker-vless-ip)，[fatkun](https://github.com/fatkun)
