@@ -1236,7 +1236,7 @@ async function getVLESSConfig(userID, hostName, sub, UA, RproxyIP, _url) {
 	}
 
 	if ( userAgent.includes('mozilla') && !subParams.some(_searchParams => _url.searchParams.has(_searchParams))) {
-		let 订阅器 = `您的订阅内容由 ${sub} 提供维护支持, 自动获取ProxyIP: ${RproxyIP}`;
+		let 订阅器 = `自动获取ProxyIP: ${RproxyIP}`;
 		if (!sub || sub == '') {
 			if (!proxyIP || proxyIP =='') {
 				订阅器 = '您的订阅内容由 内置 addresses/ADD 参数提供, 当前使用的ProxyIP为空, 推荐您设置 proxyIP/PROXYIP ！！！';
@@ -1277,12 +1277,7 @@ clash-meta
 ${clash}
 ---------------------------------------------------------------
 ################################################################
-telegram 交流群 技术大佬~在线发牌!
-https://t.me/CMLiussss
----------------------------------------------------------------
-github 项目地址 Star!Star!Star!!!
-https://github.com/cmliu/edgetunnel
----------------------------------------------------------------
+wsy提供支持
 ################################################################
 `;
 	} else {
