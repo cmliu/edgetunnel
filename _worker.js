@@ -150,7 +150,12 @@ export default {
 				case '/':
 					if (env.URL302) return Response.redirect(env.URL302, 302);
 					else if (env.URL) return await proxyURL(env.URL, url);
-					else return new Response(JSON.stringify(request.cf, null, 4), { status: 200 });
+					else return new Response(JSON.stringify(request.cf, null, 4), {
+						status: 200,
+						headers: {
+							'content-type': 'application/json',
+						},
+					});
 				case `/${fakeUserID}`:
 					const fakeConfig = await getVLESSConfig(userID, request.headers.get('Host'), sub, 'CF-Workers-SUB', RproxyIP, url);
 					return new Response(`${fakeConfig}`, { status: 200 });
@@ -1610,11 +1615,9 @@ async function getSum(accountId, accountIndex, email, key, startDate, endDate) {
 		return [ 0,0 ];
 	}
 }
-
+let proxyIPPool = [];
 async function getAddressesapi(api) {
-	if (!api || api.length === 0) {
-		return [];
-	}
+	if (!api || api.length === 0) return [];
 
 	let newapi = "";
 
@@ -1638,11 +1641,21 @@ async function getAddressesapi(api) {
 		}).then(response => response.ok ? response.text() : Promise.reject())));
 
 		// 遍历所有响应
-		for (const response of responses) {
+		for (const [index, response] of responses.entries()) {
 			// 检查响应状态是否为'fulfilled'，即请求成功完成
 			if (response.status === 'fulfilled') {
 				// 获取响应的内容
 				const content = await response.value;
+
+				// 验证当前apiUrl是否带有'proxyip=true'
+				if (api[index].includes('proxyip=true')) {
+					// 如果URL带有'proxyip=true'，则将内容添加到proxyIPPool
+					proxyIPPool = proxyIPPool.concat((await ADD(content)).map(item => {
+						const baseItem = item.split('#')[0] || item;
+						return baseItem.includes(':') ? baseItem : `${baseItem}:443`;
+					}));
+				}
+				// 将内容添加到newapi中
 				newapi += content + '\n';
 			}
 		}
@@ -1708,6 +1721,10 @@ async function getAddressescsv(tls) {
 			
 					const formattedAddress = `${ipAddress}:${port}#${dataCenter}`;
 					newAddressescsv.push(formattedAddress);
+					if (csvUrl.includes('proxyip=true') && columns[tlsIndex].toUpperCase() == 'true') {
+						// 如果URL带有'proxyip=true'，则将内容添加到proxyIPPool
+						proxyIPPool.push(`${ipAddress}:${port}`);
+					}
 				}
 			}
 		} catch (error) {
@@ -1832,6 +1849,7 @@ function subAddresses(host,UUID,noTLS,newAddressesapi,newAddressescsv,newAddress
 		let 伪装域名 = host ;
 		let 最终路径 = '/?ed=2560' ;
 		let 节点备注 = '';
+		if (proxyIPPool.includes(`${address}:${port}`) && !httpsPorts.includes(port)) 最终路径 += `&proxyip=${address}:${port}`;
 		
 		if(proxyhosts.length > 0 && (伪装域名.includes('.workers.dev') || 伪装域名.includes('pages.dev'))) {
 			最终路径 = `/${伪装域名}${最终路径}`;
