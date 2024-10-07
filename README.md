@@ -156,6 +156,7 @@ Telegram交流群：[@CMLiussss](https://t.me/CMLiussss)，**感谢[Alice Networ
 | URL | `https://blog.cmliussss.com` |❌| 主页反代伪装(支持多url, url之间使用`,`或`换行`作间隔, 乱设容易触发反诈) |  |
 | CFEMAIL | `admin@gmail.com` |❌| CF账户邮箱(与`CFKEY`都填上后, 订阅信息将显示请求使用量, 小白别用) |  |
 | CFKEY | `c6a944b5c956b6c18c2352880952bced8b85e` |❌| CF账户Global API Key(与`CFEMAIL`都填上后, 订阅信息将显示请求使用量, 小白别用) |  |
+| CFPORTS | `2053`,`2096`,`8443` |❌| CF账户标准端口列表 |  |
 
 **注意: 填入`SOCKS5`后将不再启用`PROXYIP`！请二选一使用！！！**
 

@@ -76,6 +76,7 @@ let ChatID ='';
 let proxyhosts = [];//本地代理域名池
 let proxyhostsURL = 'https://raw.githubusercontent.com/cmliu/CFcdnVmess2sub/main/proxyhosts';//在线代理域名池URL
 let RproxyIP = 'false';
+let httpsPorts = ["2053","2083","2087","2096","8443"];
 export default {
 	/**
 	 * @param {import("@cloudflare/workers-types").Request} request
@@ -105,7 +106,7 @@ export default {
 			socks5s = await ADD(socks5Address);
 			socks5Address = socks5s[Math.floor(Math.random() * socks5s.length)];
 			socks5Address = socks5Address.split('//')[1] || socks5Address;
-			
+			if (env.CFPORTS) httpsPorts = await ADD(env.CFPORTS);
 			sub = env.SUB || sub;
 			subconverter = env.SUBAPI || subconverter;
 			if( subconverter.includes("http://") ){
@@ -1652,8 +1653,16 @@ async function getAddressesapi(api) {
 					// 如果URL带有'proxyip=true'，则将内容添加到proxyIPPool
 					proxyIPPool = proxyIPPool.concat((await ADD(content)).map(item => {
 						const baseItem = item.split('#')[0] || item;
-						return baseItem.includes(':') ? baseItem : `${baseItem}:443`;
-					}));
+						if (baseItem.includes(':')) {
+							const port = baseItem.split(':')[1];
+							if (!httpsPorts.includes(port)) {
+								return baseItem;
+							}
+						} else {
+							return `${baseItem}:443`;
+						}
+						return null; // 不符合条件时返回 null
+					}).filter(Boolean)); // 过滤掉 null 值
 				}
 				// 将内容添加到newapi中
 				newapi += content + '\n';
@@ -1721,7 +1730,7 @@ async function getAddressescsv(tls) {
 			
 					const formattedAddress = `${ipAddress}:${port}#${dataCenter}`;
 					newAddressescsv.push(formattedAddress);
-					if (csvUrl.includes('proxyip=true') && columns[tlsIndex].toUpperCase() == 'true') {
+					if (csvUrl.includes('proxyip=true') && columns[tlsIndex].toUpperCase() == 'true' && !httpsPorts.includes(port)) {
 						// 如果URL带有'proxyip=true'，则将内容添加到proxyIPPool
 						proxyIPPool.push(`${ipAddress}:${port}`);
 					}
@@ -1835,7 +1844,6 @@ function subAddresses(host,UUID,noTLS,newAddressesapi,newAddressescsv,newAddress
 			addressid = match[3] || address;
 		}
 
-		const httpsPorts = ["2053","2083","2087","2096","8443"];
 		if (!isValidIPv4(address) && port == "-1") {
 			for (let httpsPort of httpsPorts) {
 				if (address.includes(httpsPort)) {
@@ -1849,7 +1857,8 @@ function subAddresses(host,UUID,noTLS,newAddressesapi,newAddressescsv,newAddress
 		let 伪装域名 = host ;
 		let 最终路径 = '/?ed=2560' ;
 		let 节点备注 = '';
-		if (proxyIPPool.includes(`${address}:${port}`) && !httpsPorts.includes(port)) 最终路径 += `&proxyip=${address}:${port}`;
+		const matchingProxyIP = proxyIPPool.find(proxyIP => proxyIP.includes(address));
+		if (matchingProxyIP) 最终路径 += `&proxyip=${matchingProxyIP}`;
 		
 		if(proxyhosts.length > 0 && (伪装域名.includes('.workers.dev') || 伪装域名.includes('pages.dev'))) {
 			最终路径 = `/${伪装域名}${最终路径}`;
