@@ -4,9 +4,10 @@ import { connect } from 'cloudflare:sockets';
 let userID = '';
 let proxyIP = '';
 let sub = '';
-let subconverter = 'SUBAPI.fxxk.dedyn.io';
-let subconfig = "https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online_Mini_MultiMode.ini";
+let subConverter = 'SUBAPI.fxxk.dedyn.io';
+let subConfig = "https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online_Mini_MultiMode.ini";
 let subProtocol = 'https';
+let subEmoji = 'true';
 let socks5Address = '';
 let parsedSocks5Address = {}; 
 let enableSocks = false;
@@ -36,11 +37,12 @@ let proxyhosts = [];
 let proxyhostsURL = '';
 let RproxyIP = 'false';
 let httpsPorts = ["2053","2083","2087","2096","8443"];
-let 有效时间 = 7;//有效时间 单位:天
-let 更新时间 = 3;//更新时间
+let 有效时间 = 7;
+let 更新时间 = 3;
 let userIDLow;
 let userIDTime = "";
 let proxyIPPool = [];
+let path = '/?ed=2560';
 export default {
 	async fetch(request, env, ctx) {
 		try {
@@ -56,6 +58,9 @@ export default {
 				userID = env.UUID;
 			}
 			
+			subEmoji = env.SUBEMOJI || env.EMOJI || subEmoji;
+			if(subEmoji == '0') subEmoji = 'false';
+
 			if (!userID) {
 				return new Response('请设置你的UUID变量，或尝试重试部署，检查变量是否生效？', { 
 					status: 404,
@@ -88,14 +93,14 @@ export default {
 			socks5Address = socks5Address.split('//')[1] || socks5Address;
 			if (env.CFPORTS) httpsPorts = await 整理(env.CFPORTS);
 			sub = env.SUB || sub;
-			subconverter = env.SUBAPI || subconverter;
-			if( subconverter.includes("http://") ){
-				subconverter = subconverter.split("//")[1];
+			subConverter = env.SUBAPI || subConverter;
+			if( subConverter.includes("http://") ){
+				subConverter = subConverter.split("//")[1];
 				subProtocol = 'http';
 			} else {
-				subconverter = subconverter.split("//")[1] || subconverter;
+				subConverter = subConverter.split("//")[1] || subConverter;
 			}
-			subconfig = env.SUBCONFIG || subconfig;
+			subConfig = env.SUBCONFIG || subConfig;
 			if (socks5Address) {
 				try {
 					parsedSocks5Address = socks5AddressParser(socks5Address);
@@ -125,6 +130,16 @@ export default {
 			FileName = env.SUBNAME || FileName;
 			if (url.searchParams.has('notls')) noTLS = 'true';
 			if (!upgradeHeader || upgradeHeader !== 'websocket') {
+				if (url.searchParams.has('proxyip')) {
+					path = `/?ed=2560&proxyip=${url.searchParams.get('proxyip')}`;
+					RproxyIP = 'false';
+				} else if (url.searchParams.has('socks5')) {
+					path = `/?ed=2560&socks5=${url.searchParams.get('socks5')}`;
+					RproxyIP = 'false';
+				} else if (url.searchParams.has('socks')) {
+					path = `/?ed=2560&socks5=${url.searchParams.get('socks')}`;
+					RproxyIP = 'false';
+				}
 				const 路径 = url.pathname.toLowerCase();
 				if (路径 == '/') {
 					if (env.URL302) return Response.redirect(env.URL302, 302);
@@ -176,10 +191,6 @@ export default {
 					else return new Response(``, { status: 404 });
 				}
 			} else {
-				proxyIP = url.searchParams.get('proxyip') || proxyIP;
-				if (new RegExp('/proxyip=', 'i').test(url.pathname)) proxyIP = url.pathname.toLowerCase().split('/proxyip=')[1];
-				else if (new RegExp('/proxyip.', 'i').test(url.pathname)) proxyIP = `proxyip.${url.pathname.toLowerCase().split("/proxyip.")[1]}`;
-				
 				socks5Address = url.searchParams.get('socks5') || socks5Address;
 				if (new RegExp('/socks5=', 'i').test(url.pathname)) socks5Address = url.pathname.split('5=')[1];
 				else if (new RegExp('/socks://', 'i').test(url.pathname) || new RegExp('/socks5://', 'i').test(url.pathname)) {
@@ -191,6 +202,7 @@ export default {
 						socks5Address = `${userPassword}@${socks5Address.split('@')[1]}`;
 					}
 				}
+
 				if (socks5Address) {
 					try {
 						parsedSocks5Address = socks5AddressParser(socks5Address);
@@ -201,6 +213,17 @@ export default {
 						enableSocks = false;
 					}
 				} else {
+					enableSocks = false;
+				}
+
+				if (url.searchParams.has('proxyip')){
+					proxyIP = url.searchParams.get('proxyip');
+					enableSocks = false;
+				} else if (new RegExp('/proxyip=', 'i').test(url.pathname)) {
+					proxyIP = url.pathname.toLowerCase().split('/proxyip=')[1];
+					enableSocks = false;
+				} else if (new RegExp('/proxyip.', 'i').test(url.pathname)) {
+					proxyIP = `proxyip.${url.pathname.toLowerCase().split("/proxyip.")[1]}`;
 					enableSocks = false;
 				}
 
@@ -1151,7 +1174,7 @@ function 配置信息(UUID, 域名地址) {
 	
 	const 传输层协议 = 'ws';
 	const 伪装域名 = 域名地址;
-	const 路径 = '/?ed=2560';
+	const 路径 = path;
 	
 	let 传输层安全 = ['tls',true];
 	const SNI = 域名地址;
@@ -1196,6 +1219,9 @@ async function 生成配置信息(userID, hostName, sub, UA, RproxyIP, _url, env
 		if (match) {
 			sub = match[1];
 		}
+		const subs = 整理(sub);
+		if (subs.length > 1) sub = subs[0];
+		
 	} else if ((addresses.length + addressesapi.length + addressesnotls.length + addressesnotlsapi.length + addressescsv.length) == 0){
 		// 定义 Cloudflare IP 范围的 CIDR 列表
 		let cfips = [
@@ -1298,7 +1324,7 @@ async function 生成配置信息(userID, hostName, sub, UA, RproxyIP, _url, env
 		}
 
 		if (env.KEY && _url.pathname !== `/${env.KEY}`) 订阅器 = '';
-		else 订阅器 += `\nSUBAPI（订阅转换后端）: ${subProtocol}://${subconverter}\nSUBCONFIG（订阅转换配置文件）: ${subconfig}`;
+		else 订阅器 += `\nSUBAPI（订阅转换后端）: ${subProtocol}://${subConverter}\nSUBCONFIG（订阅转换配置文件）: ${subConfig}`;
 		const 动态UUID = (uuid != userID) ? `TOKEN: ${uuid}\nUUIDNow: ${userID}\nUUIDLow: ${userIDLow}\n${userIDTime}TIME（动态UUID有效时间）: ${有效时间} 天\nUPTIME（动态UUID更新时间）: ${更新时间} 时（北京时间）\n\n` : `${userIDTime}`;
 		return `
 ################################################################
@@ -1339,7 +1365,7 @@ clash-meta
 ${clash}
 ---------------------------------------------------------------
 ################################################################
-${atob('dGVsZWdyYW0g5Lqk5rWB576kIOaKgOacr+Wkp+S9rH7lnKjnur/lj5HniYwhCmh0dHBzOi8vdC5tZS9DTUxpdXNzc3MKLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tCmdpdGh1YiDpobnnm67lnLDlnYAgU3RhciFTdGFyIVN0YXIhISEKaHR0cHM6Ly9naXRodWIuY29tL2NtbGl1L2VkZ2V0dW5uZWwKLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tCiMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyM=')}
+${decodeURIComponent(atob('dGVsZWdyYW0lMjAlRTQlQkElQTQlRTYlQjUlODElRTclQkUlQTQlMjAlRTYlOEElODAlRTYlOUMlQUYlRTUlQTQlQTclRTQlQkQlQUMlN0UlRTUlOUMlQTglRTclQkElQkYlRTUlOEYlOTElRTclODklOEMhCmh0dHBzJTNBJTJGJTJGdC5tZSUyRkNNTGl1c3NzcwotLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0KZ2l0aHViJTIwJUU5JUExJUI5JUU3JTlCJUFFJUU1JTlDJUIwJUU1JTlEJTgwJTIwU3RhciFTdGFyIVN0YXIhISEKaHR0cHMlM0ElMkYlMkZnaXRodWIuY29tJTJGY21saXUlMkZlZGdldHVubmVsCi0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLQolMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjM='))}
 `;
 	} else {
 		if (typeof fetch != 'function') {
@@ -1368,7 +1394,7 @@ ${atob('dGVsZWdyYW0g5Lqk5rWB576kIOaKgOacr+Wkp+S9rH7lnKjnur/lj5HniYwhCmh0dHBzOi8v
 			fakeHostName = `${fakeHostName}.xyz`
 		}
 		console.log(`虚假HOST: ${fakeHostName}`);
-		let url = `${subProtocol}://${sub}/sub?host=${fakeHostName}&uuid=${fakeUserID + atob('JmVkZ2V0dW5uZWw9Y21saXUmcHJveHlpcD0=') + RproxyIP}`;
+		let url = `${subProtocol}://${sub}/sub?host=${fakeHostName}&uuid=${fakeUserID + atob('JmVkZ2V0dW5uZWw9Y21saXUmcHJveHlpcD0=') + RproxyIP}&path=${encodeURIComponent(path)}`;
 		let isBase64 = true;
 
 		if (!sub || sub == ""){
@@ -1398,17 +1424,20 @@ ${atob('dGVsZWdyYW0g5Lqk5rWB576kIOaKgOacr+Wkp+S9rH7lnKjnur/lj5HniYwhCmh0dHBzOi8v
 	
 			newAddressesapi = await 整理优选列表(addressesapi);
 			newAddressescsv = await 整理测速结果('TRUE');
-			url = `https://${hostName}/${fakeUserID}`;
-			if (hostName.includes("worker") || hostName.includes("notls") || noTLS == 'true') url += '?notls';
+			url = `https://${hostName}/${fakeUserID + _url.search}`;
+			if (hostName.includes("worker") || hostName.includes("notls") || noTLS == 'true') {
+				if (_url.search) url += '&notls';
+				else url += '?notls';
+			}
 			console.log(`虚假订阅: ${url}`);
 		} 
 
 		if (!userAgent.includes(('CF-Workers-SUB').toLowerCase())){
 			if ((userAgent.includes('clash') && !userAgent.includes('nekobox')) || ( _url.searchParams.has('clash') && !userAgent.includes('subconverter'))) {
-				url = `${subProtocol}://${subconverter}/sub?target=clash&url=${encodeURIComponent(url)}&insert=false&config=${encodeURIComponent(subconfig)}&emoji=true&list=false&tfo=false&scv=true&fdn=false&sort=false&new_name=true`;
+				url = `${subProtocol}://${subConverter}/sub?target=clash&url=${encodeURIComponent(url)}&insert=false&config=${encodeURIComponent(subConfig)}&emoji=${subEmoji}&list=false&tfo=false&scv=true&fdn=false&sort=false&new_name=true`;
 				isBase64 = false;
 			} else if (userAgent.includes('sing-box') || userAgent.includes('singbox') || (( _url.searchParams.has('singbox') || _url.searchParams.has('sb')) && !userAgent.includes('subconverter'))) {
-				url = `${subProtocol}://${subconverter}/sub?target=singbox&url=${encodeURIComponent(url)}&insert=false&config=${encodeURIComponent(subconfig)}&emoji=true&list=false&tfo=false&scv=true&fdn=false&sort=false&new_name=true`;
+				url = `${subProtocol}://${subConverter}/sub?target=singbox&url=${encodeURIComponent(url)}&insert=false&config=${encodeURIComponent(subConfig)}&emoji=${subEmoji}&list=false&tfo=false&scv=true&fdn=false&sort=false&new_name=true`;
 				isBase64 = false;
 			}
 		}
@@ -1617,7 +1646,7 @@ function 生成本地订阅(host,UUID,noTLS,newAddressesapi,newAddressescsv,newA
 			if (port == "-1") port = "80";
 			
 			let 伪装域名 = host ;
-			let 最终路径 = '/?ed=2560' ;
+			let 最终路径 = path ;
 			let 节点备注 = '';
 			const 协议类型 = atob(啥啥啥_写的这是啥啊);
 			
@@ -1674,7 +1703,7 @@ function 生成本地订阅(host,UUID,noTLS,newAddressesapi,newAddressescsv,newA
 		if (port == "-1") port = "443";
 		
 		let 伪装域名 = host ;
-		let 最终路径 = '/?ed=2560' ;
+		let 最终路径 = path ;
 		let 节点备注 = '';
 		const matchingProxyIP = proxyIPPool.find(proxyIP => proxyIP.includes(address));
 		if (matchingProxyIP) 最终路径 += `&proxyip=${matchingProxyIP}`;

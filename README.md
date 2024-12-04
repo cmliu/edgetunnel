@@ -33,6 +33,7 @@ Telegram交流群：[@CMLiussss](https://t.me/CMLiussss)，**感谢[Alice Networ
 - 通过提交虚假的节点配置给订阅服务，避免节点配置信息泄露。
 - 另外，您也可以选择自行部署 [WorkerVless2sub 订阅生成服务](https://github.com/cmliu/WorkerVless2sub)，这样既可以利用订阅生成器的便利。
    
+# 如何使用?
 ## Workers 部署方法 [视频教程](https://www.youtube.com/watch?v=LeT4jQUh8ok&t=83s)
 
 <details>
@@ -41,7 +42,7 @@ Telegram交流群：[@CMLiussss](https://t.me/CMLiussss)，**感谢[Alice Networ
 1. 部署 CF Worker：
    - 在 CF Worker 控制台中创建一个新的 Worker。
    - 将 [worker.js](https://github.com/cmliu/edgetunnel/blob/main/_worker.js) 的内容粘贴到 Worker 编辑器中。
-   - 将第 7 行 `userID` 修改成你自己的 **UUID** 。
+   - 将第 4 行 `userID` 修改成你自己的 **UUID** 。
 
 2. 访问订阅内容：
    - 访问 `https://[YOUR-WORKERS-URL]/[UUID]` 即可获取订阅内容。
@@ -132,6 +133,7 @@ Telegram交流群：[@CMLiussss](https://t.me/CMLiussss)，**感谢[Alice Networ
 </details>
 
 # 变量说明
+
 | 变量名 | 示例 | 必填 | 备注 | YT |
 |--------|---------|-|-----|-----|
 | UUID | `90cd4a77-141a-43c9-991b-08263cfe9c10` |✅| Powershell -NoExit -Command "[guid]::NewGuid()"| [Video](https://www.youtube.com/watch?v=s91zjpw3-P8&t=72s) |
@@ -149,37 +151,69 @@ Telegram交流群：[@CMLiussss](https://t.me/CMLiussss)，**感谢[Alice Networ
 | DLS | `8` |❌| `ADDCSV`测速结果满足速度下限 ||
 | TGTOKEN | `6894123456:XXXXXXXXXX0qExVsBPUhHDAbXXX` |❌| 发送TG通知的机器人token | 
 | TGID | `6946912345` |❌| 接收TG通知的账户数字ID | 
-| SUB | `VLESS.fxxk.dedyn.io` | ❌ | 内建域名、IP节点信息的订阅生成器地址 | [Video](https://www.youtube.com/watch?v=s91zjpw3-P8&t=1193s) |
+| SUB | `VLESS.fxxk.dedyn.io` | ❌ | 优选订阅生成器域名 | [Video](https://www.youtube.com/watch?v=s91zjpw3-P8&t=1193s) |
 | SUBAPI | `SUBAPI.fxxk.dedyn.io` |❌| clash、singbox等 订阅转换后端 | [Video](https://www.youtube.com/watch?v=s91zjpw3-P8&t=1446s) |
 | SUBCONFIG | [https://raw.github.../ACL4SSR_Online_Full_MultiMode.ini](https://raw.githubusercontent.com/cmliu/ACL4SSR/main/Clash/config/ACL4SSR_Online_Full_MultiMode.ini) |❌| clash、singbox等 订阅转换配置文件 | [Video](https://www.youtube.com/watch?v=s91zjpw3-P8&t=1605s) |
+| SUBEMOJI | `false` |❌| 订阅转换是否启用Emoji(默认`true`) | |
 | SUBNAME | `edgetunnel` |❌| 订阅名称 | |
 | RPROXYIP | `false` |❌| 设为 true 即可强制获取订阅器分配的ProxyIP(需订阅器支持)| [Video](https://www.youtube.com/watch?v=s91zjpw3-P8&t=1816s) |
 | URL302 | `https://t.me/CMLiussss` |❌| 主页302跳转(支持多url, url之间使用`,`或`换行`作间隔, 小白别用) |  |
 | URL | `https://blog.cmliussss.com` |❌| 主页反代伪装(支持多url, url之间使用`,`或`换行`作间隔, 乱设容易触发反诈) |  |
 | CFPORTS | `2053`,`2096`,`8443` |❌| CF账户标准端口列表 |  |
 
-**注意: 填入`KEY`后将不再启用`UUID`！请二选一使用！！！**
-1. 填入`KEY`后，永久订阅地址为`https://[YOUR-URL]/[YOUR-KEY]`；
-2. 填入`KEY`后，临时订阅地址为`https://[YOUR-URL]/[YOUR-UUID]`；
-3. **动态UUID**的订阅使用时间为**1**个`TIME`有效时间周期；
-4. **动态UUID**的节点使用时间为**2**个`TIME`有效时间周期（也就是动态UUID失效了，节点也可继续使用一个周期，只是无法继续更新订阅）；
+# 注意事项
 
-**注意: 填入`SOCKS5`后将不再启用`PROXYIP`！请二选一使用！！！**
+### **关于`KEY`与`UUID`：**
+- 填入`KEY`变量后，将停用`UUID`变量，请确保**二者选其一使用**！
+1. 填写`KEY`后，您的**永久订阅**地址为：`https://[YOUR-URL]/[YOUR-KEY]`；
+2. 使用动态`UUID`订阅时：
+   - 临时订阅地址为：`https://[YOUR-URL]/[YOUR-UUID]`；
+   - 订阅有效时间为：**1个`TIME`周期**；
+   - 节点可使用时间：**2个`TIME`周期**，即动态`UUID`失效后，节点仍可使用1个额外周期，但无法继续更新订阅。
 
-**注意: 填入`SUB`后将不再启用`ADD*`类变量生成的订阅内容！请二选一使用！！！**
+### **关于`SOCKS5`与`PROXYIP`：**
+- 填入`SOCKS5`后，将停用`PROXYIP`。请确保**二者选其一使用**！
 
-## 实用小技巧
+### **关于`SUB`与`ADD*`变量：**
+- 填入`SUB`后，将停用由`ADD*`类变量生成的订阅内容。请确保**二者选其一使用**！
 
-**该项目部署的订阅可通过添加`sub`键值快速更换优选订阅生成器！** 
-> 例如 `https://edgetunnel.pages.dev/90cd4a77-141a-43c9-991b-08263cfe9c10` 是你的通用自适应订阅地址
+### **当`SUB`和`ADD*`均为空时：**
+- 脚本将自动生成基于CF随机IP的线路，每次更新订阅时会生成不同的随机IP，确保您的订阅不会失联！
 
-- 快速更换订阅器为`VLESS.fxxk.dedyn.io`的订阅地址
-  
+
+# 实用技巧
+本项目提供灵活的订阅配置方案，支持通过URL参数快速自定义订阅内容。
+- 示例订阅地址： `https://edgetunnel.pages.dev/90cd4a77-141a-43c9-991b-08263cfe9c10` 
+
+1. 更换**订阅生成器**的订阅地址
+
+   快速切换订阅生成器至 `VLESS.fxxk.dedyn.io`：
    ```url
    https://edgetunnel.pages.dev/90cd4a77-141a-43c9-991b-08263cfe9c10?sub=VLESS.fxxk.dedyn.io
    ```
-   
-**该项目部署的节点可通过节点PATH(路径)的方式，使用指定的`PROXYIP`或`SOCKS5`！！！**
+
+2. 更换**PROXYIP**的订阅地址
+
+   快速更换PROXYIP为 `proxyip.fxxk.dedyn.io`：
+   ```url
+   https://edgetunnel.pages.dev/90cd4a77-141a-43c9-991b-08263cfe9c10?proxyip=proxyip.fxxk.dedyn.io
+   ```
+
+3. 更换**SOCKS5**的订阅地址
+
+   快速设置SOCKS5代理为 `user:password@127.0.0.1:1080`：
+   ```url
+   https://edgetunnel.pages.dev/90cd4a77-141a-43c9-991b-08263cfe9c10?socks5=user:password@127.0.0.1:1080
+   ```
+
+- 通过提交多个参数快速修改的订阅地址
+
+   例如同时修改**订阅生成器**和**PROXYIP**：
+   ```url
+   https://edgetunnel.pages.dev/90cd4a77-141a-43c9-991b-08263cfe9c10?sub=VLESS.fxxk.dedyn.io&proxyip=proxyip.fxxk.dedyn.io
+   ```
+
+4. 该项目部署的节点可通过节点PATH(路径)的方式，使用指定的`PROXYIP`或`SOCKS5`！！！**
 
 - 指定 `PROXYIP` 案例
    ```url
@@ -196,7 +230,7 @@ Telegram交流群：[@CMLiussss](https://t.me/CMLiussss)，**感谢[Alice Networ
    /socks5://user:password@127.0.0.1:1080
    ```
 
-**当你的`ADDAPI`可作为`PROXYIP`时，可在`ADDAPI`变量末位添加`?proxyip=true`，即可在生成节点时使用优选IP自身作为`PROXYIP`**
+5. **当你的`ADDAPI`可作为`PROXYIP`时，可在`ADDAPI`变量末位添加`?proxyip=true`，即可在生成节点时使用优选IP自身作为`PROXYIP`**
 - 指定 `ADDAPI` 作为 `PROXYIP` 案例
    ```url
    https://raw.githubusercontent.com/cmliu/WorkerVless2sub/main/addressesapi.txt?proxyip=true
@@ -208,7 +242,7 @@ Telegram交流群：[@CMLiussss](https://t.me/CMLiussss)，**感谢[Alice Networ
 ## 已适配客户端
 ### Windows
    - [v2rayN](https://github.com/2dust/v2rayN)
-   - clash.meta（[FlClash](https://github.com/chen08209/FlClash)，[clash-verge-rev](https://github.com/clash-verge-rev/clash-verge-rev)，[Clash Nyanpasu](https://github.com/keiko233/clash-nyanpasu)）
+   - clash.meta（[FlClash](https://github.com/chen08209/FlClash)，[mihomo-party](https://github.com/mihomo-party-org/mihomo-party)，[clash-verge-rev](https://github.com/clash-verge-rev/clash-verge-rev)，[Clash Nyanpasu](https://github.com/keiko233/clash-nyanpasu)）
 ### IOS
    - Surge，小火箭
    - sing-box（[SFI](https://sing-box.sagernet.org/zh/clients/apple/)）
@@ -216,7 +250,7 @@ Telegram交流群：[@CMLiussss](https://t.me/CMLiussss)，**感谢[Alice Networ
    - clash.meta（[ClashMetaForAndroid](https://github.com/MetaCubeX/ClashMetaForAndroid)，[FlClash](https://github.com/chen08209/FlClash)）
    - sing-box（[SFA](https://github.com/SagerNet/sing-box)）
 ### MacOS
-   - clash.meta（[FlClash](https://github.com/chen08209/FlClash)）
+   - clash.meta（[FlClash](https://github.com/chen08209/FlClash)，[mihomo-party](https://github.com/mihomo-party-org/mihomo-party)）
 
 # 感谢
 [zizifn](https://github.com/zizifn/edgetunnel)、[3Kmfi6HP](https://github.com/6Kmfi6HP/EDtunnel)、[Stanley-baby](https://github.com/Stanley-baby)、[ACL4SSR](https://github.com/ACL4SSR/ACL4SSR/tree/master/Clash/config)、[SHIJS1999](https://github.com/SHIJS1999/cloudflare-worker-vless-ip)、<a href="https://url.cmliussss.com/alice"><img src="https://alicenetworks.net/templates/lagom2/assets/img/logo/logo_big.194980063.png" width="150" height="75" alt="Alice Networks LTD"/></a>、
