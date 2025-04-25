@@ -5,7 +5,7 @@
 - **edgetunnel 最新教程**：https://www.youtube.com/watch?v=tKe9xUuFODA ***必看内容!必看内容!必看内容!!!***
 - **报错 Error 1101 详解**：https://www.youtube.com/watch?v=r4uVTEJptdE
 
-Telegram交流群：[@CMLiussss](https://t.me/CMLiussss)，**感谢[Alice Networks](https://url.cmliussss.com/alice)提供的云服务器维持[CM订阅转换服务](https://sub.cmliussss.net/)！**
+- Telegram交流群：[@CMLiussss](https://t.me/CMLiussss)
 
 ## ⚠️ 免责声明
 
@@ -256,5 +256,14 @@ Telegram交流群：[@CMLiussss](https://t.me/CMLiussss)，**感谢[Alice Networ
 ### MacOS
    - clash.meta（[FlClash](https://github.com/chen08209/FlClash)，[mihomo-party](https://github.com/mihomo-party-org/mihomo-party)）
 
-# 🙏 感谢
-[zizifn](https://github.com/zizifn/edgetunnel)、[3Kmfi6HP](https://github.com/6Kmfi6HP/EDtunnel)、[Stanley-baby](https://github.com/Stanley-baby)、[ACL4SSR](https://github.com/ACL4SSR/ACL4SSR/tree/master/Clash/config)、[SHIJS1999](https://github.com/SHIJS1999/cloudflare-worker-vless-ip)、[Alice Networks LTD](https://url.cmliussss.com/alice)、
+
+# 🙏 特别鸣谢
+### 💖 赞助支持 - 提供云服务器维持[订阅转换服务](https://sub.cmliussss.net/)
+- [Alice Networks LTD](https://url.cmliussss.com/alice)
+- [VTEXS Enterprise Cloud](https://console.vtexs.com/?affid=1532)
+### 🛠 开源代码引用
+- [zizifn/edgetunnel](https://github.com/zizifn/edgetunnel)
+- [3Kmfi6HP/EDtunnel](https://github.com/6Kmfi6HP/EDtunnel)
+- [SHIJS1999/cloudflare-worker-vless-ip](https://github.com/SHIJS1999/cloudflare-worker-vless-ip)
+- [Stanley-baby](https://github.com/Stanley-baby)
+- [ACL4SSR](https://github.com/ACL4SSR/ACL4SSR/tree/master/Clash/config)
