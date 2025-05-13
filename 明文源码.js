@@ -411,7 +411,7 @@ async function handleTCPOutBound(remoteSocket, addressType, addressRemote, portR
 				proxyIP = proxyIP.split(':')[0] || proxyIP;
 			}
 			if (proxyIP.includes('.tp')) portRemote = proxyIP.split('.tp')[1].split('.')[0] || portRemote;
-			tcpSocket = await connectAndWrite(proxyIP || addressRemote, portRemote);
+			tcpSocket = await connectAndWrite(proxyIP.toLowerCase() || addressRemote, portRemote);
 		}
 		// 无论重试是否成功，都要关闭 WebSocket（可能是为了重新建立连接）
 		tcpSocket.closed.catch(error => {
