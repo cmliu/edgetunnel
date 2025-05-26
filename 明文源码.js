@@ -862,7 +862,7 @@ async function handleDNSQuery(udpChunk, webSocket, 维列斯ResponseHeader, log)
 	// 因为有些 DNS 服务器不支持 DNS over TCP
 	try {
 		// 选用 Google 的 DNS 服务器（注：后续可能会改为 Cloudflare 的 1.1.1.1）
-		const dnsServer = '8.8.4.4'; // 在 Cloudflare 修复连接自身 IP 的 bug 后，将改为 1.1.1.1
+		const dnsServer = '1.1.1.1'; // 在 Cloudflare 修复连接自身 IP 的 bug 后，将改为 1.1.1.1
 		const dnsPort = 53; // DNS 服务的标准端口
 
 		let 维列斯Header = 维列斯ResponseHeader; // 保存 维列斯 响应头部，用于后续发送
