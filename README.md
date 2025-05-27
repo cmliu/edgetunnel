@@ -274,4 +274,4 @@
 - [SHIJS1999/cloudflare-worker-vless-ip](https://github.com/SHIJS1999/cloudflare-worker-vless-ip)
 - [Stanley-baby](https://github.com/Stanley-baby)
 - [ACL4SSR](https://github.com/ACL4SSR/ACL4SSR/tree/master/Clash/config)
-- [股神](https://t.me/CF_NAT/38885)
+- [股神](https://t.me/CF_NAT/38889)
