@@ -168,8 +168,9 @@ export default {
 					const fakeConfig = await 生成配置信息(userID, request.headers.get('Host'), sub, 'CF-Workers-SUB', RproxyIP, url, fakeUserID, fakeHostName, env);
 					return new Response(`${fakeConfig}`, { status: 200 });
 				} else if (url.pathname == `/${动态UUID}/edit` || 路径 == `/${userID}/edit`) {
-					const html = await KV(request, env);
-					return html;
+					return await KV(request, env);
+				} else if (url.pathname == `/${动态UUID}/bestip` || 路径 == `/${userID}/bestip`) {
+					return await bestIP(request, env);
 				} else if (url.pathname == `/${动态UUID}` || 路径 == `/${userID}`) {
 					await sendMessage(`#获取订阅 ${FileName}`, request.headers.get('CF-Connecting-IP'), `UA: ${UA}</tg-spoiler>\n域名: ${url.hostname}\n<tg-spoiler>入口: ${url.pathname + url.search}</tg-spoiler>`);
 					const 维列斯Config = await 生成配置信息(userID, request.headers.get('Host'), sub, UA, RproxyIP, url, fakeUserID, fakeHostName, env);
@@ -1506,7 +1507,7 @@ async function 生成配置信息(userID, hostName, sub, UA, RproxyIP, _url, fak
 			else if (proxyIP && proxyIP != '') 订阅器 += `CFCDN（访问方式）: ProxyIP<br>&nbsp;&nbsp;${proxyIPs.join('<br>&nbsp;&nbsp;')}<br>`;
 			else 订阅器 += `CFCDN（访问方式）: 无法访问, 需要您设置 proxyIP/PROXYIP ！！！<br>`;
 			let 判断是否绑定KV空间 = '';
-			if (env.KV) 判断是否绑定KV空间 = ` <a href='${_url.pathname}/edit'>编辑优选列表</a>`;
+			if (env.KV) 判断是否绑定KV空间 = ` [<a href='${_url.pathname}/edit'>编辑优选列表</a>]  [<a href='${_url.pathname}/bestip'>在线优选IP</a>]`;
 			订阅器 += `<br>您的订阅内容由 内置 addresses/ADD* 参数变量提供${判断是否绑定KV空间}<br>`;
 			if (addresses.length > 0) 订阅器 += `ADD（TLS优选域名&IP）: <br>&nbsp;&nbsp;${addresses.join('<br>&nbsp;&nbsp;')}<br>`;
 			if (addressesnotls.length > 0) 订阅器 += `ADDNOTLS（noTLS优选域名&IP）: <br>&nbsp;&nbsp;${addressesnotls.join('<br>&nbsp;&nbsp;')}<br>`;
@@ -2542,4 +2543,834 @@ async function resolveToIPv6(target) {
 		console.error('解析错误:', error);
 		return `解析失败: ${error.message}`;
 	}
+}
+
+async function bestIP(request, env, txt = 'ADD.txt') {
+    const country = request.cf?.country || 'CN';
+    const url = new URL(request.url);
+
+    async function GetCFIPs() {
+        try {
+            // 首先尝试第一个URL
+            let response = await fetch('https://raw.githubusercontent.com/ipverse/asn-ip/master/as/13335/ipv4-aggregated.txt');
+            if (!response.ok) {
+                // 如果失败，尝试第二个URL
+                response = await fetch('https://www.cloudflare.com/ips-v4/');
+            }
+
+            const text = response.ok ? await response.text() : `173.245.48.0/20
+103.21.244.0/22
+103.22.200.0/22
+103.31.4.0/22
+141.101.64.0/18
+108.162.192.0/18
+190.93.240.0/20
+188.114.96.0/20
+197.234.240.0/22
+198.41.128.0/17
+162.158.0.0/15
+104.16.0.0/13
+104.24.0.0/14
+172.64.0.0/13
+131.0.72.0/22`;
+            const cidrs = text.split('\n').filter(line => line.trim() && !line.startsWith('#'));
+
+            const ips = new Set(); // 使用Set去重
+            const targetCount = 1000;
+            let round = 1;
+
+            // 不断轮次生成IP直到达到目标数量
+            while (ips.size < targetCount) {
+                console.log(`第${round}轮生成IP，当前已有${ips.size}个`);
+
+                // 每轮为每个CIDR生成指定数量的IP
+                for (const cidr of cidrs) {
+                    if (ips.size >= targetCount) break;
+
+                    const cidrIPs = generateIPsFromCIDR(cidr.trim(), round);
+                    cidrIPs.forEach(ip => ips.add(ip));
+
+                    console.log(`CIDR ${cidr} 第${round}轮生成${cidrIPs.length}个IP，总计${ips.size}个`);
+                }
+
+                round++;
+
+                // 防止无限循环
+                if (round > 100) {
+                    console.warn('达到最大轮次限制，停止生成');
+                    break;
+                }
+            }
+
+            console.log(`最终生成${ips.size}个不重复IP`);
+            return Array.from(ips).slice(0, targetCount);
+        } catch (error) {
+            console.error('获取CF IPs失败:', error);
+            return [];
+        }
+    }
+
+    function generateIPsFromCIDR(cidr, count = 1) {
+        const [network, prefixLength] = cidr.split('/');
+        const prefix = parseInt(prefixLength);
+
+        // 将IP地址转换为32位整数
+        const ipToInt = (ip) => {
+            return ip.split('.').reduce((acc, octet) => (acc << 8) + parseInt(octet), 0) >>> 0;
+        };
+
+        // 将32位整数转换为IP地址
+        const intToIP = (int) => {
+            return [
+                (int >>> 24) & 255,
+                (int >>> 16) & 255,
+                (int >>> 8) & 255,
+                int & 255
+            ].join('.');
+        };
+
+        const networkInt = ipToInt(network);
+        const hostBits = 32 - prefix;
+        const numHosts = Math.pow(2, hostBits);
+
+        // 限制生成数量不超过该CIDR的可用主机数
+        const maxHosts = numHosts - 2; // -2 排除网络地址和广播地址
+        const actualCount = Math.min(count, maxHosts);
+        const ips = new Set();
+
+        // 如果可用主机数太少，直接返回空数组
+        if (maxHosts <= 0) {
+            return [];
+        }
+
+        // 生成指定数量的随机IP
+        let attempts = 0;
+        const maxAttempts = actualCount * 10; // 防止无限循环
+
+        while (ips.size < actualCount && attempts < maxAttempts) {
+            const randomOffset = Math.floor(Math.random() * maxHosts) + 1; // +1 避免网络地址
+            const randomIP = intToIP(networkInt + randomOffset);
+            ips.add(randomIP);
+            attempts++;
+        }
+
+        return Array.from(ips);
+    }
+
+    // POST请求处理
+    if (request.method === "POST") {
+        if (!env.KV) return new Response("未绑定KV空间", { status: 400 });
+
+        try {
+            const contentType = request.headers.get('Content-Type');
+
+            // 处理JSON格式的保存/追加请求
+            if (contentType && contentType.includes('application/json')) {
+                const data = await request.json();
+                const action = url.searchParams.get('action') || 'save';
+
+                if (!data.ips || !Array.isArray(data.ips)) {
+                    return new Response(JSON.stringify({ error: 'Invalid IP list' }), {
+                        status: 400,
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+                }
+
+                if (action === 'append') {
+                    // 追加模式
+                    const existingContent = await env.KV.get(txt) || '';
+                    const newContent = data.ips.join('\n');
+
+                    // 合并内容并去重
+                    const existingLines = existingContent ?
+                        existingContent.split('\n').map(line => line.trim()).filter(line => line) :
+                        [];
+                    const newLines = newContent.split('\n').map(line => line.trim()).filter(line => line);
+
+                    // 使用Set进行去重
+                    const allLines = [...existingLines, ...newLines];
+                    const uniqueLines = [...new Set(allLines)];
+                    const combinedContent = uniqueLines.join('\n');
+
+                    // 检查合并后的内容大小
+                    if (combinedContent.length > 24 * 1024 * 1024) {
+                        return new Response(JSON.stringify({
+                            error: `追加失败：合并后内容过大（${(combinedContent.length / 1024 / 1024).toFixed(2)}MB），超过KV存储限制（24MB）`
+                        }), {
+                            status: 400,
+                            headers: { 'Content-Type': 'application/json' }
+                        });
+                    }
+
+                    await env.KV.put(txt, combinedContent);
+
+                    const addedCount = uniqueLines.length - existingLines.length;
+                    const duplicateCount = newLines.length - addedCount;
+
+                    let message = `成功追加 ${addedCount} 个新的优选IP（原有 ${existingLines.length} 个，现共 ${uniqueLines.length} 个）`;
+                    if (duplicateCount > 0) {
+                        message += `，已去重 ${duplicateCount} 个重复项`;
+                    }
+
+                    return new Response(JSON.stringify({
+                        success: true,
+                        message: message
+                    }), {
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+                } else {
+                    // 保存模式（覆盖）
+                    const content = data.ips.join('\n');
+
+                    // 检查内容大小
+                    if (content.length > 24 * 1024 * 1024) {
+                        return new Response(JSON.stringify({
+                            error: '内容过大，超过KV存储限制（24MB）'
+                        }), {
+                            status: 400,
+                            headers: { 'Content-Type': 'application/json' }
+                        });
+                    }
+
+                    await env.KV.put(txt, content);
+
+                    return new Response(JSON.stringify({
+                        success: true,
+                        message: `成功保存 ${data.ips.length} 个优选IP`
+                    }), {
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+                }
+            } else {
+                // 处理普通文本格式的保存请求（兼容原有功能）
+                const content = await request.text();
+                await env.KV.put(txt, content);
+                return new Response("保存成功");
+            }
+
+        } catch (error) {
+            console.error('处理POST请求时发生错误:', error);
+            return new Response(JSON.stringify({
+                error: '操作失败: ' + error.message
+            }), {
+                status: 500,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
+    }
+
+    // GET请求部分
+    let content = '';
+    let hasKV = !!env.KV;
+
+    if (hasKV) {
+        try {
+            content = await env.KV.get(txt) || '';
+        } catch (error) {
+            console.error('读取KV时发生错误:', error);
+            content = '读取数据时发生错误: ' + error.message;
+        }
+    }
+
+    const cfIPs = await GetCFIPs();
+
+    // 判断是否为中国用户
+    const isChina = country === 'CN';
+    const countryDisplayClass = isChina ? '' : 'proxy-warning';
+    const countryDisplayText = isChina ? country : `${country} ⚠️`;
+
+    const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+    <title>Cloudflare IP优选</title>
+    <style>
+        body {
+            width: 80%;
+            margin: 0 auto;
+            font-family: Tahoma, Verdana, Arial, sans-serif;
+            padding: 20px;
+        }
+        .ip-list {
+            background-color: #f5f5f5;
+            padding: 10px;
+            border-radius: 5px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .ip-item {
+            margin: 2px 0;
+            font-family: monospace;
+        }
+        .stats {
+            background-color: #e3f2fd;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .proxy-warning {
+            color: #d32f2f !important;
+            font-weight: bold !important;
+            font-size: 1.1em;
+        }
+        .warning-notice {
+            background-color: #ffebee;
+            border: 2px solid #f44336;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 15px 0;
+            color: #c62828;
+        }
+        .warning-notice h3 {
+            margin: 0 0 10px 0;
+            color: #d32f2f;
+            font-size: 1.2em;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .warning-notice p {
+            margin: 8px 0;
+            line-height: 1.5;
+        }
+        .warning-notice ul {
+            margin: 10px 0 10px 20px;
+            line-height: 1.6;
+        }
+        .test-controls {
+            margin: 20px 0;
+            padding: 15px;
+            background-color: #f9f9f9;
+            border-radius: 5px;
+        }
+        .port-selector {
+            margin: 10px 0;
+        }
+        .port-selector label {
+            font-weight: bold;
+            margin-right: 10px;
+        }
+        .port-selector select {
+            padding: 5px 10px;
+            font-size: 14px;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+        }
+        .button-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 15px;
+        }
+        .test-button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 15px 32px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            cursor: pointer;
+            border: none;
+            border-radius: 4px;
+            transition: background-color 0.3s;
+        }
+        .test-button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        .save-button {
+            background-color: #2196F3;
+            color: white;
+            padding: 15px 32px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            cursor: pointer;
+            border: none;
+            border-radius: 4px;
+            transition: background-color 0.3s;
+        }
+        .save-button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        .save-button:not(:disabled):hover {
+            background-color: #1976D2;
+        }
+        .append-button {
+            background-color: #FF9800;
+            color: white;
+            padding: 15px 32px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            cursor: pointer;
+            border: none;
+            border-radius: 4px;
+            transition: background-color 0.3s;
+        }
+        .append-button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        .append-button:not(:disabled):hover {
+            background-color: #F57C00;
+        }
+        .back-button {
+            background-color: #607D8B;
+            color: white;
+            padding: 15px 32px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            cursor: pointer;
+            border: none;
+            border-radius: 4px;
+            transition: background-color 0.3s;
+        }
+        .back-button:hover {
+            background-color: #455A64;
+        }
+        .save-warning {
+            margin-top: 10px;
+            background-color: #fff3e0;
+            border: 2px solid #ff9800;
+            border-radius: 6px;
+            padding: 12px;
+            color: #e65100;
+            font-weight: bold;
+        }
+        .save-warning small {
+            font-size: 14px;
+            line-height: 1.5;
+            display: block;
+        }
+        .message {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            display: none;
+        }
+        .message.success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .message.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .progress {
+            width: 100%;
+            background-color: #f0f0f0;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .progress-bar {
+            width: 0%;
+            height: 20px;
+            background-color: #4CAF50;
+            border-radius: 5px;
+            transition: width 0.3s;
+        }
+        .good-latency { color: #4CAF50; font-weight: bold; }
+        .medium-latency { color: #FF9800; font-weight: bold; }
+        .bad-latency { color: #f44336; font-weight: bold; }
+    </style>
+    </head>
+    <body>
+    <h1>在线优选IP</h1>
+    
+    <div class="stats">
+        <h2>统计信息</h2>
+        <p><strong>您的国家：</strong><span class="${countryDisplayClass}">${countryDisplayText}</span></p>
+        <p><strong>获取到的IP总数：</strong>${cfIPs.length} 个</p>
+        <p><strong>测试进度：</strong><span id="progress-text">未开始</span></p>
+        <div class="progress">
+            <div class="progress-bar" id="progress-bar"></div>
+        </div>
+    </div>
+    
+    ${!isChina ? `
+    <div class="warning-notice">
+        <h3>🚨 代理检测警告</h3>
+        <p><strong>检测到您当前很可能处于代理/VPN环境中！</strong></p>
+        <p>在代理状态下进行的IP优选测试结果将不准确，可能导致：</p>
+        <ul>
+            <li>延迟数据失真，无法反映真实网络状况</li>
+            <li>优选出的IP在直连环境下表现不佳</li>
+            <li>测试结果对实际使用场景参考价值有限</li>
+        </ul>
+        <p><strong>建议操作：</strong>请关闭所有代理软件（VPN、科学上网工具等），确保处于直连网络环境后重新访问本页面。</p>
+    </div>
+    ` : ''}
+    
+    <div class="test-controls">
+        <div class="port-selector">
+            <label for="port-select">选择端口：</label>
+            <select id="port-select">
+                <option value="443" selected>443</option>
+                <option value="2053">2053</option>
+                <option value="2083">2083</option>
+                <option value="2087">2087</option>
+                <option value="2096">2096</option>
+                <option value="8443">8443</option>
+            </select>
+        </div>
+        <div class="button-group">
+            <button class="test-button" id="test-btn" onclick="startTest()">开始延迟测试</button>
+            <button class="save-button" id="save-btn" onclick="saveIPs()" disabled>覆盖保存优选IP</button>
+            <button class="append-button" id="append-btn" onclick="appendIPs()" disabled>追加保存优选IP</button>
+            <button class="back-button" id="back-btn" onclick="goBack()">返回配置页</button>
+        </div>
+        <div class="save-warning">
+            <small>⚠️ 重要提醒："覆盖保存优选IP"会完全覆盖当前 addresses/ADD 优选内容，请慎重考虑！建议优先使用"追加保存优选IP"功能。</small>
+        </div>
+        <div id="message" class="message"></div>
+    </div>
+    
+    <h2>IP列表 <span id="result-count"></span></h2>
+    <div class="ip-list" id="ip-list">
+        ${cfIPs.map(ip => `<div class="ip-item">${ip}</div>`).join('')}
+    </div>
+    
+    <script>
+        const originalIPs = ${JSON.stringify(cfIPs)};
+        let testResults = [];
+        let displayedResults = []; // 新增：存储当前显示的结果
+        
+        function showMessage(text, type = 'success') {
+            const messageDiv = document.getElementById('message');
+            messageDiv.textContent = text;
+            messageDiv.className = \`message \${type}\`;
+            messageDiv.style.display = 'block';
+            
+            // 3秒后自动隐藏消息
+            setTimeout(() => {
+                messageDiv.style.display = 'none';
+            }, 3000);
+        }
+        
+        function updateButtonStates() {
+            const saveBtn = document.getElementById('save-btn');
+            const appendBtn = document.getElementById('append-btn');
+            const hasResults = displayedResults.length > 0;
+            
+            saveBtn.disabled = !hasResults;
+            appendBtn.disabled = !hasResults;
+        }
+        
+        function disableAllButtons() {
+            const testBtn = document.getElementById('test-btn');
+            const saveBtn = document.getElementById('save-btn');
+            const appendBtn = document.getElementById('append-btn');
+            const backBtn = document.getElementById('back-btn');
+            const portSelect = document.getElementById('port-select');
+            
+            testBtn.disabled = true;
+            saveBtn.disabled = true;
+            appendBtn.disabled = true;
+            backBtn.disabled = true;
+            portSelect.disabled = true;
+        }
+        
+        function enableButtons() {
+            const testBtn = document.getElementById('test-btn');
+            const backBtn = document.getElementById('back-btn');
+            const portSelect = document.getElementById('port-select');
+            
+            testBtn.disabled = false;
+            backBtn.disabled = false;
+            portSelect.disabled = false;
+            updateButtonStates();
+        }
+        
+        async function saveIPs() {
+            if (displayedResults.length === 0) {
+                showMessage('没有可保存的IP结果', 'error');
+                return;
+            }
+            
+            const saveBtn = document.getElementById('save-btn');
+            const originalText = saveBtn.textContent;
+            
+            // 禁用所有按钮
+            disableAllButtons();
+            saveBtn.textContent = '保存中...';
+            
+            try {
+                const ips = displayedResults.map(result => result.display);
+                
+                const response = await fetch('?action=save', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ ips })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showMessage(data.message, 'success');
+                } else {
+                    showMessage(data.error || '保存失败', 'error');
+                }
+                
+            } catch (error) {
+                showMessage('保存失败: ' + error.message, 'error');
+            } finally {
+                saveBtn.textContent = originalText;
+                enableButtons();
+            }
+        }
+        
+        async function appendIPs() {
+            if (displayedResults.length === 0) {
+                showMessage('没有可追加的IP结果', 'error');
+                return;
+            }
+            
+            const appendBtn = document.getElementById('append-btn');
+            const originalText = appendBtn.textContent;
+            
+            // 禁用所有按钮
+            disableAllButtons();
+            appendBtn.textContent = '追加中...';
+            
+            try {
+                const ips = displayedResults.map(result => result.display);
+                
+                const response = await fetch('?action=append', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ ips })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showMessage(data.message, 'success');
+                } else {
+                    showMessage(data.error || '追加失败', 'error');
+                }
+                
+            } catch (error) {
+                showMessage('追加失败: ' + error.message, 'error');
+            } finally {
+                appendBtn.textContent = originalText;
+                enableButtons();
+            }
+        }
+        
+        function goBack() {
+            const currentUrl = window.location.href;
+            const parentUrl = currentUrl.substring(0, currentUrl.lastIndexOf('/'));
+            window.location.href = parentUrl;
+        }
+        
+        async function testIP(ip, port) {
+            const timeout = 999;
+            
+            // 第一次测试
+            const firstResult = await singleTest(ip, port, timeout);
+            if (!firstResult) {
+                return null; // 第一次测试失败，直接返回
+            }
+            
+            // 第一次测试成功，再进行2次测试
+            console.log(\`IP \${ip}:\${port} 第一次测试成功: \${firstResult.latency}ms，进行额外测试...\`);
+            
+            const results = [firstResult];
+            
+            // 进行第二次和第三次测试
+            for (let i = 2; i <= 3; i++) {
+                const result = await singleTest(ip, port, timeout);
+                if (result) {
+                    results.push(result);
+                    console.log(\`IP \${ip}:\${port} 第\${i}次测试: \${result.latency}ms\`);
+                }
+            }
+            
+            // 取最低延迟
+            const bestResult = results.reduce((best, current) => 
+                current.latency < best.latency ? current : best
+            );
+            
+            // 将延迟除以2并向下取整（因为是往返时间）
+            const displayLatency = Math.floor(bestResult.latency / 2);
+            
+            console.log(\`IP \${ip}:\${port} 最终结果: \${displayLatency}ms (原始: \${bestResult.latency}ms, 共\${results.length}次有效测试)\`);
+            
+            return {
+                ip: ip,
+                port: port,
+                latency: displayLatency,
+                originalLatency: bestResult.latency,
+                testCount: results.length,
+                display: \`\${ip}:\${port}#CF优选IP \${displayLatency}ms\`
+            };
+        }
+        
+        async function singleTest(ip, port, timeout) {
+            const startTime = Date.now();
+            
+            try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), timeout);
+                
+                const response = await fetch(\`https://\${ip}:\${port}/cdn-cgi/trace\`, {
+                    signal: controller.signal,
+                    mode: 'cors'
+                });
+                
+                clearTimeout(timeoutId);
+                // 如果请求成功了，说明这个IP不是我们要的
+                return null;
+                
+            } catch (error) {
+                const latency = Date.now() - startTime;
+                
+                // 检查是否是真正的超时（接近设定的timeout时间）
+                if (latency >= timeout - 50) {
+                    return null;
+                }
+                
+                // 检查是否是 Failed to fetch 错误（通常是SSL/证书错误）
+                if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+                    return {
+                        ip: ip,
+                        port: port,
+                        latency: latency
+                    };
+                }
+                
+                return null;
+            }
+        }
+        
+        async function testIPsWithConcurrency(ips, port, maxConcurrency = 32) {
+            const results = [];
+            const totalIPs = ips.length;
+            let completedTests = 0;
+            
+            const progressBar = document.getElementById('progress-bar');
+            const progressText = document.getElementById('progress-text');
+            
+            // 创建工作队列
+            let index = 0;
+            
+            async function worker() {
+                while (index < ips.length) {
+                    const currentIndex = index++;
+                    const ip = ips[currentIndex];
+                    
+                    const result = await testIP(ip, port);
+                    if (result) {
+                        results.push(result);
+                    }
+                    
+                    completedTests++;
+                    
+                    // 更新进度
+                    const progress = (completedTests / totalIPs) * 100;
+                    progressBar.style.width = progress + '%';
+                    progressText.textContent = \`\${completedTests}/\${totalIPs} (\${progress.toFixed(1)}%) - 有效IP: \${results.length}\`;
+                }
+            }
+            
+            // 创建工作线程
+            const workers = Array(Math.min(maxConcurrency, ips.length))
+                .fill()
+                .map(() => worker());
+            
+            await Promise.all(workers);
+            
+            return results;
+        }
+        
+        async function startTest() {
+            const testBtn = document.getElementById('test-btn');
+            const portSelect = document.getElementById('port-select');
+            const progressBar = document.getElementById('progress-bar');
+            const progressText = document.getElementById('progress-text');
+            const ipList = document.getElementById('ip-list');
+            const resultCount = document.getElementById('result-count');
+            
+            const selectedPort = portSelect.value;
+            
+            testBtn.disabled = true;
+            testBtn.textContent = '测试中...';
+            portSelect.disabled = true;
+            testResults = [];
+            displayedResults = []; // 重置显示结果
+            ipList.innerHTML = '<div class="ip-item">测试中，请稍候...</div>';
+            updateButtonStates(); // 更新按钮状态
+            
+            // 重置进度条
+            progressBar.style.width = '0%';
+            progressText.textContent = \`开始测试端口 \${selectedPort}...\`;
+            
+            // 使用32个并发线程测试
+            const results = await testIPsWithConcurrency(originalIPs, selectedPort, 16);
+            
+            // 按延迟排序
+            testResults = results.sort((a, b) => a.latency - b.latency);
+            
+            // 显示结果
+            displayResults();
+            
+            testBtn.disabled = false;
+            testBtn.textContent = '重新测试';
+            portSelect.disabled = false;
+            progressText.textContent = \`完成 - 有效IP: \${testResults.length}/\${originalIPs.length} (端口: \${selectedPort})\`;
+        }
+        
+        function displayResults() {
+            const ipList = document.getElementById('ip-list');
+            const resultCount = document.getElementById('result-count');
+            
+            if (testResults.length === 0) {
+                ipList.innerHTML = '<div class="ip-item">未找到有效的IP</div>';
+                resultCount.textContent = '';
+                displayedResults = [];
+                updateButtonStates();
+                return;
+            }
+            
+            // 只显示前16个最优IP
+            const displayCount = Math.min(testResults.length, 16);
+            displayedResults = testResults.slice(0, displayCount);
+            
+            resultCount.textContent = \`(显示前 \${displayCount} 个最优IP，共测试出 \${testResults.length} 个有效IP)\`;
+            
+            const resultsHTML = displayedResults.map(result => {
+                let className = 'good-latency';
+                if (result.latency > 200) className = 'bad-latency';
+                else if (result.latency > 100) className = 'medium-latency';
+                
+                return \`<div class="ip-item \${className}">\${result.display}</div>\`;
+            }).join('');
+            
+            ipList.innerHTML = resultsHTML;
+            updateButtonStates();
+        }
+    </script>
+    
+    </body>
+    </html>
+    `;
+
+    return new Response(html, {
+        headers: {
+            'Content-Type': 'text/html; charset=UTF-8',
+        },
+    });
 }
