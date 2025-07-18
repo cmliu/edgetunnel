@@ -49,6 +49,8 @@ let link = [];
 let banHosts = [atob('c3BlZWQuY2xvdWRmbGFyZS5jb20=')];
 let SCV = 'true';
 let allowInsecure = '&allowInsecure=1';
+const URL302 = ''
+const MURL = ''
 export default {
     async fetch(request, env, ctx) {
         try {
@@ -156,9 +158,11 @@ export default {
                 if (!SCV || SCV == '0' || SCV == 'false') allowInsecure = '';
                 else SCV = 'true';
                 const 路径 = url.pathname.toLowerCase();
+                const url302 = env.URL302 || env.url302 || URL302
+		const murl = env.url || env.URL || MURL
                 if (路径 == '/') {
-                    if (env.URL302) return Response.redirect(env.URL302, 302);
-                    else if (env.URL) return await 代理URL(env.URL, url);
+                    if (url302 !== '') return Response.redirect(url302, 302);
+                    else if (murl !== '') return await 代理URL(murl, url);
                     else return new Response(JSON.stringify(request.cf, null, 4), {
                         status: 200,
                         headers: {
