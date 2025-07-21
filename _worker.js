@@ -1368,7 +1368,7 @@ function 配置信息(UUID, 域名地址) {
 }
 
 let subParams = ['sub', 'base64', 'b64', 'clash', 'singbox', 'sb'];
-const cmad = decodeURIComponent(atob('djIwMGRkQGdtYWlsLmNvbQrlsI/nhorlhY3otLnnur/ot68='));
+const cmad = decodeURIComponent(atob('JTIwJUU1JUIwJThGJUU3JTg2JThBJUU1JTg1JThEJUU4JUI0JUI5JUU3JUJBJUJGJUU4JUI3JUFGISUzQ2JyJTNFJTBBJTNDYSUyMGhyZWYlM0QnaHR0cHMlM0ElMkYlMkZ0Lm1lJTJGdjIwMGRkYm90JyUzRWh0dHBzJTNBJTJGJTJGdC5tZSUyRnYyMDBkZGJvdCUzQyUyRmElM0UlM0NiciUzRQ=='));
 /**
  * @param {string} userID
  * @param {string | null} hostName
