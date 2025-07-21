@@ -4,7 +4,7 @@
 - **edgetunnel 最新教程**：https://www.youtube.com/watch?v=tKe9xUuFODA ***必看内容!必看内容!必看内容!!!***
 - **报错 Error 1101 详解**：https://www.youtube.com/watch?v=r4uVTEJptdE
 
-- Telegram交流群：[@CMLiussss](https://t.me/CMLiussss)
+
 
 ## ⚠️ 免责声明
 
