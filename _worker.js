@@ -1717,7 +1717,7 @@ async function 生成配置信息(userID, hostName, sub, UA, RproxyIP, _url, fak
             } else {
                 const response = await fetch(url, {
                     headers: {
-                        'User-Agent': UA + atob('IENGLVdvcmtlcnMtZWRnZXR1bm5lbC9jbWxpdQ==')
+                        'User-Agent': (isBase64 ? 'v2rayN' : UA) + atob('IENGLVdvcmtlcnMtZWRnZXR1bm5lbC9jbWxpdQ==')
                     }
                 });
                 content = await response.text();
