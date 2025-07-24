@@ -44,7 +44,7 @@ let userIDLow;
 let userIDTime = "";
 let proxyIPPool = [];
 let path = '/?ed=2560';
-let 动态UUID;
+let 动态UUID = userID;
 let link = [];
 let banHosts = [atob('c3BlZWQuY2xvdWRmbGFyZS5jb20=')];
 let SCV = 'true';
@@ -62,7 +62,7 @@ export default {
                 const userIDs = await 生成动态UUID(动态UUID);
                 userID = userIDs[0];
                 userIDLow = userIDs[1];
-            }
+            } else 动态UUID = userID;
 
             if (!userID) {
                 return new Response('请设置你的UUID变量，或尝试重试部署，检查变量是否生效？', {
@@ -159,10 +159,10 @@ export default {
                 if (路径 == '/') {
                     if (env.URL302) return Response.redirect(env.URL302, 302);
                     else if (env.URL) return await 代理URL(env.URL, url);
-                    else return new Response(JSON.stringify(request.cf, null, 4), {
+                    else return new Response(await nginx(), {
                         status: 200,
                         headers: {
-                            'content-type': 'application/json',
+                            'Content-Type': 'text/html; charset=UTF-8',
                         },
                     });
                 } else if (路径 == `/${fakeUserID}`) {
@@ -183,7 +183,12 @@ export default {
                     let pagesSum = UD;
                     let workersSum = UD;
                     let total = 24 * 1099511627776;
-
+                    if (env.CF_EMAIL && env.CF_APIKEY) {
+                        const usage = await getUsage(env.CF_ID, env.CF_EMAIL, env.CF_APIKEY, env.CF_APITOKEN, env.CF_ALL);
+                        pagesSum = usage[1];
+                        workersSum = usage[2];
+                        total = env.CF_ALL ? Number(env.CF_ALL) : (1024 * 100); // 100K
+                    }
                     if (userAgent && userAgent.includes('mozilla')) {
                         return new Response(维列斯Config, {
                             status: 200,
@@ -218,12 +223,13 @@ export default {
                     enableHttp = url.pathname.includes('http://');
                     socks5Address = url.pathname.split('://')[1].split('#')[0];
                     if (socks5Address.includes('@')) {
-                        let userPassword = socks5Address.split('@')[0].replaceAll('%3D', '=');
+                        const lastAtIndex = socks5Address.lastIndexOf('@');
+                        let userPassword = socks5Address.substring(0, lastAtIndex).replaceAll('%3D', '=');
                         const base64Regex = /^(?:[A-Z0-9+/]{4})*(?:[A-Z0-9+/]{2}==|[A-Z0-9+/]{3}=)?$/i;
                         if (base64Regex.test(userPassword) && !userPassword.includes(':')) userPassword = atob(userPassword);
-                        socks5Address = `${userPassword}@${socks5Address.split('@')[1]}`;
+                        socks5Address = `${userPassword}@${socks5Address.substring(lastAtIndex + 1)}`;
                     }
-                    go2Socks5s = ['all in'];
+                    go2Socks5s = ['all in'];//开启全局SOCKS5
                 }
 
                 if (socks5Address) {
@@ -1196,8 +1202,8 @@ async function httpConnect(addressRemote, portRemote, log) {
  */
 function socks5AddressParser(address) {
     // 使用 "@" 分割地址，分为认证部分和服务器地址部分
-    // reverse() 是为了处理没有认证信息的情况，确保 latter 总是包含服务器地址
-    let [latter, former] = address.split("@").reverse();
+    const lastAtIndex = address.lastIndexOf("@");
+    let [latter, former] = lastAtIndex === -1 ? [address, undefined] : [address.substring(lastAtIndex + 1), address.substring(0, lastAtIndex)];
     let username, password, hostname, port;
 
     // 如果存在 former 部分，说明提供了认证信息
@@ -1211,14 +1217,23 @@ function socks5AddressParser(address) {
 
     // 解析服务器地址部分
     const latters = latter.split(":");
-    // 从末尾提取端口号（因为 IPv6 地址中也包含冒号）
-    port = Number(latters.pop());
+    // 检查是否是IPv6地址带端口格式 [xxx]:port
+    if (latters.length > 2 && latter.includes("]:")) {
+        // IPv6地址带端口格式：[2001:db8::1]:8080
+        port = Number(latter.split("]:")[1].replace(/[^\d]/g, ''));
+        hostname = latter.split("]:")[0] + "]"; // 正确提取hostname部分
+    } else if (latters.length === 2) {
+        // IPv4地址带端口或域名带端口
+        port = Number(latters.pop().replace(/[^\d]/g, ''));
+        hostname = latters.join(":");
+    } else {
+        port = 80;
+        hostname = latter;
+    }
+
     if (isNaN(port)) {
         throw new Error('无效的 SOCKS 地址格式：端口号必须是数字');
     }
-
-    // 剩余部分就是主机名（可能是域名、IPv4 或 IPv6 地址）
-    hostname = latters.join(":");
 
     // 处理 IPv6 地址的特殊情况
     // IPv6 地址包含多个冒号，所以必须用方括号括起来，如 [2001:db8::1]
@@ -1502,12 +1517,12 @@ async function 生成配置信息(userID, hostName, sub, UA, RproxyIP, _url, fak
             if (enableSocks) 订阅器 += `CFCDN（访问方式）: ${enableHttp ? "HTTP" : "Socks5"}<br>&nbsp;&nbsp;${newSocks5s.join('<br>&nbsp;&nbsp;')}<br>${socks5List}`;
             else if (proxyIP && proxyIP != '') 订阅器 += `CFCDN（访问方式）: ProxyIP<br>&nbsp;&nbsp;${proxyIPs.join('<br>&nbsp;&nbsp;')}<br>`;
             else if (RproxyIP == 'true') 订阅器 += `CFCDN（访问方式）: 自动获取ProxyIP<br>`;
-            else 订阅器 += `CFCDN（访问方式）: 无法访问, 需要您设置 proxyIP/PROXYIP ！！！<br>`
+            else 订阅器 += `CFCDN（访问方式）: 内置兜底, 您也可以设置 proxyIP/PROXYIP 。<br>`
             订阅器 += `<br>SUB（优选订阅生成器）: ${sub}`;
         } else {
             if (enableSocks) 订阅器 += `CFCDN（访问方式）: ${enableHttp ? "HTTP" : "Socks5"}<br>&nbsp;&nbsp;${newSocks5s.join('<br>&nbsp;&nbsp;')}<br>${socks5List}`;
             else if (proxyIP && proxyIP != '') 订阅器 += `CFCDN（访问方式）: ProxyIP<br>&nbsp;&nbsp;${proxyIPs.join('<br>&nbsp;&nbsp;')}<br>`;
-            else 订阅器 += `CFCDN（访问方式）: 无法访问, 需要您设置 proxyIP/PROXYIP ！！！<br>`;
+            else 订阅器 += `CFCDN（访问方式）: 内置兜底, 您也可以设置 proxyIP/PROXYIP 。<br>`;
             let 判断是否绑定KV空间 = '';
             if (env.KV) 判断是否绑定KV空间 = ` [<a href='${_url.pathname}/edit'>编辑优选列表</a>]  [<a href='${_url.pathname}/bestip'>在线优选IP</a>]`;
             订阅器 += `<br>您的订阅内容由 内置 addresses/ADD* 参数变量提供${判断是否绑定KV空间}<br>`;
@@ -1519,7 +1534,7 @@ async function 生成配置信息(userID, hostName, sub, UA, RproxyIP, _url, fak
         }
 
         if (动态UUID && _url.pathname !== `/${动态UUID}`) 订阅器 = '';
-        else 订阅器 += `<br>SUBAPI（订阅转换后端）: ${subProtocol}://${subConverter}<br>SUBCONFIG（订阅转换配置文件）: ${subConfig}`;
+        else 订阅器 += `<br>SUBAPI（订阅转换后端）: <a href='${subProtocol}://${subConverter}/version' target="_blank" rel="noopener noreferrer">${subProtocol}://${subConverter}</a><br>SUBCONFIG（订阅转换配置文件）: <a href='${subConfig}' target="_blank" rel="noopener noreferrer">${subConfig}</a>`;
         const 动态UUID信息 = (uuid != userID) ? `TOKEN: ${uuid}<br>UUIDNow: ${userID}<br>UUIDLow: ${userIDLow}<br>${userIDTime}TIME（动态UUID有效时间）: ${有效时间} 天<br>UPTIME（动态UUID更新时间）: ${更新时间} 时（北京时间）<br><br>` : `${userIDTime}`;
         const 节点配置页 = `
             ################################################################<br>
@@ -1702,7 +1717,7 @@ async function 生成配置信息(userID, hostName, sub, UA, RproxyIP, _url, fak
             } else {
                 const response = await fetch(url, {
                     headers: {
-                        'User-Agent': UA + atob('IENGLVdvcmtlcnMtZWRnZXR1bm5lbC9jbWxpdQ==')
+                        'User-Agent': (isBase64 ? 'v2rayN' : UA) + atob('IENGLVdvcmtlcnMtZWRnZXR1bm5lbC9jbWxpdQ==')
                     }
                 });
                 content = await response.text();
@@ -2590,6 +2605,9 @@ async function bestIP(request, env, txt = 'ADD.txt') {
             } else if (ipSource === 'as24429') {
                 // AS24429列表
                 response = await fetch('https://raw.githubusercontent.com/ipverse/asn-ip/master/as/24429/ipv4-aggregated.txt');
+            } else if (ipSource === 'as35916') {
+                // AS35916列表
+                response = await fetch('https://raw.githubusercontent.com/ipverse/asn-ip/master/as/35916/ipv4-aggregated.txt');
             } else if (ipSource === 'as199524') {
                 // AS199524列表
                 response = await fetch('https://raw.githubusercontent.com/ipverse/asn-ip/master/as/199524/ipv4-aggregated.txt');
@@ -2600,23 +2618,23 @@ async function bestIP(request, env, txt = 'ADD.txt') {
                 // 反代IP列表 (直接IP，非CIDR)
                 response = await fetch('https://raw.githubusercontent.com/cmliu/ACL4SSR/main/baipiao.txt');
                 const text = response.ok ? await response.text() : '';
-                
+
                 // 解析并过滤符合端口的IP
                 const allLines = text.split('\n')
                     .map(line => line.trim())
                     .filter(line => line && !line.startsWith('#'));
-                
+
                 const validIps = [];
-                
+
                 for (const line of allLines) {
                     const parsedIP = parseProxyIPLine(line, targetPort);
                     if (parsedIP) {
                         validIps.push(parsedIP);
                     }
                 }
-                
+
                 console.log(`反代IP列表解析完成，端口${targetPort}匹配到${validIps.length}个有效IP`);
-                
+
                 // 如果超过1000个IP，随机选择1000个
                 if (validIps.length > 1000) {
                     const shuffled = [...validIps].sort(() => 0.5 - Math.random());
@@ -2689,17 +2707,17 @@ async function bestIP(request, env, txt = 'ADD.txt') {
             // 移除首尾空格
             line = line.trim();
             if (!line) return null;
-            
+
             let ip = '';
             let port = '';
             let comment = '';
-            
+
             // 处理注释部分
             if (line.includes('#')) {
                 const parts = line.split('#');
                 const mainPart = parts[0].trim();
                 comment = parts[1].trim();
-                
+
                 // 检查主要部分是否包含端口
                 if (mainPart.includes(':')) {
                     const ipPortParts = mainPart.split(':');
@@ -2734,45 +2752,45 @@ async function bestIP(request, env, txt = 'ADD.txt') {
                     port = '443';
                 }
             }
-            
+
             // 验证IP格式
             if (!isValidIP(ip)) {
                 console.warn(`无效的IP地址: ${ip} (来源行: ${line})`);
                 return null;
             }
-            
+
             // 验证端口格式
             const portNum = parseInt(port);
             if (isNaN(portNum) || portNum < 1 || portNum > 65535) {
                 console.warn(`无效的端口号: ${port} (来源行: ${line})`);
                 return null;
             }
-            
+
             // 检查端口是否匹配
             if (port !== targetPort) {
                 return null; // 端口不匹配，过滤掉
             }
-            
+
             // 构建返回格式
             if (comment) {
                 return `${ip}:${port}#${comment}`;
             } else {
                 return `${ip}:${port}`;
             }
-            
+
         } catch (error) {
             console.error(`解析IP行失败: ${line}`, error);
             return null;
         }
     }
-    
+
     // 新增：验证IP地址格式的函数
     function isValidIP(ip) {
         const ipRegex = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
         const match = ip.match(ipRegex);
-        
+
         if (!match) return false;
-        
+
         // 检查每个数字是否在0-255范围内
         for (let i = 1; i <= 4; i++) {
             const num = parseInt(match[i]);
@@ -2780,7 +2798,7 @@ async function bestIP(request, env, txt = 'ADD.txt') {
                 return false;
             }
         }
-        
+
         return true;
     }
 
@@ -3307,6 +3325,7 @@ async function bestIP(request, env, txt = 'ADD.txt') {
                 <option value="official">CF官方列表</option>
                 <option value="cm">CM整理列表</option>
                 <option value="as13335">AS13335列表</option>
+                <option value="as35916">AS35916列表</option>
                 <option value="as209242">AS209242列表</option>
                 <option value="as24429">AS24429列表(Alibaba)</option>
                 <option value="as199524">AS199524列表(G-Core)</option>
@@ -3814,8 +3833,11 @@ async function bestIP(request, env, txt = 'ADD.txt') {
                 case 'as13335':
                     ipSourceName = 'CF全段';
                     break;
+                case 'as35916':
+                    ipSourceName = 'CF非官方1';
+                    break;
                 case 'as209242':
-                    ipSourceName = 'CF非官方';
+                    ipSourceName = 'CF非官方2';
                     break;
                 case 'as24429':
                     ipSourceName = 'Alibaba';
@@ -3953,7 +3975,7 @@ async function bestIP(request, env, txt = 'ADD.txt') {
         const ipSource = url.searchParams.get('loadIPs');
         const port = url.searchParams.get('port') || '443';
         const ips = await GetCFIPs(ipSource, port);
-        
+
         return new Response(JSON.stringify({ ips }), {
             headers: {
                 'Content-Type': 'application/json',
@@ -3966,4 +3988,235 @@ async function bestIP(request, env, txt = 'ADD.txt') {
             'Content-Type': 'text/html; charset=UTF-8',
         },
     });
+}
+
+/**
+ * 获取 Cloudflare 账户今日使用量统计
+ * @param {string} accountId - 账户ID（可选，如果没有会自动获取）
+ * @param {string} email - Cloudflare 账户邮箱
+ * @param {string} apikey - Cloudflare API 密钥
+ * @param {string} apitoken - Cloudflare API 令牌
+ * @param {number} all - 总限额，默认10万次
+ * @returns {Array} [总限额, Pages请求数, Workers请求数, 总请求数]
+ */
+async function getUsage(accountId, email, apikey, apitoken, all = 100000) {
+    /**
+     * 获取 Cloudflare 账户ID
+     * @param {string} email - 账户邮箱
+     * @param {string} apikey - API密钥
+     * @param {number} accountIndex - 取第几个账户，默认第0个
+     * @returns {string} 账户ID
+     */
+    async function getAccountId(email, apikey) {
+        console.log('正在获取账户信息...');
+
+        const response = await fetch("https://api.cloudflare.com/client/v4/accounts", {
+            method: "GET",
+            headers: {
+                "Content-Type": "application/json",
+                "X-AUTH-EMAIL": email,
+                "X-AUTH-KEY": apikey,
+            }
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`获取账户信息失败: ${response.status} ${response.statusText}`, errorText);
+            throw new Error(`Cloudflare API 请求失败: ${response.status} ${response.statusText} - ${errorText}`);
+        }
+
+        const res = await response.json();
+        //console.log(res);
+
+        let accountIndex = 0; // 默认取第一个账户
+        let foundMatch = false; // 标记是否找到匹配的账户
+
+        // 如果有多个账户，智能匹配包含邮箱前缀的账户
+        if (res?.result && res.result.length > 1) {
+            console.log(`发现 ${res.result.length} 个账户，正在智能匹配...`);
+
+            // 提取邮箱前缀并转为小写
+            const emailPrefix = email.toLowerCase();
+            console.log(`邮箱: ${emailPrefix}`);
+
+            // 遍历所有账户，寻找名称开头包含邮箱前缀的账户
+            for (let i = 0; i < res.result.length; i++) {
+                const accountName = res.result[i]?.name?.toLowerCase() || '';
+                console.log(`检查账户 ${i}: ${res.result[i]?.name}`);
+
+                // 检查账户名称开头是否包含邮箱前缀
+                if (accountName.startsWith(emailPrefix)) {
+                    accountIndex = i;
+                    foundMatch = true;
+                    console.log(`✅ 找到匹配账户，使用第 ${i} 个账户`);
+                    break;
+                }
+            }
+
+            // 如果遍历完还没找到匹配的，使用默认值0
+            if (!foundMatch) {
+                console.log('❌ 未找到匹配的账户，使用默认第 0 个账户');
+            }
+        } else if (res?.result && res.result.length === 1) {
+            console.log('只有一个账户，使用第 0 个账户');
+            foundMatch = true;
+        }
+
+        const name = res?.result?.[accountIndex]?.name;
+        const id = res?.result?.[accountIndex]?.id;
+
+        console.log(`最终选择账户 ${accountIndex} - 名称: ${name}, ID: ${id}`);
+
+        if (!id) {
+            throw new Error("找不到有效的账户ID，请检查API权限");
+        }
+
+        return id;
+    }
+
+    try {
+        // 如果没有提供账户ID，就自动获取
+        if (!accountId) {
+            console.log('未提供账户ID，正在自动获取...');
+            accountId = await getAccountId(email, apikey);
+        }
+
+        // 设置查询时间范围：今天0点到现在
+        const now = new Date();
+        const endDate = now.toISOString(); // 结束时间：现在
+
+        // 设置开始时间为今天凌晨0点
+        now.setUTCHours(0, 0, 0, 0);
+        const startDate = now.toISOString(); // 开始时间：今天0点
+
+        console.log(`查询时间范围: ${startDate} 到 ${endDate}`);
+        // 准备请求头
+        let headers = {}
+        if (apikey) {
+            headers = {
+                "Content-Type": "application/json",
+                "X-AUTH-EMAIL": email,
+                "X-AUTH-KEY": apikey,
+            };
+        }
+        if (apitoken) {
+            headers = {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${apitoken}`,
+            }
+        }
+
+        // 向 Cloudflare GraphQL API 发送请求，获取今日使用量
+        const response = await fetch("https://api.cloudflare.com/client/v4/graphql", {
+            method: "POST",
+            headers: headers,
+            body: JSON.stringify({
+                // GraphQL 查询语句：获取 Pages 和 Workers 的请求数统计
+                query: `query getBillingMetrics($accountId: String!, $filter: AccountWorkersInvocationsAdaptiveFilter_InputObject) {
+                    viewer {
+                        accounts(filter: {accountTag: $accountId}) {
+                            pagesFunctionsInvocationsAdaptiveGroups(limit: 1000, filter: $filter) {
+                                sum {
+                                    requests
+                                }
+                            }
+                            workersInvocationsAdaptive(limit: 10000, filter: $filter) {
+                                sum {
+                                    requests
+                                }
+                            }
+                        }
+                    }
+                }`,
+                variables: {
+                    accountId: accountId,
+                    filter: {
+                        datetime_geq: startDate, // 大于等于开始时间
+                        datetime_leq: endDate    // 小于等于结束时间
+                    },
+                },
+            }),
+        });
+
+        // 检查API请求是否成功
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`GraphQL查询失败: ${response.status} ${response.statusText}`, errorText);
+            console.log('返回默认值：全部为0');
+            return [all, 0, 0, 0];
+        }
+
+        const res = await response.json();
+
+        // 检查GraphQL响应是否有错误
+        if (res.errors && res.errors.length > 0) {
+            console.error('GraphQL查询错误:', res.errors[0].message);
+            console.log('返回默认值：全部为0');
+            return [all, 0, 0, 0];
+        }
+
+        // 从响应中提取账户数据
+        const accounts = res?.data?.viewer?.accounts?.[0];
+
+        if (!accounts) {
+            console.warn('未找到账户数据');
+            return [all, 0, 0, 0];
+        }
+
+        // 计算 Pages 请求数（Cloudflare Pages 的请求统计）
+        const pagesArray = accounts?.pagesFunctionsInvocationsAdaptiveGroups || [];
+        const pages = pagesArray.reduce((total, item) => {
+            return total + (item?.sum?.requests || 0);
+        }, 0);
+
+        // 计算 Workers 请求数（Cloudflare Workers 的请求统计）
+        const workersArray = accounts?.workersInvocationsAdaptive || [];
+        const workers = workersArray.reduce((total, item) => {
+            return total + (item?.sum?.requests || 0);
+        }, 0);
+
+        // 计算总请求数
+        const total = pages + workers;
+
+        console.log(`统计结果 - Pages: ${pages}, Workers: ${workers}, 总计: ${total}`);
+
+        // 返回格式：[总限额, Pages请求数, Workers请求数, 总请求数]
+        return [all, pages || 0, workers || 0, total || 0];
+
+    } catch (error) {
+        console.error('获取使用量时发生错误:', error.message);
+        // 发生错误时返回默认值
+        return [all, 0, 0, 0];
+    }
+}
+
+async function nginx() {
+    const text = `
+	<!DOCTYPE html>
+	<html>
+	<head>
+	<title>Welcome to nginx!</title>
+	<style>
+		body {
+			width: 35em;
+			margin: 0 auto;
+			font-family: Tahoma, Verdana, Arial, sans-serif;
+		}
+	</style>
+	</head>
+	<body>
+	<h1>Welcome to nginx!</h1>
+	<p>If you see this page, the nginx web server is successfully installed and
+	working. Further configuration is required.</p>
+	
+	<p>For online documentation and support please refer to
+	<a href="http://nginx.org/">nginx.org</a>.<br/>
+	Commercial support is available at
+	<a href="http://nginx.com/">nginx.com</a>.</p>
+	
+	<p><em>Thank you for using nginx.</em></p>
+	</body>
+	</html>
+	`
+    return text;
 }
