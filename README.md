@@ -162,6 +162,10 @@
 | URL302 | `https://t.me/CMLiussss` |❌| 主页302跳转(支持多url, url之间使用`,`或`换行`作间隔, 小白别用) |  |
 | URL | `https://blog.cmliussss.com` |❌| 主页反代伪装(支持多url, url之间使用`,`或`换行`作间隔, 乱设容易触发反诈) |  |
 | CFPORTS | `2053`,`2096`,`8443` |❌| CF账户标准端口列表 |  |
+| CF_EMAIL | `admin@google.com` |❌| CF账户的邮箱，用于获取 Workers/Pages 请求数 |  |
+| CF_APIKEY | `1234567890abcdef1234567890abcdef` |❌| CF账户的`Global API Key`，用于获取 Workers/Pages 请求数 |  |
+
+> **注意：** 只有 `CF_EMAIL` 和 `CF_APIKEY` 变量同时存在时，订阅时才会返回 CF Workers/Pages 的请求数用量信息。
 
 ## ❗ 注意事项
 
@@ -275,3 +279,4 @@
 - [Stanley-baby](https://github.com/Stanley-baby)
 - [ACL4SSR](https://github.com/ACL4SSR/ACL4SSR/tree/master/Clash/config)
 - [股神](https://t.me/CF_NAT/38889)
+- [Workers/Pages Metrics](https://t.me/zhetengsha/3382)
