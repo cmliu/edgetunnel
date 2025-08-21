@@ -9,10 +9,6 @@ let subConverter = atob('U1VCQVBJLkNNTGl1c3Nzcy5uZXQ=');
 let subConfig = atob('aHR0cHM6Ly9yYXcuZ2l0aHVidXNlcmNvbnRlbnQuY29tL0FDTDRTU1IvQUNMNFNTUi9tYXN0ZXIvQ2xhc2gvY29uZmlnL0FDTDRTU1JfT25saW5lX01pbmlfTXVsdGlNb2RlLmluaQ==');
 let subProtocol = 'https';
 let subEmoji = 'true';
-let socks5Address = '';
-let parsedSocks5Address = {};
-let enableSocks = false;
-let enableHttp = false;
 let noTLS = 'false';
 const expire = 4102329600;//2099-12-31
 let proxyIPs;
@@ -55,6 +51,10 @@ export default {
             const UA = request.headers.get('User-Agent') || 'null';
             const userAgent = UA.toLowerCase();
             userID = env.UUID || env.uuid || env.PASSWORD || env.pswd || userID;
+            let socks5Address = '';
+            let parsedSocks5Address = {};
+            let enableSocks = false;
+            let enableHttp = false;
             if (env.KEY || env.TOKEN || (userID && !isValidUUID(userID))) {
                 动态UUID = env.KEY || env.TOKEN || userID;
                 有效时间 = Number(env.TIME) || 有效时间;
@@ -259,7 +259,7 @@ export default {
                     enableSocks = false;
                 }
 
-                return await 维列斯OverWSHandler(request);
+                return await 维列斯OverWSHandler(request, parsedSocks5Address, enableSocks, enableHttp);
             }
         } catch (err) {
             let e = err;
@@ -268,7 +268,7 @@ export default {
     },
 };
 
-async function 维列斯OverWSHandler(request) {
+async function 维列斯OverWSHandler(request, parsedSocks5Address, enableSocks, enableHttp) {
 
     // @ts-ignore
     const webSocketPair = new WebSocketPair();
@@ -357,7 +357,7 @@ async function 维列斯OverWSHandler(request) {
             // 处理 TCP 出站连接
             if (!banHosts.includes(addressRemote)) {
                 log(`处理 TCP 出站连接 ${addressRemote}:${portRemote}`);
-                handleTCPOutBound(remoteSocketWapper, addressType, addressRemote, portRemote, rawClientData, webSocket, 维列斯ResponseHeader, log);
+                handleTCPOutBound(remoteSocketWapper, addressType, addressRemote, portRemote, rawClientData, webSocket, 维列斯ResponseHeader, parsedSocks5Address, enableSocks, enableHttp, log);
             } else {
                 throw new Error(`黑名单关闭 TCP 出站连接 ${addressRemote}:${portRemote}`);
             }
@@ -380,7 +380,7 @@ async function 维列斯OverWSHandler(request) {
     });
 }
 
-async function handleTCPOutBound(remoteSocket, addressType, addressRemote, portRemote, rawClientData, webSocket, 维列斯ResponseHeader, log,) {
+async function handleTCPOutBound(remoteSocket, addressType, addressRemote, portRemote, rawClientData, webSocket, 维列斯ResponseHeader, parsedSocks5Address, enableSocks, enableHttp, log,) {
     async function useSocks5Pattern(address) {
         if (go2Socks5s.includes(atob('YWxsIGlu')) || go2Socks5s.includes(atob('Kg=='))) return true;
         return go2Socks5s.some(pattern => {
@@ -395,7 +395,7 @@ async function handleTCPOutBound(remoteSocket, addressType, addressRemote, portR
         //if (/^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?).){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/.test(address)) address = `${atob('d3d3Lg==')}${address}${atob('LmlwLjA5MDIyNy54eXo=')}`;
         // 先确定连接方式，再创建连接
         const tcpSocket = socks
-            ? (http ? await httpConnect(address, port, log) : await socks5Connect(addressType, address, port, log))
+            ? (http ? await httpConnect(address, port, parsedSocks5Address, log) : await socks5Connect(addressType, address, port, parsedSocks5Address, log))
             : connect({ hostname: address, port: port });
 
         remoteSocket.value = tcpSocket;
@@ -1016,7 +1016,7 @@ async function handleDNSQuery(udpChunk, webSocket, 维列斯ResponseHeader, log)
  * @param {number} portRemote 目标端口
  * @param {function} log 日志记录函数
  */
-async function socks5Connect(addressType, addressRemote, portRemote, log) {
+async function socks5Connect(addressType, addressRemote, portRemote, parsedSocks5Address, log) {
     const { username, password, hostname, port } = parsedSocks5Address;
     // 连接到 SOCKS5 代理服务器
     const socket = connect({
@@ -1158,7 +1158,7 @@ async function socks5Connect(addressType, addressRemote, portRemote, log) {
  * @param {number} portRemote 目标端口
  * @param {function} log 日志记录函数
  */
-async function httpConnect(addressRemote, portRemote, log) {
+async function httpConnect(addressRemote, portRemote, parsedSocks5Address, log) {
     const { username, password, hostname, port } = parsedSocks5Address;
     const sock = await connect({
         hostname: hostname,
@@ -1454,7 +1454,7 @@ const cmad = decodeURIComponent(atob('dGVsZWdyYW0lMjAlRTQlQkElQTQlRTYlQjUlODElRT
  * @param {string} UA
  * @returns {Promise<string>}
  */
-async function 生成配置信息(userID, hostName, sub, UA, RproxyIP, _url, fakeUserID, fakeHostName, env) {
+async function 生成配置信息(userID, hostName, sub, UA, RproxyIP, _url, fakeUserID, fakeHostName, enableSocks, enableHttp, env) {
     if (sub) {
         const match = sub.match(/^(?:https?:\/\/)?([^\/]+)/);
         if (match) {
