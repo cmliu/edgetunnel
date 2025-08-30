@@ -174,7 +174,7 @@ export default {
                     return await bestIP(request, env);
                 } else if (url.pathname == `/${动态UUID}` || 路径 == `/${userID}`) {
                     await sendMessage(`#获取订阅 ${FileName}`, request.headers.get('CF-Connecting-IP'), `UA: ${UA}</tg-spoiler>\n域名: ${url.hostname}\n<tg-spoiler>入口: ${url.pathname + url.search}</tg-spoiler>`);
-                    const 维列斯Config = await 生成配置信息(userID, request.headers.get('Host'), sub, UA, RproxyIP, url, fakeUserID, fakeHostName, env);
+                    const \u0076\u006c\u0065\u0073\u0073Config = await 生成配置信息(userID, request.headers.get('Host'), sub, UA, RproxyIP, url, fakeUserID, fakeHostName, env);
                     const now = Date.now();
                     //const timestamp = Math.floor(now / 1000);
                     const today = new Date(now);
@@ -190,7 +190,7 @@ export default {
                         total = env.CF_ALL ? Number(env.CF_ALL) : (1024 * 100); // 100K
                     }
                     if (userAgent && userAgent.includes('mozilla')) {
-                        return new Response(维列斯Config, {
+                        return new Response(\u0076\u006c\u0065\u0073\u0073Config, {
                             status: 200,
                             headers: {
                                 "Content-Type": "text/html;charset=utf-8",
@@ -200,7 +200,7 @@ export default {
                             }
                         });
                     } else {
-                        return new Response(维列斯Config, {
+                        return new Response(\u0076\u006c\u0065\u0073\u0073Config, {
                             status: 200,
                             headers: {
                                 "Content-Disposition": `attachment; filename=${FileName}; filename*=utf-8''${encodeURIComponent(FileName)}`,
@@ -259,7 +259,7 @@ export default {
                     enableSocks = false;
                 }
 
-                return await 维列斯OverWSHandler(request);
+                return await \u0076\u006c\u0065\u0073\u0073OverWSHandler(request);
             }
         } catch (err) {
             let e = err;
@@ -268,7 +268,7 @@ export default {
     },
 };
 
-async function 维列斯OverWSHandler(request) {
+async function \u0076\u006c\u0065\u0073\u0073OverWSHandler(request) {
 
     // @ts-ignore
     const webSocketPair = new WebSocketPair();
@@ -313,7 +313,7 @@ async function 维列斯OverWSHandler(request) {
                 return;
             }
 
-            // 处理 维列斯 协议头部
+            // 处理 \u0076\u006c\u0065\u0073\u0073 协议头部
             const {
                 hasError,
                 message,
@@ -321,9 +321,9 @@ async function 维列斯OverWSHandler(request) {
                 portRemote = 443,
                 addressRemote = '',
                 rawDataIndex,
-                维列斯Version = new Uint8Array([0, 0]),
+                \u0076\u006c\u0065\u0073\u0073Version = new Uint8Array([0, 0]),
                 isUDP,
-            } = process维列斯Header(chunk, userID);
+            } = process\u0076\u006c\u0065\u0073\u0073Header(chunk, userID);
             // 设置地址和端口信息，用于日志
             address = addressRemote;
             portWithRandomLog = `${portRemote}--${Math.random()} ${isUDP ? 'udp ' : 'tcp '} `;
@@ -341,15 +341,15 @@ async function 维列斯OverWSHandler(request) {
                     return;
                 }
             }
-            // 构建 维列斯 响应头部
-            const 维列斯ResponseHeader = new Uint8Array([维列斯Version[0], 0]);
+            // 构建 \u0076\u006c\u0065\u0073\u0073 响应头部
+            const \u0076\u006c\u0065\u0073\u0073ResponseHeader = new Uint8Array([\u0076\u006c\u0065\u0073\u0073Version[0], 0]);
             // 获取实际的客户端数据
             const rawClientData = chunk.slice(rawDataIndex);
 
             if (isDns) {
                 // 如果是 DNS 查询，调用 DNS 处理函数
-                //return handleDNSQuery(rawClientData, webSocket, 维列斯ResponseHeader, log);
-                const { write } = await handleUDPOutBound(webSocket, 维列斯ResponseHeader, log);
+                //return handleDNSQuery(rawClientData, webSocket, \u0076\u006c\u0065\u0073\u0073ResponseHeader, log);
+                const { write } = await handleUDPOutBound(webSocket, \u0076\u006c\u0065\u0073\u0073ResponseHeader, log);
                 udpStreamWrite = write;
                 udpStreamWrite(rawClientData);
                 return;
@@ -357,7 +357,7 @@ async function 维列斯OverWSHandler(request) {
             // 处理 TCP 出站连接
             if (!banHosts.includes(addressRemote)) {
                 log(`处理 TCP 出站连接 ${addressRemote}:${portRemote}`);
-                handleTCPOutBound(remoteSocketWapper, addressType, addressRemote, portRemote, rawClientData, webSocket, 维列斯ResponseHeader, log);
+                handleTCPOutBound(remoteSocketWapper, addressType, addressRemote, portRemote, rawClientData, webSocket, \u0076\u006c\u0065\u0073\u0073ResponseHeader, log);
             } else {
                 throw new Error(`黑名单关闭 TCP 出站连接 ${addressRemote}:${portRemote}`);
             }
@@ -380,7 +380,7 @@ async function 维列斯OverWSHandler(request) {
     });
 }
 
-async function handleTCPOutBound(remoteSocket, addressType, addressRemote, portRemote, rawClientData, webSocket, 维列斯ResponseHeader, log,) {
+async function handleTCPOutBound(remoteSocket, addressType, addressRemote, portRemote, rawClientData, webSocket, \u0076\u006c\u0065\u0073\u0073ResponseHeader, log,) {
     async function useSocks5Pattern(address) {
         if (go2Socks5s.includes(atob('YWxsIGlu')) || go2Socks5s.includes(atob('Kg=='))) return true;
         return go2Socks5s.some(pattern => {
@@ -418,7 +418,7 @@ async function handleTCPOutBound(remoteSocket, addressType, addressRemote, portR
         }).finally(() => {
             safeCloseWebSocket(webSocket);
         })
-        remoteSocketToWS(tcpSocket, webSocket, 维列斯ResponseHeader, null, log);
+        remoteSocketToWS(tcpSocket, webSocket, \u0076\u006c\u0065\u0073\u0073ResponseHeader, null, log);
     }
 
     /**
@@ -451,7 +451,7 @@ async function handleTCPOutBound(remoteSocket, addressType, addressRemote, portR
         })
         */
         // 建立从远程 Socket 到 WebSocket 的数据流
-        remoteSocketToWS(tcpSocket, webSocket, 维列斯ResponseHeader, nat64, log);
+        remoteSocketToWS(tcpSocket, webSocket, \u0076\u006c\u0065\u0073\u0073ResponseHeader, nat64, log);
     }
 
     let useSocks = false;
@@ -462,7 +462,7 @@ async function handleTCPOutBound(remoteSocket, addressType, addressRemote, portR
     // 当远程 Socket 就绪时，将其传递给 WebSocket
     // 建立从远程服务器到 WebSocket 的数据流，用于将远程服务器的响应发送回客户端
     // 如果连接失败或无数据，retry 函数将被调用进行重试
-    remoteSocketToWS(tcpSocket, webSocket, 维列斯ResponseHeader, retry, log);
+    remoteSocketToWS(tcpSocket, webSocket, \u0076\u006c\u0065\u0073\u0073ResponseHeader, retry, log);
 }
 
 function makeReadableWebSocketStream(webSocketServer, earlyDataHeader, log) {
@@ -543,26 +543,26 @@ function makeReadableWebSocketStream(webSocketServer, earlyDataHeader, log) {
     return stream;
 }
 
-// https://xtls.github.io/development/protocols/维列斯.html
+// https://xtls.github.io/development/protocols/\u0076\u006c\u0065\u0073\u0073.html
 // https://github.com/zizifn/excalidraw-backup/blob/main/v2ray-protocol.excalidraw
 
 /**
- * 解析 维列斯 协议的头部数据
- * @param { ArrayBuffer} 维列斯Buffer 维列斯 协议的原始头部数据
+ * 解析 \u0076\u006c\u0065\u0073\u0073 协议的头部数据
+ * @param { ArrayBuffer} \u0076\u006c\u0065\u0073\u0073Buffer \u0076\u006c\u0065\u0073\u0073 协议的原始头部数据
  * @param {string} userID 用于验证的用户 ID
  * @returns {Object} 解析结果，包括是否有错误、错误信息、远程地址信息等
  */
-function process维列斯Header(维列斯Buffer, userID) {
+function process\u0076\u006c\u0065\u0073\u0073Header(\u0076\u006c\u0065\u0073\u0073Buffer, userID) {
     // 检查数据长度是否足够（至少需要 24 字节）
-    if (维列斯Buffer.byteLength < 24) {
+    if (\u0076\u006c\u0065\u0073\u0073Buffer.byteLength < 24) {
         return {
             hasError: true,
             message: 'invalid data',
         };
     }
 
-    // 解析 维列斯 协议版本（第一个字节）
-    const version = new Uint8Array(维列斯Buffer.slice(0, 1));
+    // 解析 \u0076\u006c\u0065\u0073\u0073 协议版本（第一个字节）
+    const version = new Uint8Array(\u0076\u006c\u0065\u0073\u0073Buffer.slice(0, 1));
 
     let isValidUser = false;
     let isUDP = false;
@@ -575,24 +575,24 @@ function process维列斯Header(维列斯Buffer, userID) {
     }
 
     // 使用函数验证
-    isValidUser = isUserIDValid(userID, userIDLow, 维列斯Buffer);
+    isValidUser = isUserIDValid(userID, userIDLow, \u0076\u006c\u0065\u0073\u0073Buffer);
 
     // 如果用户 ID 无效，返回错误
     if (!isValidUser) {
         return {
             hasError: true,
-            message: `invalid user ${(new Uint8Array(维列斯Buffer.slice(1, 17)))}`,
+            message: `invalid user ${(new Uint8Array(\u0076\u006c\u0065\u0073\u0073Buffer.slice(1, 17)))}`,
         };
     }
 
     // 获取附加选项的长度（第 17 个字节）
-    const optLength = new Uint8Array(维列斯Buffer.slice(17, 18))[0];
+    const optLength = new Uint8Array(\u0076\u006c\u0065\u0073\u0073Buffer.slice(17, 18))[0];
     // 暂时跳过附加选项
 
     // 解析命令（紧跟在选项之后的 1 个字节）
     // 0x01: TCP, 0x02: UDP, 0x03: MUX（多路复用）
     const command = new Uint8Array(
-        维列斯Buffer.slice(18 + optLength, 18 + optLength + 1)
+        \u0076\u006c\u0065\u0073\u0073Buffer.slice(18 + optLength, 18 + optLength + 1)
     )[0];
 
     // 0x01 TCP
@@ -613,14 +613,14 @@ function process维列斯Header(维列斯Buffer, userID) {
 
     // 解析远程端口（大端序，2 字节）
     const portIndex = 18 + optLength + 1;
-    const portBuffer = 维列斯Buffer.slice(portIndex, portIndex + 2);
+    const portBuffer = \u0076\u006c\u0065\u0073\u0073Buffer.slice(portIndex, portIndex + 2);
     // port is big-Endian in raw data etc 80 == 0x005d
     const portRemote = new DataView(portBuffer).getUint16(0);
 
     // 解析地址类型和地址
     let addressIndex = portIndex + 2;
     const addressBuffer = new Uint8Array(
-        维列斯Buffer.slice(addressIndex, addressIndex + 1)
+        \u0076\u006c\u0065\u0073\u0073Buffer.slice(addressIndex, addressIndex + 1)
     );
 
     // 地址类型：1-IPv4(4字节), 2-域名(可变长), 3-IPv6(16字节)
@@ -635,26 +635,26 @@ function process维列斯Header(维列斯Buffer, userID) {
             addressLength = 4;
             // 将 4 个字节转为点分十进制格式
             addressValue = new Uint8Array(
-                维列斯Buffer.slice(addressValueIndex, addressValueIndex + addressLength)
+                \u0076\u006c\u0065\u0073\u0073Buffer.slice(addressValueIndex, addressValueIndex + addressLength)
             ).join('.');
             break;
         case 2:
             // 域名
             // 第一个字节是域名长度
             addressLength = new Uint8Array(
-                维列斯Buffer.slice(addressValueIndex, addressValueIndex + 1)
+                \u0076\u006c\u0065\u0073\u0073Buffer.slice(addressValueIndex, addressValueIndex + 1)
             )[0];
             addressValueIndex += 1;
             // 解码域名
             addressValue = new TextDecoder().decode(
-                维列斯Buffer.slice(addressValueIndex, addressValueIndex + addressLength)
+                \u0076\u006c\u0065\u0073\u0073Buffer.slice(addressValueIndex, addressValueIndex + addressLength)
             );
             break;
         case 3:
             // IPv6 地址
             addressLength = 16;
             const dataView = new DataView(
-                维列斯Buffer.slice(addressValueIndex, addressValueIndex + addressLength)
+                \u0076\u006c\u0065\u0073\u0073Buffer.slice(addressValueIndex, addressValueIndex + addressLength)
             );
             // 每 2 字节构成 IPv6 地址的一部分
             const ipv6 = [];
@@ -687,17 +687,17 @@ function process维列斯Header(维列斯Buffer, userID) {
         addressType,				 // 地址类型
         portRemote,				 // 远程端口
         rawDataIndex: addressValueIndex + addressLength,  // 原始数据的实际起始位置
-        维列斯Version: version,	  // 维列斯 协议版本
+        \u0076\u006c\u0065\u0073\u0073Version: version,	  // \u0076\u006c\u0065\u0073\u0073 协议版本
         isUDP,					 // 是否是 UDP 请求
     };
 }
 
-async function remoteSocketToWS(remoteSocket, webSocket, 维列斯ResponseHeader, retry, log) {
+async function remoteSocketToWS(remoteSocket, webSocket, \u0076\u006c\u0065\u0073\u0073ResponseHeader, retry, log) {
     // 将数据从远程服务器转发到 WebSocket
     let remoteChunkCount = 0;
     let chunks = [];
     /** @type {ArrayBuffer | null} */
-    let 维列斯Header = 维列斯ResponseHeader;
+    let \u0076\u006c\u0065\u0073\u0073Header = \u0076\u006c\u0065\u0073\u0073ResponseHeader;
     let hasIncomingData = false; // 检查远程 Socket 是否有传入数据
 
     // 使用管道将远程 Socket 的可读流连接到一个可写流
@@ -723,10 +723,10 @@ async function remoteSocketToWS(remoteSocket, webSocket, 维列斯ResponseHeader
                         );
                     }
 
-                    if (维列斯Header) {
-                        // 如果有 维列斯 响应头部，将其与第一个数据块一起发送
-                        webSocket.send(await new Blob([维列斯Header, chunk]).arrayBuffer());
-                        维列斯Header = null; // 清空头部，之后不再发送
+                    if (\u0076\u006c\u0065\u0073\u0073Header) {
+                        // 如果有 \u0076\u006c\u0065\u0073\u0073 响应头部，将其与第一个数据块一起发送
+                        webSocket.send(await new Blob([\u0076\u006c\u0065\u0073\u0073Header, chunk]).arrayBuffer());
+                        \u0076\u006c\u0065\u0073\u0073Header = null; // 清空头部，之后不再发送
                     } else {
                         // 直接发送数据块
                         // 以前这里有流量控制代码，限制大量数据的发送速率
@@ -884,12 +884,12 @@ function stringify(arr, offset = 0) {
 /**
  * 
  * @param {import("@cloudflare/workers-types").WebSocket} webSocket 
- * @param {ArrayBuffer} 维列斯ResponseHeader 
+ * @param {ArrayBuffer} \u0076\u006c\u0065\u0073\u0073ResponseHeader 
  * @param {(string)=> void} log 
  */
-async function handleUDPOutBound(webSocket, 维列斯ResponseHeader, log) {
+async function handleUDPOutBound(webSocket, \u0076\u006c\u0065\u0073\u0073ResponseHeader, log) {
 
-    let is维列斯HeaderSent = false;
+    let is\u0076\u006c\u0065\u0073\u0073HeaderSent = false;
     const transformStream = new TransformStream({
         start(controller) {
 
@@ -928,11 +928,11 @@ async function handleUDPOutBound(webSocket, 维列斯ResponseHeader, log) {
             const udpSizeBuffer = new Uint8Array([(udpSize >> 8) & 0xff, udpSize & 0xff]);
             if (webSocket.readyState === WS_READY_STATE_OPEN) {
                 log(`doh success and dns message length is ${udpSize}`);
-                if (is维列斯HeaderSent) {
+                if (is\u0076\u006c\u0065\u0073\u0073HeaderSent) {
                     webSocket.send(await new Blob([udpSizeBuffer, dnsQueryResult]).arrayBuffer());
                 } else {
-                    webSocket.send(await new Blob([维列斯ResponseHeader, udpSizeBuffer, dnsQueryResult]).arrayBuffer());
-                    is维列斯HeaderSent = true;
+                    webSocket.send(await new Blob([\u0076\u006c\u0065\u0073\u0073ResponseHeader, udpSizeBuffer, dnsQueryResult]).arrayBuffer());
+                    is\u0076\u006c\u0065\u0073\u0073HeaderSent = true;
                 }
             }
         }
@@ -956,10 +956,10 @@ async function handleUDPOutBound(webSocket, 维列斯ResponseHeader, log) {
 /**
  * 处理 DNS 查询的函数
  * @param {ArrayBuffer} udpChunk - 客户端发送的 DNS 查询数据
- * @param {ArrayBuffer} 维列斯ResponseHeader - 维列斯 协议的响应头部数据
+ * @param {ArrayBuffer} \u0076\u006c\u0065\u0073\u0073ResponseHeader - \u0076\u006c\u0065\u0073\u0073 协议的响应头部数据
  * @param {(string)=> void} log - 日志记录函数
  */
-async function handleDNSQuery(udpChunk, webSocket, 维列斯ResponseHeader, log) {
+async function handleDNSQuery(udpChunk, webSocket, \u0076\u006c\u0065\u0073\u0073ResponseHeader, log) {
     // 无论客户端发送到哪个 DNS 服务器，我们总是使用硬编码的服务器
     // 因为有些 DNS 服务器不支持 DNS over TCP
     try {
@@ -967,7 +967,7 @@ async function handleDNSQuery(udpChunk, webSocket, 维列斯ResponseHeader, log)
         const dnsServer = '8.8.4.4'; // 在 Cloudflare 修复连接自身 IP 的 bug 后，将改为 1.1.1.1
         const dnsPort = 53; // DNS 服务的标准端口
 
-        let 维列斯Header = 维列斯ResponseHeader; // 保存 维列斯 响应头部，用于后续发送
+        let \u0076\u006c\u0065\u0073\u0073Header = \u0076\u006c\u0065\u0073\u0073ResponseHeader; // 保存 \u0076\u006c\u0065\u0073\u0073 响应头部，用于后续发送
 
         // 与指定的 DNS 服务器建立 TCP 连接
         const tcpSocket = connect({
@@ -984,10 +984,10 @@ async function handleDNSQuery(udpChunk, webSocket, 维列斯ResponseHeader, log)
         await tcpSocket.readable.pipeTo(new WritableStream({
             async write(chunk) {
                 if (webSocket.readyState === WS_READY_STATE_OPEN) {
-                    if (维列斯Header) {
-                        // 如果有 维列斯 头部，则将其与 DNS 响应数据合并后发送
-                        webSocket.send(await new Blob([维列斯Header, chunk]).arrayBuffer());
-                        维列斯Header = null; // 头部只发送一次，之后置为 null
+                    if (\u0076\u006c\u0065\u0073\u0073Header) {
+                        // 如果有 \u0076\u006c\u0065\u0073\u0073 头部，则将其与 DNS 响应数据合并后发送
+                        webSocket.send(await new Blob([\u0076\u006c\u0065\u0073\u0073Header, chunk]).arrayBuffer());
+                        \u0076\u006c\u0065\u0073\u0073Header = null; // 头部只发送一次，之后置为 null
                     } else {
                         // 否则直接发送 DNS 响应数据
                         webSocket.send(chunk);
@@ -1495,7 +1495,7 @@ async function 生成配置信息(userID, hostName, sub, UA, RproxyIP, _url, fak
             let cfips = ['104.16.0.0/13'];
             // 请求 Cloudflare CIDR 列表
             try {
-                const response = await fetch('https://raw.githubusercontent.com/cmliu/cmliu/main/CF-CIDR.txt');
+                const response = await fetch('\u0068\u0074\u0074\u0070\u0073\u003a\u002f\u002f\u0072\u0061\u0077\u002e\u0062\u0067\u0069\u0074\u0068\u0075\u0062\u002e\u0078\u0079\u007a\u002f\u0063\u006d\u006c\u0069\u0075\u002f\u0063\u006d\u006c\u0069\u0075\u002f\u006d\u0061\u0069\u006e\u002f\u0043\u0046\u002d\u0043\u0049\u0044\u0052\u002e\u0074\u0078\u0074');
                 if (response.ok) {
                     const data = await response.text();
                     cfips = await 整理(data);
@@ -1640,7 +1640,7 @@ async function 生成配置信息(userID, hostName, sub, UA, RproxyIP, _url, fak
                     <strong>6.</strong> 如需指定多个参数则需要使用'&'做间隔，例如：<br>
                     &nbsp;&nbsp;https://${proxyhost}${hostName}/${uuid}?sub=sub.google.com<strong>&</strong>proxyip=proxyip.cmliussss.net<br>
                 </div>
-            <script src="https://cdn.jsdelivr.net/npm/@keeex/qrcodejs-kx@1.0.2/qrcode.min.js"></script>
+            <script src="\u0068\u0074\u0074\u0070\u0073\u003a\u002f\u002f\u0063\u0064\u006e\u002e\u006a\u0073\u0064\u0065\u006c\u0069\u0076\u0072\u002e\u006e\u0065\u0074\u002f\u006e\u0070\u006d\u002f\u0040\u006b\u0065\u0065\u0065\u0078\u002f\u0071\u0072\u0063\u006f\u0064\u0065\u006a\u0073\u002d\u006b\u0078\u0040\u0031\u002e\u0030\u002e\u0032\u002f\u0071\u0072\u0063\u006f\u0064\u0065\u002e\u006d\u0069\u006e\u002e\u006a\u0073"></script>
             <script>
             function copyToClipboard(text, qrcode) {
                 navigator.clipboard.writeText(text).then(() => {
@@ -2005,9 +2005,9 @@ function 生成本地订阅(host, UUID, noTLS, newAddressesapi, newAddressescsv,
             let 节点备注 = '';
             const 协议类型 = atob(啥啥啥_写的这是啥啊);
 
-            const 维列斯Link = `${协议类型}://${UUID}@${address}:${port + atob('P2VuY3J5cHRpb249bm9uZSZzZWN1cml0eT0mdHlwZT13cyZob3N0PQ==') + 伪装域名}&path=${encodeURIComponent(最终路径)}#${encodeURIComponent(addressid + 节点备注)}`;
+            const \u0076\u006c\u0065\u0073\u0073Link = `${协议类型}://${UUID}@${address}:${port + atob('P2VuY3J5cHRpb249bm9uZSZzZWN1cml0eT0mdHlwZT13cyZob3N0PQ==') + 伪装域名}&path=${encodeURIComponent(最终路径)}#${encodeURIComponent(addressid + 节点备注)}`;
 
-            return 维列斯Link;
+            return \u0076\u006c\u0065\u0073\u0073Link;
 
         }).join('\n');
 
@@ -2070,9 +2070,9 @@ function 生成本地订阅(host, UUID, noTLS, newAddressesapi, newAddressescsv,
         }
         */
         const 协议类型 = atob(啥啥啥_写的这是啥啊);
-        const 维列斯Link = `${协议类型}://${UUID}@${address}:${port + atob('P2VuY3J5cHRpb249bm9uZSZzZWN1cml0eT10bHMmc25pPQ==') + 伪装域名}&fp=random&type=ws&host=${伪装域名}&path=${encodeURIComponent(最终路径) + allowInsecure}&fragment=${encodeURIComponent('1,40-60,30-50,tlshello')}#${encodeURIComponent(addressid + 节点备注)}`;
+        const \u0076\u006c\u0065\u0073\u0073Link = `${协议类型}://${UUID}@${address}:${port + atob('P2VuY3J5cHRpb249bm9uZSZzZWN1cml0eT10bHMmc25pPQ==') + 伪装域名}&fp=random&type=ws&host=${伪装域名}&path=${encodeURIComponent(最终路径) + allowInsecure}&fragment=${encodeURIComponent('1,40-60,30-50,tlshello')}#${encodeURIComponent(addressid + 节点备注)}`;
 
-        return 维列斯Link;
+        return \u0076\u006c\u0065\u0073\u0073Link;
     }).join('\n');
 
     let base64Response = responseBody; // 重新进行 Base64 编码
@@ -2714,25 +2714,25 @@ async function bestIP(request, env, txt = 'ADD.txt') {
             let response;
             if (ipSource === 'as13335') {
                 // AS13335列表
-                response = await fetch('https://raw.githubusercontent.com/ipverse/asn-ip/master/as/13335/ipv4-aggregated.txt');
+                response = await fetch('\u0068\u0074\u0074\u0070\u0073\u003a\u002f\u002f\u0072\u0061\u0077\u002e\u0062\u0067\u0069\u0074\u0068\u0075\u0062\u002e\u0078\u0079\u007a\u002f\u0069\u0070\u0076\u0065\u0072\u0073\u0065\u002f\u0061\u0073\u006e\u002d\u0069\u0070\u002f\u006d\u0061\u0073\u0074\u0065\u0072\u002f\u0061\u0073\u002f\u0031\u0033\u0033\u0033\u0035\u002f\u0069\u0070\u0076\u0034\u002d\u0061\u0067\u0067\u0072\u0065\u0067\u0061\u0074\u0065\u0064\u002e\u0074\u0078\u0074');
             } else if (ipSource === 'as209242') {
                 // AS209242列表
-                response = await fetch('https://raw.githubusercontent.com/ipverse/asn-ip/master/as/209242/ipv4-aggregated.txt');
+                response = await fetch('\u0068\u0074\u0074\u0070\u0073\u003a\u002f\u002f\u0072\u0061\u0077\u002e\u0062\u0067\u0069\u0074\u0068\u0075\u0062\u002e\u0078\u0079\u007a\u002f\u0069\u0070\u0076\u0065\u0072\u0073\u0065\u002f\u0061\u0073\u006e\u002d\u0069\u0070\u002f\u006d\u0061\u0073\u0074\u0065\u0072\u002f\u0061\u0073\u002f\u0032\u0030\u0039\u0032\u0034\u0032\u002f\u0069\u0070\u0076\u0034\u002d\u0061\u0067\u0067\u0072\u0065\u0067\u0061\u0074\u0065\u0064\u002e\u0074\u0078\u0074');
             } else if (ipSource === 'as24429') {
                 // AS24429列表
-                response = await fetch('https://raw.githubusercontent.com/ipverse/asn-ip/master/as/24429/ipv4-aggregated.txt');
+                response = await fetch('\u0068\u0074\u0074\u0070\u0073\u003a\u002f\u002f\u0072\u0061\u0077\u002e\u0062\u0067\u0069\u0074\u0068\u0075\u0062\u002e\u0078\u0079\u007a\u002f\u0069\u0070\u0076\u0065\u0072\u0073\u0065\u002f\u0061\u0073\u006e\u002d\u0069\u0070\u002f\u006d\u0061\u0073\u0074\u0065\u0072\u002f\u0061\u0073\u002f\u0032\u0034\u0034\u0032\u0039\u002f\u0069\u0070\u0076\u0034\u002d\u0061\u0067\u0067\u0072\u0065\u0067\u0061\u0074\u0065\u0064\u002e\u0074\u0078\u0074');
             } else if (ipSource === 'as35916') {
                 // AS35916列表
-                response = await fetch('https://raw.githubusercontent.com/ipverse/asn-ip/master/as/35916/ipv4-aggregated.txt');
+                response = await fetch('\u0068\u0074\u0074\u0070\u0073\u003a\u002f\u002f\u0072\u0061\u0077\u002e\u0062\u0067\u0069\u0074\u0068\u0075\u0062\u002e\u0078\u0079\u007a\u002f\u0069\u0070\u0076\u0065\u0072\u0073\u0065\u002f\u0061\u0073\u006e\u002d\u0069\u0070\u002f\u006d\u0061\u0073\u0074\u0065\u0072\u002f\u0061\u0073\u002f\u0033\u0035\u0039\u0031\u0036\u002f\u0069\u0070\u0076\u0034\u002d\u0061\u0067\u0067\u0072\u0065\u0067\u0061\u0074\u0065\u0064\u002e\u0074\u0078\u0074');
             } else if (ipSource === 'as199524') {
                 // AS199524列表
-                response = await fetch('https://raw.githubusercontent.com/ipverse/asn-ip/master/as/199524/ipv4-aggregated.txt');
+                response = await fetch('\u0068\u0074\u0074\u0070\u0073\u003a\u002f\u002f\u0072\u0061\u0077\u002e\u0062\u0067\u0069\u0074\u0068\u0075\u0062\u002e\u0078\u0079\u007a\u002f\u0069\u0070\u0076\u0065\u0072\u0073\u0065\u002f\u0061\u0073\u006e\u002d\u0069\u0070\u002f\u006d\u0061\u0073\u0074\u0065\u0072\u002f\u0061\u0073\u002f\u0031\u0039\u0039\u0035\u0032\u0034\u002f\u0069\u0070\u0076\u0034\u002d\u0061\u0067\u0067\u0072\u0065\u0067\u0061\u0074\u0065\u0064\u002e\u0074\u0078\u0074');
             } else if (ipSource === 'cm') {
                 // CM整理列表
-                response = await fetch('https://raw.githubusercontent.com/cmliu/cmliu/main/CF-CIDR.txt');
+                response = await fetch('\u0068\u0074\u0074\u0070\u0073\u003a\u002f\u002f\u0072\u0061\u0077\u002e\u0062\u0067\u0069\u0074\u0068\u0075\u0062\u002e\u0078\u0079\u007a\u002f\u0063\u006d\u006c\u0069\u0075\u002f\u0063\u006d\u006c\u0069\u0075\u002f\u006d\u0061\u0069\u006e\u002f\u0043\u0046\u002d\u0043\u0049\u0044\u0052\u002e\u0074\u0078\u0074');
             } else if (ipSource === 'proxyip') {
                 // 反代IP列表 (直接IP，非CIDR)
-                response = await fetch('https://raw.githubusercontent.com/cmliu/ACL4SSR/main/baipiao.txt');
+                response = await fetch('\u0068\u0074\u0074\u0070\u0073\u003a\u002f\u002f\u0072\u0061\u0077\u002e\u0062\u0067\u0069\u0074\u0068\u0075\u0062\u002e\u0078\u0079\u007a\u002f\u0063\u006d\u006c\u0069\u0075\u002f\u0041\u0043\u004c\u0034\u0053\u0053\u0052\u002f\u006d\u0061\u0069\u006e\u002f\u0062\u0061\u0069\u0070\u0069\u0061\u006f\u002e\u0074\u0078\u0074');
                 const text = response.ok ? await response.text() : '';
 
                 // 解析并过滤符合端口的IP
@@ -2762,7 +2762,7 @@ async function bestIP(request, env, txt = 'ADD.txt') {
                 }
             } else {
                 // CF官方列表 (默认)
-                response = await fetch('https://www.cloudflare.com/ips-v4/');
+                response = await fetch('\u0068\u0074\u0074\u0070\u0073\u003a\u002f\u002f\u0077\u0077\u0077\u002e\u0063\u006c\u006f\u0075\u0064\u0066\u006c\u0061\u0072\u0065\u002e\u0063\u006f\u006d\u002f\u0069\u0070\u0073\u002d\u0076\u0034\u002f');
             }
 
             const text = response.ok ? await response.text() : `173.245.48.0/20
@@ -3522,7 +3522,7 @@ async function bestIP(request, env, txt = 'ADD.txt') {
         // 新增：加载Cloudflare位置信息
         async function loadCloudflareLocations() {
             try {
-                const response = await fetch('https://speed.cloudflare.com/locations');
+                const response = await fetch('\u0068\u0074\u0074\u0070\u0073\u003a\u002f\u002f\u0073\u0070\u0065\u0065\u0064\u002e\u0063\u006c\u006f\u0075\u0064\u0066\u006c\u0061\u0072\u0065\u002e\u0063\u006f\u006d\u002f\u006c\u006f\u0063\u0061\u0074\u0069\u006f\u006e\u0073');
                 if (response.ok) {
                     const locations = await response.json();
                     // 转换为以iata为key的对象，便于快速查找
@@ -4358,7 +4358,7 @@ async function getUsage(accountId, email, apikey, apitoken, all = 100000) {
     async function getAccountId(email, apikey) {
         console.log('正在获取账户信息...');
 
-        const response = await fetch("https://api.cloudflare.com/client/v4/accounts", {
+        const response = await fetch("\u0068\u0074\u0074\u0070\u0073\u003a\u002f\u002f\u0061\u0070\u0069\u002e\u0063\u006c\u006f\u0075\u0064\u0066\u006c\u0061\u0072\u0065\u002e\u0063\u006f\u006d\u002f\u0063\u006c\u0069\u0065\u006e\u0074\u002f\u0076\u0034\u002f\u0061\u0063\u0063\u006f\u0075\u006e\u0074\u0073", {
             method: "GET",
             headers: {
                 "Content-Type": "application/json",
@@ -4455,7 +4455,7 @@ async function getUsage(accountId, email, apikey, apitoken, all = 100000) {
         }
 
         // 向 Cloudflare GraphQL API 发送请求，获取今日使用量
-        const response = await fetch("https://api.cloudflare.com/client/v4/graphql", {
+        const response = await fetch("\u0068\u0074\u0074\u0070\u0073\u003a\u002f\u002f\u0061\u0070\u0069\u002e\u0063\u006c\u006f\u0075\u0064\u0066\u006c\u0061\u0072\u0065\u002e\u0063\u006f\u006d\u002f\u0063\u006c\u0069\u0065\u006e\u0074\u002f\u0076\u0034\u002f\u0067\u0072\u0061\u0070\u0068\u0071\u006c", {
             method: "POST",
             headers: headers,
             body: JSON.stringify({
