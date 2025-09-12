@@ -1,4 +1,5 @@
-name = "v20250907"
+name = "xsec-cdn"
 main = "_worker.js"
 compatibility_date = "2025-09-07"
+
 keep_vars = true
