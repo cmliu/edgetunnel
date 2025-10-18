@@ -9,7 +9,6 @@ let subConfig = atob('aHR0cHM6Ly9yYXcuZ2l0aHVidXNlcmNvbnRlbnQuY29tL0FDTDRTU1IvQU
 let subProtocol = 'https';
 let subEmoji = 'true';
 let socks5Address = '';
-let parsedSocks5Address = {};
 let enableSocks = false;
 let enableHttp = false;
 let noTLS = 'false';
@@ -124,7 +123,7 @@ export default {
             proxyIP = env.PROXYIP || env.proxyip || proxyIP;
             proxyIPs = await 整理(proxyIP);
             proxyIP = proxyIPs[Math.floor(Math.random() * proxyIPs.length)];
-            proxyIP = proxyIP ? proxyIP.toLowerCase() : request.cf.colo + atob('LnByb3h5aXAuY21saXVzc3NzLm5ldA==')
+            proxyIP = proxyIP ? proxyIP.toLowerCase() : request.cf.colo + '.PrOXYip.CMLiussss.NeT';
             socks5Address = env.HTTP || env.SOCKS5 || socks5Address;
             socks5s = await 整理(socks5Address);
             socks5Address = socks5s[Math.floor(Math.random() * socks5s.length)];
@@ -135,7 +134,7 @@ export default {
             if (env.BAN) banHosts = await 整理(env.BAN);
             if (socks5Address) {
                 try {
-                    parsedSocks5Address = socks5AddressParser(socks5Address);
+                    socks5AddressParser(socks5Address);
                     请求CF反代IP = env.RPROXYIP || 'false';
                     enableSocks = true;
                 } catch (err) {
@@ -299,6 +298,9 @@ export default {
                     enableSocks = false;
                 } else if (new RegExp('/pyip=', 'i').test(url.pathname)) {
                     proxyIP = url.pathname.toLowerCase().split('/pyip=')[1];
+                    enableSocks = false;
+                } else if (new RegExp('/ip=', 'i').test(url.pathname)) {
+                    proxyIP = url.pathname.toLowerCase().split('/ip=')[1];
                     enableSocks = false;
                 }
 
