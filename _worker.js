@@ -211,9 +211,84 @@ export default {
                     return await KV(request, env);
                 } else if (url.pathname == `/${动态UUID}/bestip` || 路径 == `/${userID}/bestip`) {
                     return await bestIP(request, env);
+                } else if (url.pathname == `/${动态UUID}/diagnostic` || 路径 == `/${userID}/diagnostic`) {
+                    return await generateDiagnosticPage(request, env, userID, sub, fakeUserID);
                 } else if (url.pathname == `/${动态UUID}` || 路径 == `/${userID}`) {
                     await sendMessage(`#获取订阅 ${FileName}`, request.headers.get('CF-Connecting-IP'), `UA: ${UA}</tg-spoiler>\n域名: ${url.hostname}\n<tg-spoiler>入口: ${url.pathname + url.search}</tg-spoiler>`);
                     const 维列斯Config = await 生成配置信息(userID, request.headers.get('Host'), sub, UA, 请求CF反代IP, url, fakeUserID, fakeHostName, env);
+                    
+                    // 检测是否返回"No nodes were found!"错误
+                    const clientIP = request.headers.get('CF-Connecting-IP') || 'unknown';
+                    const isNodesError = 维列斯Config && 维列斯Config.includes('No nodes were found');
+                    
+                    if (isNodesError) {
+                        // 生成诊断信息
+                        const diagnosticInfo = {
+                            timestamp: new Date().toISOString(),
+                            clientIP: clientIP,
+                            userAgent: UA,
+                            requestPath: url.pathname,
+                            searchParams: Object.fromEntries(url.searchParams),
+                            configurationStatus: {
+                                hasSUB: !!sub,
+                                hasADD: !!env.ADD,
+                                hasADDAPI: !!env.ADDAPI,
+                                hasADDCSV: !!env.ADDCSV,
+                                hasADDNOTLS: !!env.ADDNOTLS,
+                                hasKV: !!env.KV,
+                                hasUUID: !!userID,
+                                hasKey: !!env.KEY,
+                                hasToken: !!env.TOKEN
+                            },
+                            processingFlow: {
+                                step1: '客户端请求订阅',
+                                step2: '识别User-Agent: ' + UA,
+                                step3: 'SUB配置: ' + (sub ? '已配置' : '未配置'),
+                                step4: '本地优选IP: ' + (env.ADD || env.ADDAPI || env.ADDCSV ? '已配置' : '未配置'),
+                                step5: 'KV存储: ' + (env.KV ? '已绑定' : '未绑定'),
+                                step6: '生成订阅内容',
+                                step7: 'Base64编码',
+                                step8: '返回给客户端'
+                            },
+                            troubleshootingTips: [
+                                '1️⃣ 检查是否配置了优选IP源（ADD、ADDAPI、ADDCSV、SUB）',
+                                '2️⃣ 如果使用KV存储，确认KV空间已绑定且有数据',
+                                '3️⃣ 如果使用ADDAPI，检查API是否可用和数据格式是否正确',
+                                '4️⃣ 检查客户端User-Agent是否被正确识别',
+                                '5️⃣ 尝试访问 /{UUID}/edit 页面检查优选IP列表',
+                                '6️⃣ 检查网络连接和Cloudflare API调用权限'
+                            ],
+                            recommendedActions: [
+                                '✅ 配置最小化ADD环境变量: ADD=1.1.1.1:443#Test',
+                                '✅ 或配置ADDAPI: ADDAPI=https://你的IP列表API',
+                                '✅ 或配置SUB: SUB=subconverter.example.com',
+                                '✅ 或在KV中保存优选列表，访问 /{UUID}/edit 编辑'
+                            ]
+                        };
+                        
+                        // 记录诊断信息
+                        console.error('❌ No nodes were found error detected!');
+                        console.error('诊断信息:', JSON.stringify(diagnosticInfo, null, 2));
+                        
+                        // 发送TG通知（如果配置了）
+                        if (BotToken && ChatID) {
+                            const diagMsg = `🚨 订阅生成失败：No nodes found
+
+来源IP: ${clientIP}
+UA: ${UA}
+路径: ${url.pathname}
+
+配置状态:
+SUB: ${diagnosticInfo.configurationStatus.hasSUB}
+ADD: ${diagnosticInfo.configurationStatus.hasADD}
+ADDAPI: ${diagnosticInfo.configurationStatus.hasADDAPI}
+KV: ${diagnosticInfo.configurationStatus.hasKV}
+
+建议: 请检查是否配置了优选IP源`;
+                            await sendMessage('🔴' + diagMsg, clientIP);
+                        }
+                    }
+                    
                     const now = Date.now();
                     //const timestamp = Math.floor(now / 1000);
                     const today = new Date(now);
@@ -6203,4 +6278,422 @@ async function 解析地址端口(proxyIP) {
         端口 = parseInt(proxyIP.slice(colonIndex + 1), 10) || 端口;
     }
     return [地址, 端口];
+}
+
+/**
+ * 生成诊断信息页面
+ * 当订阅生成失败或出现"No nodes were found"错误时，显示详细诊断信息
+ */
+async function generateDiagnosticPage(request, env, userID, sub, fakeUserID) {
+    const clientIP = request.headers.get('CF-Connecting-IP') || 'unknown';
+    const url = new URL(request.url);
+    
+    // 收集诊断信息
+    const diagnosticInfo = {
+        timestamp: new Date().toISOString(),
+        clientIP: clientIP,
+        requestURL: url.href,
+        configurationStatus: {
+            hasSUB: !!sub,
+            hasADD: !!env.ADD,
+            hasADDAPI: !!env.ADDAPI,
+            hasADDCSV: !!env.ADDCSV,
+            hasADDNOTLS: !!env.ADDNOTLS,
+            hasADDNOTLSAPI: !!env.ADDNOTLSAPI,
+            hasKV: !!env.KV,
+            hasUUID: !!userID,
+            hasKey: !!env.KEY,
+            hasToken: !!env.TOKEN,
+            hasSocks5: !!env.SOCKS5,
+            hasHTTP: !!env.HTTP,
+            hasProxyIP: !!env.PROXYIP,
+            hasCFEmail: !!env.CF_EMAIL,
+            hasCFAPIKey: !!env.CF_APIKEY,
+            hasCFID: !!env.CF_ID,
+            hasCFAPIToken: !!env.CF_APITOKEN,
+            hasSubAPI: !!env.SUBAPI,
+            hasSubConfig: !!env.SUBCONFIG,
+            hasTGToken: !!env.TGTOKEN,
+            hasTGID: !!env.TGID
+        },
+        configurationValues: {
+            SUB: sub ? '已配置' : '未配置',
+            ADD: env.ADD ? env.ADD.substring(0, 50) + '...' : '未配置',
+            ADDAPI: env.ADDAPI ? env.ADDAPI.substring(0, 50) + '...' : '未配置',
+            UUID: userID ? userID.substring(0, 20) + '...' : '未设置',
+            KEY: env.KEY ? '已配置' : '未配置',
+            TOKEN: env.TOKEN ? '已配置' : '未配置'
+        },
+        processingFlow: [
+            '1️⃣ 客户端发送请求 (GET /{UUID})',
+            '2️⃣ 服务器接收请求，识别客户端类型',
+            '3️⃣ 检查是否配置了外部订阅生成器(SUB)',
+            '4️⃣ 检查是否配置了本地优选IP(ADD/ADDAPI/ADDCSV)',
+            '5️⃣ 检查是否绑定了KV存储',
+            '6️⃣ 调用生成配置信息函数',
+            '7️⃣ 构建VLESS节点链接',
+            '8️⃣ Base64编码订阅内容',
+            '9️⃣ 恢复真实UUID',
+            '🔟 返回给客户端'
+        ],
+        troubleshootingChecklist: [
+            '✅ 检查第1步：UUID是否正确配置',
+            '✅ 检查第3步：SUB变量是否配置外部订阅器',
+            '✅ 检查第4步：是否配置了任何优选IP源',
+            '✅ 检查第5步：KV空间是否已绑定且有数据',
+            '✅ 检查第6步：环境变量是否正确传入',
+            '✅ 检查第7步：节点格式是否正确 (IP:PORT#REMARK)',
+            '✅ 检查第8步：编码过程是否正常',
+            '✅ 检查网络连接是否正常',
+            '✅ 查看浏览器控制台是否有JavaScript错误',
+            '✅ 确认Cloudflare API权限是否充足'
+        ],
+        recommendedSolutions: [
+            '💡 方案A：配置最小化ADD环境变量',
+            '   ADD = 1.1.1.1:443#CloudflareTest1,1.0.0.1:443#CloudflareTest2',
+            '',
+            '💡 方案B：配置ADDAPI动态获取IP',
+            '   ADDAPI = https://your-domain.com/api/ips.txt',
+            '',
+            '💡 方案C：配置SUB使用外部订阅器',
+            '   SUB = subconverter.example.com',
+            '',
+            '💡 方案D：使用KV在线管理优选列表',
+            '   1. 绑定KV命名空间，命名为 KV',
+            '   2. 访问 /{UUID}/edit 页面',
+            '   3. 粘贴优选IP列表（每行一个）',
+            '   4. 点击保存',
+            '',
+            '💡 方案E：直接访问在线优选IP页面',
+            '   访问 /{UUID}/bestip 页面进行IP优选和管理'
+        ],
+        importantNotes: [
+            '⚠️ 确保至少配置以下之一：SUB、ADD、ADDAPI、ADDCSV、KV',
+            '⚠️ ADDAPI和ADDCSV需要返回有效的IP:PORT格式',
+            '⚠️ KV绑定的命名空间变量名必须是 KV',
+            '⚠️ CF_EMAIL和CF_APIKEY需要同时配置才能获取流量统计',
+            '⚠️ TGTOKEN和TGID需要同时配置才能接收TG通知',
+            '⚠️ 修改环境变量后需要重新部署才能生效'
+        ]
+    };
+    
+    // 生成HTML页面
+    const html = `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>订阅诊断工具 - EdgeTunnel</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+        .content {
+            padding: 30px;
+        }
+        .section {
+            margin-bottom: 40px;
+            border-bottom: 2px solid #f0f0f0;
+            padding-bottom: 20px;
+        }
+        .section:last-child {
+            border-bottom: none;
+        }
+        .section-title {
+            font-size: 1.5em;
+            color: #667eea;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin: 15px 0;
+        }
+        .info-card {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+        .info-card strong {
+            color: #667eea;
+            display: block;
+            margin-bottom: 5px;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            font-weight: bold;
+        }
+        .badge-success {
+            background: #d4edda;
+            color: #155724;
+        }
+        .badge-danger {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        .list-item {
+            padding: 10px;
+            margin: 8px 0;
+            background: #f8f9fa;
+            border-radius: 6px;
+            border-left: 3px solid #667eea;
+        }
+        .solution-box {
+            background: #e7f3ff;
+            border-left: 4px solid #2196F3;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 10px 0;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 0.95em;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        .warning-box {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 10px 0;
+        }
+        .timestamp {
+            color: #999;
+            font-size: 0.9em;
+            text-align: right;
+            margin-top: 20px;
+        }
+        .json-display {
+            background: #2d2d2d;
+            color: #f8f8f2;
+            padding: 20px;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 0.85em;
+            margin: 15px 0;
+        }
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.95em;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+        .btn-primary:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 1.8em;
+            }
+            .content {
+                padding: 20px;
+            }
+            .info-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔍 EdgeTunnel 订阅诊断工具</h1>
+            <p>帮助您快速诊断和解决订阅配置问题</p>
+        </div>
+        
+        <div class="content">
+            <!-- 基本信息 -->
+            <div class="section">
+                <div class="section-title">📋 基本信息</div>
+                <div class="info-grid">
+                    <div class="info-card">
+                        <strong>请求时间</strong>
+                        ${new Date(diagnosticInfo.timestamp).toLocaleString('zh-CN')}
+                    </div>
+                    <div class="info-card">
+                        <strong>客户端IP</strong>
+                        ${diagnosticInfo.clientIP}
+                    </div>
+                    <div class="info-card">
+                        <strong>请求URL</strong>
+                        ${diagnosticInfo.requestURL}
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 配置状态 -->
+            <div class="section">
+                <div class="section-title">⚙️ 配置状态检查</div>
+                <div class="info-grid">
+                    <div class="info-card">
+                        <strong>外部订阅生成器 (SUB)</strong>
+                        <span class="status-badge ${diagnosticInfo.configurationStatus.hasSUB ? 'badge-success' : 'badge-danger'}">
+                            ${diagnosticInfo.configurationStatus.hasSUB ? '✅ 已配置' : '❌ 未配置'}
+                        </span>
+                    </div>
+                    <div class="info-card">
+                        <strong>本地优选IP (ADD)</strong>
+                        <span class="status-badge ${diagnosticInfo.configurationStatus.hasADD ? 'badge-success' : 'badge-danger'}">
+                            ${diagnosticInfo.configurationStatus.hasADD ? '✅ 已配置' : '❌ 未配置'}
+                        </span>
+                    </div>
+                    <div class="info-card">
+                        <strong>优选API (ADDAPI)</strong>
+                        <span class="status-badge ${diagnosticInfo.configurationStatus.hasADDAPI ? 'badge-success' : 'badge-danger'}">
+                            ${diagnosticInfo.configurationStatus.hasADDAPI ? '✅ 已配置' : '❌ 未配置'}
+                        </span>
+                    </div>
+                    <div class="info-card">
+                        <strong>优选CSV (ADDCSV)</strong>
+                        <span class="status-badge ${diagnosticInfo.configurationStatus.hasADDCSV ? 'badge-success' : 'badge-danger'}">
+                            ${diagnosticInfo.configurationStatus.hasADDCSV ? '✅ 已配置' : '❌ 未配置'}
+                        </span>
+                    </div>
+                    <div class="info-card">
+                        <strong>KV存储</strong>
+                        <span class="status-badge ${diagnosticInfo.configurationStatus.hasKV ? 'badge-success' : 'badge-danger'}">
+                            ${diagnosticInfo.configurationStatus.hasKV ? '✅ 已绑定' : '❌ 未绑定'}
+                        </span>
+                    </div>
+                    <div class="info-card">
+                        <strong>UUID认证</strong>
+                        <span class="status-badge ${diagnosticInfo.configurationStatus.hasUUID ? 'badge-success' : 'badge-danger'}">
+                            ${diagnosticInfo.configurationStatus.hasUUID ? '✅ 已设置' : '❌ 未设置'}
+                        </span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 处理流程 -->
+            <div class="section">
+                <div class="section-title">🔄 订阅生成流程</div>
+                ${diagnosticInfo.processingFlow.map(step => `<div class="list-item">${step}</div>`).join('')}
+            </div>
+            
+            <!-- 诊断清单 -->
+            <div class="section">
+                <div class="section-title">✅ 诊断清单</div>
+                ${diagnosticInfo.troubleshootingChecklist.map(item => `<div class="list-item">${item}</div>`).join('')}
+            </div>
+            
+            <!-- 推荐解决方案 -->
+            <div class="section">
+                <div class="section-title">💡 推荐解决方案</div>
+                ${diagnosticInfo.recommendedSolutions.map(solution => {
+                    if (solution === '') return '<br>';
+                    if (solution.startsWith('💡')) {
+                        return `<div style="font-weight: bold; margin-top: 15px;">${solution}</div>`;
+                    }
+                    return `<div class="solution-box">${solution}</div>`;
+                }).join('')}
+            </div>
+            
+            <!-- 重要提示 -->
+            <div class="section">
+                <div class="section-title">⚠️ 重要提示</div>
+                ${diagnosticInfo.importantNotes.map(note => `<div class="warning-box">${note}</div>`).join('')}
+            </div>
+            
+            <!-- JSON数据 -->
+            <div class="section">
+                <div class="section-title">📊 原始诊断数据 (JSON)</div>
+                <div class="json-display">${JSON.stringify(diagnosticInfo, null, 2)}</div>
+            </div>
+            
+            <!-- 操作按钮 -->
+            <div class="action-buttons">
+                <button class="btn btn-primary" onclick="copyToClipboard();">📋 复制诊断信息</button>
+                <button class="btn btn-secondary" onclick="goBack();">⬅️ 返回</button>
+                <button class="btn btn-secondary" onclick="window.print();">🖨️ 打印</button>
+            </div>
+            
+            <div class="timestamp">生成时间: ${new Date().toLocaleString('zh-CN')}</div>
+        </div>
+    </div>
+    
+    <script>
+        function copyToClipboard() {
+            const data = document.querySelector('.json-display').textContent;
+            navigator.clipboard.writeText(data).then(() => {
+                alert('✅ 诊断信息已复制到剪贴板！');
+            }).catch(() => {
+                alert('❌ 复制失败，请手动复制。');
+            });
+        }
+        
+        function goBack() {
+            const currentUrl = window.location.href;
+            const parentUrl = currentUrl.substring(0, currentUrl.lastIndexOf('/'));
+            window.location.href = parentUrl;
+        }
+    </script>
+</body>
+</html>`;
+    
+    return new Response(html, {
+        headers: {
+            'Content-Type': 'text/html; charset=utf-8',
+            'Cache-Control': 'no-cache, no-store, must-revalidate'
+        }
+    });
 }
