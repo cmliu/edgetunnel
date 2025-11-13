@@ -1,4 +1,10 @@
 name = "v20250907"
 main = "_worker.js"
 compatibility_date = "2025-09-07"
+
 keep_vars = true
+
+
+kv_namespaces = [
+  { binding = "KV", id = "766d6ae4aa5441e3be2991e9ceb6bb45" }
+]
