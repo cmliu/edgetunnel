@@ -14,11 +14,14 @@ export default {
         const url = new URL(request.url);
         const UA = request.headers.get('User-Agent') || 'null';
         const upgradeHeader = request.headers.get('Upgrade');
-        const 管理员密码 = env.ADMIN || env.admin || env.UUID || env.uuid || env.PASSWORD || env.password || env.pswd || env.TOKEN || env.KEY;
+        const 管理员密码 = env.ADMIN || env.admin || env.PASSWORD || env.password || env.pswd || env.TOKEN || env.KEY;
         const 加密秘钥 = env.KEY || '勿动此默认密钥，有需求请自行通过添加变量KEY进行修改';
         const userIDMD5 = await MD5MD5(管理员密码 + 加密秘钥);
-        const userID = [userIDMD5.slice(0, 8), userIDMD5.slice(8, 12), '4' + userIDMD5.slice(13, 16), userIDMD5.slice(16, 20), userIDMD5.slice(20)].join('-');
-        反代IP = 反代IP ? 反代IP : request.cf.colo + '.PrOxYIp.CmLiUsSsS.nEt';
+        const userID = env.UUID || env.uuid || [userIDMD5.slice(0, 8), userIDMD5.slice(8, 12), '4' + userIDMD5.slice(13, 16), userIDMD5.slice(16, 20), userIDMD5.slice(20)].join('-');
+        if (env.PROXYIP) {
+            const proxyIPs = await 整理成数组(env.PROXYIP);
+            反代IP = proxyIPs[Math.floor(Math.random() * proxyIPs.length)];
+        } else 反代IP = 反代IP ? 反代IP : request.cf.colo + '.PrOxYIp.CmLiUsSsS.nEt';
         const 访问IP = request.headers.get('X-Real-IP') || request.headers.get('CF-Connecting-IP') || request.headers.get('X-Forwarded-For') || request.headers.get('True-Client-IP') || request.headers.get('Fly-Client-IP') || request.headers.get('X-Appengine-Remote-Addr') || request.headers.get('X-Forwarded-For') || request.headers.get('X-Real-IP') || request.headers.get('X-Cluster-Client-IP') || request.cf?.clientTcpRtt || '未知IP';
         if (env.GO2SOCKS5) SOCKS5白名单 = await 整理成数组(env.GO2SOCKS5);
         if (!upgradeHeader || upgradeHeader !== 'websocket') {
@@ -317,7 +320,7 @@ export default {
                 return fetch(new Request(反代URL.protocol + 反代URL.host + url.pathname + url.search, { method: request.method, headers: 新请求头, body: request.body, cf: request.cf }));
             } catch (error) { }
             return new Response(await nginx(), { status: 200, headers: { 'Content-Type': 'text/html; charset=UTF-8' } });
-        } else {// ws代理
+        } else if (管理员密码) {// ws代理
             await 反代参数获取(request);
             const { 0: client, 1: server } = new WebSocketPair();
             server.accept();
