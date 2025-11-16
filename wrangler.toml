@@ -4,8 +4,16 @@ compatibility_date = "2025-11-04"
 
 keep_vars = true
 [observability]
+enabled = false
+head_sampling_rate = 1
+
 [observability.logs]
 enabled = true
 head_sampling_rate = 1
-invocation_logs = true
 persist = true
+invocation_logs = true
+
+[observability.traces]
+enabled = false
+persist = true
+head_sampling_rate = 1
