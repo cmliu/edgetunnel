@@ -2,12 +2,6 @@
 let config_JSON, 反代IP = '', 启用SOCKS5反代 = null, 启用SOCKS5全局反代 = false, 我的SOCKS5账号 = '', parsedSocks5Address = {};
 let SOCKS5白名单 = ['*tapecontent.net', '*cloudatacdn.com', '*loadshare.org', '*cdn-centaurus.com', 'scholar.google.com'];
 const Pages静态页面 = 'https://edt-pages.github.io';
-///////////////////////////////////////////////////////stallTCP参数///////////////////////////////////////////////
-const MAX_PENDING = 8 * 1024 * 1024,  // 最大缓冲大小（字节）：8MB，超过此值将触发背压控制，防止内存溢出
-    KEEPALIVE = 15000,           // 心跳保活间隔（毫秒）：15秒，定期向服务器发送空包保持连接活跃
-    STALL_TIMEOUT = 8000,        // 连接停滞检测超时（毫秒）：8秒，检测数据流是否中断
-    MAX_STALL = 12,              // 最大连续停滞次数：触发12次停滞后将重新连接（12 × 8秒 = 96秒）
-    MAX_RECONNECT = 24;          // 最大重连尝试次数：超过24次重连失败后关闭连接
 ///////////////////////////////////////////////////////主程序入口///////////////////////////////////////////////
 export default {
     async fetch(request, env) {
@@ -17,7 +11,9 @@ export default {
         const 管理员密码 = env.ADMIN || env.admin || env.PASSWORD || env.password || env.pswd || env.TOKEN || env.KEY;
         const 加密秘钥 = env.KEY || '勿动此默认密钥，有需求请自行通过添加变量KEY进行修改';
         const userIDMD5 = await MD5MD5(管理员密码 + 加密秘钥);
-        const userID = env.UUID || env.uuid || [userIDMD5.slice(0, 8), userIDMD5.slice(8, 12), '4' + userIDMD5.slice(13, 16), userIDMD5.slice(16, 20), userIDMD5.slice(20)].join('-');
+        const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/;
+        const envUUID = env.UUID || env.uuid;
+        const userID = (envUUID && uuidRegex.test(envUUID)) ? envUUID.toLowerCase() : [userIDMD5.slice(0, 8), userIDMD5.slice(8, 12), '4' + userIDMD5.slice(13, 16), userIDMD5.slice(16, 20), userIDMD5.slice(20)].join('-');
         if (env.PROXYIP) {
             const proxyIPs = await 整理成数组(env.PROXYIP);
             反代IP = proxyIPs[Math.floor(Math.random() * proxyIPs.length)];
@@ -175,7 +171,7 @@ export default {
                     return new Response(JSON.stringify(config_JSON, null, 2), { status: 200, headers: { 'Content-Type': 'application/json' } });
                 } else if (区分大小写访问路径 === 'admin/ADD.txt') {// 处理 admin/ADD.txt 请求，返回本地优选IP
                     let 本地优选IP = await env.KV.get('ADD.txt') || 'null';
-                    if (本地优选IP == 'null') 本地优选IP = (await 生成随机IP(request, config_JSON.优选订阅生成.本地IP库.随机数量))[1];
+                    if (本地优选IP == 'null') 本地优选IP = (await 生成随机IP(request, config_JSON.优选订阅生成.本地IP库.随机数量, config_JSON.优选订阅生成.本地IP库.指定端口))[1];
                     return new Response(本地优选IP, { status: 200, headers: { 'Content-Type': 'text/plain;charset=utf-8', 'asn': request.cf.asn } });
                 } else if (访问路径 === 'admin/cf.json') {// CF配置文件
                     return new Response(JSON.stringify(request.cf, null, 2), { status: 200, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
@@ -228,8 +224,8 @@ export default {
                     const 协议类型 = (url.searchParams.has('surge') || ua.includes('surge')) ? 'tro' + 'jan' : config_JSON.协议类型;
                     let 订阅内容 = '';
                     if (订阅类型 === 'mixed') {
-                        const 节点路径 = (url.searchParams.has('clash') || ua.includes('clash') || ua.includes('meta') || ua.includes('mihomo')) && 协议类型 == 'tro' + 'jan' ? config_JSON.PATH + '?ed=2560' : config_JSON.PATH;
-                        const 完整优选列表 = config_JSON.优选订阅生成.本地IP库.随机IP ? (await 生成随机IP(request, config_JSON.优选订阅生成.本地IP库.随机数量))[0] : await env.KV.get('ADD.txt') ? await 整理成数组(await env.KV.get('ADD.txt')) : (await 生成随机IP(request, config_JSON.优选订阅生成.本地IP库.随机数量))[0];
+                        const 节点路径 = config_JSON.启用0RTT ? config_JSON.PATH + '?ed=2560' : config_JSON.PATH;
+                        const 完整优选列表 = config_JSON.优选订阅生成.本地IP库.随机IP ? (await 生成随机IP(request, config_JSON.优选订阅生成.本地IP库.随机数量, config_JSON.优选订阅生成.本地IP库.指定端口))[0] : await env.KV.get('ADD.txt') ? await 整理成数组(await env.KV.get('ADD.txt')) : (await 生成随机IP(request, config_JSON.优选订阅生成.本地IP库.随机数量, config_JSON.优选订阅生成.本地IP库.指定端口))[0];
                         const 优选API = [], 优选IP = [], 其他节点 = [];
                         for (const 元素 of 完整优选列表) {
                             if (元素.toLowerCase().startsWith('https://')) 优选API.push(元素);
@@ -304,12 +300,9 @@ export default {
             }
         } else if (管理员密码) {// ws代理
             await 反代参数获取(request);
-            const { 0: client, 1: server } = new WebSocketPair();
-            server.accept();
-            handleConnection(server, request, userID);
-            return new Response(null, { status: 101, webSocket: client });
+            return await 处理WS请求(request, userID);
         }
-        
+
         let 伪装页URL = env.URL || 'nginx';
         if (伪装页URL && 伪装页URL !== 'nginx' && 伪装页URL !== '1101') {
             伪装页URL = 伪装页URL.trim().replace(/\/$/, '');
@@ -330,784 +323,385 @@ export default {
     }
 };
 ///////////////////////////////////////////////////////////////////////WS传输数据///////////////////////////////////////////////
-// 内存池类 - 优化内存分配和回收
-class Pool {
-    constructor() {
-        this.buf = new ArrayBuffer(16384);
-        this.ptr = 0;
-        this.pool = [];
-        this.max = 8;
-        this.large = false;
-    }
-    alloc = s => {
-        if (s <= 4096 && s <= 16384 - this.ptr) {
-            const v = new Uint8Array(this.buf, this.ptr, s);
-            this.ptr += s;
-            return v;
-        }
-        const r = this.pool.pop();
-        if (r && r.byteLength >= s) return new Uint8Array(r.buffer, 0, s);
-        return new Uint8Array(s);
-    };
-    free = b => {
-        if (b.buffer === this.buf) {
-            this.ptr = Math.max(0, this.ptr - b.length);
-            return;
-        }
-        if (this.pool.length < this.max && b.byteLength >= 1024) this.pool.push(b);
-    };
-    enableLarge = () => { this.large = true; };
-    reset = () => { this.ptr = 0; this.pool.length = 0; this.large = false; };
-}
-
-function handleConnection(ws, request, FIXED_UUID) {
-    const pool = new Pool();
-    let socket, writer, reader, info;
-    let isFirstMsg = true, bytesReceived = 0, stallCount = 0, reconnectCount = 0;
-    let lastData = Date.now();
-    let isDns = false, udpStreamWrite = null;
-    const timers = {};
-    const dataBuffer = [];
-    let dataBufferBytes = 0;
-    const earlyDataHeader = request.headers.get("sec-websocket-protocol") || "";
-
-    // 新增: 连接状态和性能监控变量
-    let isConnecting = false, isReading = false;
-    let score = 1.0, lastCheck = Date.now(), lastRxBytes = 0, successCount = 0, failCount = 0;
-    let stats = { total: 0, count: 0, bigChunks: 0, window: 0, timestamp: Date.now() };
-    let mode = 'adaptive', avgSize = 0, throughputs = [];
-
-    // 动态调整传输模式
-    const updateMode = size => {
-        stats.total += size;
-        stats.count++;
-        if (size > 8192) stats.bigChunks++;
-        avgSize = avgSize * 0.9 + size * 0.1;
-        const now = Date.now();
-
-        if (now - stats.timestamp > 1000) {
-            const rate = stats.window;
-            throughputs.push(rate);
-            if (throughputs.length > 5) throughputs.shift();
-            stats.window = size;
-            stats.timestamp = now;
-            const avg = throughputs.reduce((a, b) => a + b, 0) / throughputs.length;
-
-            if (stats.count >= 20) {
-                if (avg > 20971520 && avgSize > 16384) {
-                    if (mode !== 'buffered') {
-                        mode = 'buffered';
-                        pool.enableLarge();
-                    }
-                } else if (avg < 10485760 || avgSize < 8192) {
-                    if (mode !== 'direct') mode = 'direct';
-                } else {
-                    if (mode !== 'adaptive') mode = 'adaptive';
-                }
+async function 处理WS请求(request, yourUUID) {
+    const wssPair = new WebSocketPair();
+    const [clientSock, serverSock] = Object.values(wssPair);
+    serverSock.accept();
+    let remoteConnWrapper = { socket: null };
+    let isDnsQuery = false;
+    const earlyData = request.headers.get('sec-websocket-protocol') || '';
+    const readable = makeReadableStr(serverSock, earlyData);
+    let 判断是否是木马 = null;
+    readable.pipeTo(new WritableStream({
+        async write(chunk) {
+            if (isDnsQuery) return await forwardataudp(chunk, serverSock, null);
+            if (remoteConnWrapper.socket) {
+                const writer = remoteConnWrapper.socket.writable.getWriter();
+                await writer.write(chunk);
+                writer.releaseLock();
+                return;
             }
-        } else {
-            stats.window += size;
-        }
-    };
 
-    async function 处理魏烈思握手(data) {
-        const bytes = new Uint8Array(data);
-        ws.send(new Uint8Array([bytes[0], 0]));
-        if (Array.from(bytes.slice(1, 17)).map(n => n.toString(16).padStart(2, '0')).join('').replace(/(.{8})(.{4})(.{4})(.{4})(.{12})/, '$1-$2-$3-$4-$5') !== FIXED_UUID) throw new Error('Auth failed');
-        const offset1 = 18 + bytes[17] + 1;
-        const command = bytes[offset1 - 1]; // 获取命令字节: 0x01=TCP, 0x02=UDP, 0x03=MUX
-        const port = (bytes[offset1] << 8) | bytes[offset1 + 1];
-        const addrType = bytes[offset1 + 2];
-        const offset2 = offset1 + 3;
-        const addressType = addrType === 3 ? 4 : addrType === 2 ? 3 : 1;
-        const { host, length } = parseAddress(bytes, offset2, addressType);
-        const payload = bytes.slice(length);
+            if (判断是否是木马 === null) {
+                const bytes = new Uint8Array(chunk);
+                判断是否是木马 = bytes.byteLength >= 58 && bytes[56] === 0x0d && bytes[57] === 0x0a;
+            }
 
-        // 处理 UDP 请求
-        if (command === 2) { // 0x02 = UDP
-            if (port === 53) {
-                isDns = true;
-                const 魏烈思响应头 = new Uint8Array([bytes[0], 0]);
-                const { write } = await handleUDPOutBound(ws, 魏烈思响应头);
-                udpStreamWrite = write;
-                if (payload.length) udpStreamWrite(payload);
-                return null; // UDP 不需要返回 socket
+            if (remoteConnWrapper.socket) {
+                const writer = remoteConnWrapper.socket.writable.getWriter();
+                await writer.write(chunk);
+                writer.releaseLock();
+                return;
+            }
+
+            if (判断是否是木马) {
+                const { port, hostname, rawClientData } = 解析木马请求(chunk, yourUUID);
+                if (isSpeedTestSite(hostname)) throw new Error('Speedtest site is blocked');
+                await forwardataTCP(hostname, port, rawClientData, serverSock, null, remoteConnWrapper);
             } else {
-                throw new Error('UDP proxy only enable for DNS which is port 53');
-            }
-        }
-
-        if (host.includes(atob('c3BlZWQuY2xvdWRmbGFyZS5jb20='))) throw new Error('Access');
-        const sock = await createConnection(host, port, addressType, 'V');
-        await sock.opened;
-        const w = sock.writable.getWriter();
-        if (payload.length) await w.write(payload);
-        return { socket: sock, writer: w, reader: sock.readable.getReader(), info: { host, port } };
-    }
-
-    async function 处理木马握手(data) {
-        const bytes = new Uint8Array(data);
-        if (bytes.byteLength < 56 || bytes[56] !== 0x0d || bytes[57] !== 0x0a) throw new Error("invalid data or header format");
-        if (new TextDecoder().decode(bytes.slice(0, 56)) !== sha224(FIXED_UUID)) throw new Error("invalid password");
-
-        const socks5Data = bytes.slice(58);
-        if (socks5Data.byteLength < 6) throw new Error("invalid SOCKS5 request data");
-        if (socks5Data[0] !== 1) throw new Error("unsupported command, only TCP (CONNECT) is allowed");
-        const addressType = socks5Data[1]
-        const { host, length } = parseAddress(socks5Data, 2, addressType);
-        if (!host) throw new Error(`address is empty, addressType is ${addressType}`);
-        if (host.includes(atob('c3BlZWQuY2xvdWRmbGFyZS5jb20='))) throw new Error('Access');
-
-        const port = (socks5Data[length] << 8) | socks5Data[length + 1];
-        const sock = await createConnection(host, port, addressType, 'T');
-        await sock.opened;
-        const w = sock.writable.getWriter();
-        const payload = socks5Data.slice(length + 4);
-        if (payload.length) await w.write(payload);
-        return { socket: sock, writer: w, reader: sock.readable.getReader(), info: { host, port } };
-    }
-
-    async function createConnection(host, port, addressType, 协议类型) {
-        console.log(JSON.stringify({ configJSON: { 协议类型: 协议类型, 目标类型: addressType, 目标地址: host, 目标端口: port, 反代IP: 反代IP, 代理类型: 启用SOCKS5反代, 全局代理: 启用SOCKS5全局反代, 代理账号: 我的SOCKS5账号 } }));
-        async function useSocks5Pattern(address) {
-            return SOCKS5白名单.some(pattern => {
-                let regexPattern = pattern.replace(/\*/g, '.*');
-                let regex = new RegExp(`^${regexPattern}$`, 'i');
-                return regex.test(address);
-            });
-        }
-        启用SOCKS5全局反代 = (await useSocks5Pattern(host)) || 启用SOCKS5全局反代;
-        let sock;
-        if (启用SOCKS5反代 == 'socks5' && 启用SOCKS5全局反代) {
-            sock = await socks5Connect(host, port, addressType);
-        } else if (启用SOCKS5反代 == 'http' && 启用SOCKS5全局反代) {
-            sock = await httpConnect(host, port);
-        } else {
-            try {
-                sock = connect({ hostname: host, port });
-                await sock.opened;
-            } catch {
-                if (启用SOCKS5反代 == 'socks5') {
-                    sock = await socks5Connect(host, port, addressType);
-                } else if (启用SOCKS5反代 == 'http') {
-                    sock = await httpConnect(host, port);
-                } else {
-                    const [反代IP地址, 反代IP端口] = await 解析地址端口(反代IP);
-                    try {
-                        sock = connect({ hostname: 反代IP地址, port: 反代IP端口 });
-                    } catch {
-                        sock = connect({ hostname: atob('UFJPWFlJUC50cDEuMDkwMjI3Lnh5eg=='), port: 1 });
-                    }
+                const { port, hostname, rawIndex, version, isUDP } = 解析魏烈思请求(chunk, yourUUID);
+                if (isSpeedTestSite(hostname)) throw new Error('Speedtest site is blocked');
+                if (isUDP) {
+                    if (port === 53) isDnsQuery = true;
+                    else throw new Error('UDP is not supported');
                 }
-            }
-        }
-        return sock;
-    }
-
-    async function readLoop() {
-        if (isReading) return;
-        isReading = true;
-        let batch = [], batchSize = 0, batchTimer = null;
-
-        // 批处理发送函数
-        const flush = () => {
-            if (!batchSize) return;
-            const merged = new Uint8Array(batchSize);
-            let pos = 0;
-            for (const chunk of batch) {
-                merged.set(chunk, pos);
-                pos += chunk.length;
-            }
-            if (ws.readyState === 1) ws.send(merged);
-            batch = [];
-            batchSize = 0;
-            if (batchTimer) {
-                clearTimeout(batchTimer);
-                batchTimer = null;
-            }
-        };
-
-        try {
-            while (true) {
-                // 背压控制
-                if (dataBufferBytes > MAX_PENDING) {
-                    await new Promise(res => setTimeout(res, 100));
-                    continue;
-                }
-
-                const { done, value } = await reader.read();
-                if (value?.length) {
-                    bytesReceived += value.length;
-                    lastData = Date.now();
-                    stallCount = 0;
-                    updateMode(value.length);
-
-                    // 定期更新网络评分
-                    const now = Date.now();
-                    if (now - lastCheck > 5000) {
-                        const elapsed = now - lastCheck;
-                        const bytes = bytesReceived - lastRxBytes;
-                        const throughput = bytes / elapsed;
-
-                        if (throughput > 500) score = Math.min(1.0, score + 0.05);
-                        else if (throughput < 50) score = Math.max(0.1, score - 0.05);
-
-                        lastCheck = now;
-                        lastRxBytes = bytesReceived;
-                    }
-
-                    // 根据模式选择发送策略
-                    if (mode === 'buffered') {
-                        if (value.length < 32768) {
-                            batch.push(value);
-                            batchSize += value.length;
-                            if (batchSize >= 131072) flush();
-                            else if (!batchTimer) batchTimer = setTimeout(flush, avgSize > 16384 ? 5 : 20);
-                        } else {
-                            flush();
-                            if (ws.readyState === 1) ws.send(value);
-                        }
-                    } else if (mode === 'adaptive') {
-                        if (value.length < 4096) {
-                            batch.push(value);
-                            batchSize += value.length;
-                            if (batchSize >= 32768) flush();
-                            else if (!batchTimer) batchTimer = setTimeout(flush, 15);
-                        } else {
-                            flush();
-                            if (ws.readyState === 1) ws.send(value);
-                        }
-                    } else {
-                        flush();
-                        if (ws.readyState === 1) ws.send(value);
-                    }
-                }
-
-                if (done) {
-                    flush();
-                    isReading = false;
-                    reconnect();
-                    break;
-                }
-            }
-        } catch (err) {
-            flush();
-            if (batchTimer) clearTimeout(batchTimer);
-            isReading = false;
-            failCount++;
-            reconnect();
-        }
-    }
-
-    async function reconnect() {
-        if (!info || ws.readyState !== 1) {
-            cleanup();
-            ws.close(1011, 'Invalid.');
-            return;
-        }
-        if (reconnectCount >= MAX_RECONNECT) {
-            cleanup();
-            ws.close(1011, 'Max reconnect.');
-            return;
-        }
-
-        // 基于网络质量评分的随机退出机制
-        if (score < 0.3 && reconnectCount > 5 && Math.random() > 0.6) {
-            cleanup();
-            ws.close(1011, 'Poor network.');
-            return;
-        }
-
-        if (isConnecting) return;
-        reconnectCount++;
-
-        // 动态计算重连延迟
-        let delay = Math.min(50 * Math.pow(1.5, reconnectCount - 1), 3000);
-        delay *= (1.5 - score * 0.5);
-        delay += (Math.random() - 0.5) * delay * 0.2;
-        delay = Math.max(50, Math.floor(delay));
-
-        console.log(`Reconnecting (attempt ${reconnectCount})...`);
-        try {
-            cleanupSocket();
-
-            // 背压控制: 清理过多缓冲数据
-            if (dataBufferBytes > MAX_PENDING * 2) {
-                while (dataBufferBytes > MAX_PENDING && dataBuffer.length > 5) {
-                    const drop = dataBuffer.shift();
-                    dataBufferBytes -= drop.length;
-                    pool.free(drop);
-                }
-            }
-
-            await new Promise(res => setTimeout(res, delay));
-            isConnecting = true;
-            socket = connect({ hostname: info.host, port: info.port });
-            await socket.opened;
-
-            writer = socket.writable.getWriter();
-            reader = socket.readable.getReader();
-
-            // 发送缓冲数据 (限制数量防止阻塞)
-            const buffersToSend = dataBuffer.splice(0, 10);
-            for (const buf of buffersToSend) {
-                await writer.write(buf);
-                dataBufferBytes -= buf.length;
-                pool.free(buf);
-            }
-
-            isConnecting = false;
-            reconnectCount = 0;
-            score = Math.min(1.0, score + 0.15);
-            successCount++;
-            stallCount = 0;
-            lastData = Date.now();
-            readLoop();
-        } catch (err) {
-            isConnecting = false;
-            failCount++;
-            score = Math.max(0.1, score - 0.2);
-
-            if (reconnectCount < MAX_RECONNECT && ws.readyState === 1) setTimeout(reconnect, 500);
-            else {
-                cleanup();
-                ws.close(1011, 'Exhausted.');
-            }
-        }
-    }
-
-    function startTimers() {
-        timers.keepalive = setInterval(async () => {
-            if (!isConnecting && writer && Date.now() - lastData > KEEPALIVE) {
-                try {
-                    await writer.write(new Uint8Array(0));
-                    lastData = Date.now();
-                } catch (e) {
-                    reconnect();
-                }
-            }
-        }, KEEPALIVE / 3);
-
-        timers.health = setInterval(() => {
-            if (!isConnecting && stats.total > 0 && Date.now() - lastData > STALL_TIMEOUT) {
-                stallCount++;
-                if (stallCount >= MAX_STALL) {
-                    if (reconnectCount < MAX_RECONNECT) {
-                        stallCount = 0;
-                        reconnect();
-                    } else {
-                        cleanup();
-                        ws.close(1011, 'Stall.');
-                    }
-                }
-            }
-        }, STALL_TIMEOUT / 2);
-    }
-
-    function cleanupSocket() {
-        isReading = false;
-        try {
-            writer?.releaseLock();
-            reader?.releaseLock();
-            socket?.close();
-        } catch { }
-    }
-
-    function cleanup() {
-        Object.values(timers).forEach(clearInterval);
-        cleanupSocket();
-        while (dataBuffer.length) pool.free(dataBuffer.shift());
-        dataBufferBytes = 0;
-        stats = { total: 0, count: 0, bigChunks: 0, window: 0, timestamp: Date.now() };
-        mode = 'direct';
-        avgSize = 0;
-        throughputs = [];
-        pool.reset();
-    }
-
-    // 处理 early data
-    function processEarlyData(earlyDataHeader) {
-        if (!earlyDataHeader) return null;
-        try {
-            const base64Str = earlyDataHeader.replace(/-/g, "+").replace(/_/g, "/");
-            const decode = atob(base64Str);
-            const arryBuffer = Uint8Array.from(decode, (c) => c.charCodeAt(0));
-            return arryBuffer;
-        } catch (error) {
-            return null;
-        }
-    }
-
-    ws.addEventListener('message', async evt => {
-        try {
-            if (isFirstMsg) {
-                isFirstMsg = false;
-                // 合并 early data 和第一条消息
-                let firstData = evt.data;
-                const earlyData = processEarlyData(earlyDataHeader);
-                if (earlyData) {
-                    const combined = new Uint8Array(earlyData.length + firstData.byteLength);
-                    combined.set(earlyData);
-                    combined.set(new Uint8Array(firstData), earlyData.length);
-                    firstData = combined.buffer;
-                }
-
-                const bytes = new Uint8Array(firstData);
-                let result;
-                if (bytes.byteLength >= 58 && bytes[56] === 0x0d && bytes[57] === 0x0a) {
-                    result = await 处理木马握手(firstData);
-                } else {
-                    result = await 处理魏烈思握手(firstData);
-                }
-
-                // 如果是 UDP DNS,result 为 null,不需要启动 TCP 相关逻辑
-                if (result) {
-                    ({ socket, writer, reader, info } = result);
-                    startTimers();
-                    readLoop();
-                }
-            } else {
-                lastData = Date.now();
-                if (isDns && udpStreamWrite) {
-                    udpStreamWrite(evt.data);
-                } else if (isConnecting || !writer) {
-                    // 使用内存池分配缓冲区
-                    const buf = pool.alloc(evt.data.byteLength);
-                    buf.set(new Uint8Array(evt.data));
-                    dataBuffer.push(buf);
-                    dataBufferBytes += buf.length;
-                } else {
-                    await writer.write(evt.data);
-                }
-            }
-        } catch (err) {
-            cleanup();
-            ws.close(1006, 'Error.');
-        }
-    });
-
-    ws.addEventListener('close', cleanup);
-    ws.addEventListener('error', cleanup);
-}
-
-function parseAddress(bytes, offset, addrType) {
-    let host, length, endOffset;
-    switch (addrType) {
-        case 1: // IPv4
-            length = 4;
-            host = Array.from(bytes.slice(offset, offset + length)).join('.');
-            endOffset = offset + length;
-            break;
-        case 3: // Domain name
-            length = bytes[offset];
-            host = new TextDecoder().decode(bytes.slice(offset + 1, offset + 1 + length));
-            endOffset = offset + 1 + length;
-            break;
-        case 4: // IPv6
-            length = 16;
-            const ipv6 = [];
-            for (let i = 0; i < 8; i++) {
-                ipv6.push(((bytes[offset + i * 2] << 8) | bytes[offset + i * 2 + 1]).toString(16));
-            }
-            host = ipv6.join(':');
-            endOffset = offset + length;
-            break;
-        default:
-            throw new Error(`Invalid address type: ${addrType}`);
-    }
-    return { host, length: endOffset };
-}
-
-async function handleUDPOutBound(webSocket, 魏烈思响应头) {
-    let 是否已发送魏烈思响应头 = false;
-    const transformStream = new TransformStream({
-        start(controller) { },
-        transform(chunk, controller) {
-            // 确保 chunk 是 Uint8Array
-            if (!(chunk instanceof Uint8Array)) {
-                chunk = new Uint8Array(chunk);
-            }
-
-            // UDP 消息前 2 字节是 UDP 数据长度
-            for (let index = 0; index < chunk.byteLength;) {
-                // 直接从字节中读取长度，避免使用 DataView
-                const udpPacketLength = (chunk[index] << 8) | chunk[index + 1];
-                const udpData = new Uint8Array(
-                    chunk.slice(index + 2, index + 2 + udpPacketLength)
-                );
-                index = index + 2 + udpPacketLength;
-                controller.enqueue(udpData);
+                const respHeader = new Uint8Array([version[0], 0]);
+                const rawData = chunk.slice(rawIndex);
+                if (isDnsQuery) return forwardataudp(rawData, serverSock, respHeader);
+                await forwardataTCP(hostname, port, rawData, serverSock, respHeader, remoteConnWrapper);
             }
         },
-        flush(controller) { }
+    })).catch((err) => {
+        // console.error('Readable pipe error:', err);
     });
 
-    // 只处理 DNS UDP 请求
-    transformStream.readable.pipeTo(new WritableStream({
-        async write(chunk) {
-            try {
-                const startTime = performance.now();
-                // 解析 DNS 查询域名
-                const dnsQuery = parseDNSQuery(chunk);
-                console.log(`[UDP DNS] 查询域名: ${dnsQuery.domain || '未知'}, 类型: ${dnsQuery.type}, 处理时间: ${(performance.now() - startTime).toFixed(2)}ms`);
-                const resp = await fetch('https://1.1.1.1/dns-query', {
-                    method: 'POST',
-                    headers: {
-                        'content-type': 'application/dns-message',
-                    },
-                    body: chunk,
-                });
-                const dnsQueryResult = await resp.arrayBuffer();
-                const udpSize = dnsQueryResult.byteLength;
-                const udpSizeBuffer = new Uint8Array([(udpSize >> 8) & 0xff, udpSize & 0xff]);
+    return new Response(null, { status: 101, webSocket: clientSock });
+}
 
-                // 解析 DNS 响应内容
-                const dnsResponse = parseDNSResponse(new Uint8Array(dnsQueryResult));
-                const answers = dnsResponse.answers.length > 0 ? dnsResponse.answers.join(', ') : '无记录';
-                console.log(`[UDP DNS] 响应域名: ${dnsQuery.domain || '未知'}, 答案: ${answers}, 响应时间: ${(performance.now() - startTime).toFixed(2)}ms`);
+function 解析木马请求(buffer, passwordPlainText) {
+    const sha224Password = sha224(passwordPlainText);
+    if (buffer.byteLength < 56) return { hasError: true, message: "invalid data" };
+    let crLfIndex = 56;
+    if (new Uint8Array(buffer.slice(56, 57))[0] !== 0x0d || new Uint8Array(buffer.slice(57, 58))[0] !== 0x0a) return { hasError: true, message: "invalid header format" };
+    const password = new TextDecoder().decode(buffer.slice(0, crLfIndex));
+    if (password !== sha224Password) return { hasError: true, message: "invalid password" };
 
-                if (webSocket.readyState === 1) { // WebSocket.OPEN
-                    if (是否已发送魏烈思响应头) {
-                        webSocket.send(await new Blob([udpSizeBuffer, dnsQueryResult]).arrayBuffer());
-                    } else {
-                        webSocket.send(await new Blob([魏烈思响应头, udpSizeBuffer, dnsQueryResult]).arrayBuffer());
-                        是否已发送魏烈思响应头 = true;
-                    }
-                    // DNS 查询完成后关闭 WebSocket 连接
-                    setTimeout(() => {
-                        if (webSocket.readyState === 1) {
-                            webSocket.close(1000, 'DNS query completed');
-                            console.log(`[UDP DNS] 连接已关闭: ${dnsQuery.domain || '未知'}`);
-                        }
-                    }, 10); // 给一点时间让数据发送完成
-                }
-            } catch (error) {
-                console.error('DoH request failed:', error);
-                // 出错时也关闭连接
-                if (webSocket.readyState === 1) {
-                    webSocket.close(1000, 'DNS query failed');
-                }
+    const socks5DataBuffer = buffer.slice(crLfIndex + 2);
+    if (socks5DataBuffer.byteLength < 6) return { hasError: true, message: "invalid S5 request data" };
+
+    const view = new DataView(socks5DataBuffer);
+    const cmd = view.getUint8(0);
+    if (cmd !== 1) return { hasError: true, message: "unsupported command, only TCP is allowed" };
+
+    const atype = view.getUint8(1);
+    let addressLength = 0;
+    let addressIndex = 2;
+    let address = "";
+    switch (atype) {
+        case 1: // IPv4
+            addressLength = 4;
+            address = new Uint8Array(socks5DataBuffer.slice(addressIndex, addressIndex + addressLength)).join(".");
+            break;
+        case 3: // Domain
+            addressLength = new Uint8Array(socks5DataBuffer.slice(addressIndex, addressIndex + 1))[0];
+            addressIndex += 1;
+            address = new TextDecoder().decode(socks5DataBuffer.slice(addressIndex, addressIndex + addressLength));
+            break;
+        case 4: // IPv6
+            addressLength = 16;
+            const dataView = new DataView(socks5DataBuffer.slice(addressIndex, addressIndex + addressLength));
+            const ipv6 = [];
+            for (let i = 0; i < 8; i++) {
+                ipv6.push(dataView.getUint16(i * 2).toString(16));
             }
-        }
-    })).catch((error) => {
-        console.error('DNS UDP error:', error);
-    });
+            address = ipv6.join(":");
+            break;
+        default:
+            return { hasError: true, message: `invalid addressType is ${atype}` };
+    }
 
-    const writer = transformStream.writable.getWriter();
+    if (!address) {
+        return { hasError: true, message: `address is empty, addressType is ${atype}` };
+    }
+
+    const portIndex = addressIndex + addressLength;
+    const portBuffer = socks5DataBuffer.slice(portIndex, portIndex + 2);
+    const portRemote = new DataView(portBuffer).getUint16(0);
 
     return {
-        write(chunk) {
-            writer.write(chunk);
-        }
+        hasError: false,
+        addressType: atype,
+        port: portRemote,
+        hostname: address,
+        rawClientData: socks5DataBuffer.slice(portIndex + 4)
     };
 }
 
-function parseDNSQuery(dnsPacket) {
-    try {
-        // 确保 dnsPacket 有 byteLength 属性
-        if (!dnsPacket || !dnsPacket.byteLength) {
-            return { domain: null, type: 'Invalid' };
-        }
-
-        // DNS 头部是 12 字节
-        if (dnsPacket.byteLength < 12) return { domain: null, type: 'Invalid' };
-
-        // 从第 12 字节开始是查询部分
-        let offset = 12;
-        const labels = [];
-
-        // 解析域名标签
-        while (offset < dnsPacket.byteLength) {
-            const length = dnsPacket[offset];
-            if (length === 0) {
-                offset++;
-                break;
-            }
-            // 检查是否是指针 (压缩格式)
-            if ((length & 0xC0) === 0xC0) {
-                offset += 2;
-                break;
-            }
-            offset++;
-            if (offset + length > dnsPacket.byteLength) break;
-
-            const label = new TextDecoder().decode(dnsPacket.slice(offset, offset + length));
-            labels.push(label);
-            offset += length;
-        }
-
-        const domain = labels.join('.');
-
-        // 查询类型在域名之后的 2 字节 (TYPE)
-        let queryType = 'Unknown';
-        if (offset + 2 <= dnsPacket.byteLength) {
-            const type = (dnsPacket[offset] << 8) | dnsPacket[offset + 1];
-            const types = { 1: 'A', 2: 'NS', 5: 'CNAME', 6: 'SOA', 12: 'PTR', 15: 'MX', 16: 'TXT', 28: 'AAAA', 33: 'SRV', 65: 'HTTPS' };
-            queryType = types[type] || `TYPE${type}`;
-        }
-
-        return { domain: domain || null, type: queryType };
-    } catch (error) {
-        console.error('[UDP DNS] 解析 DNS 查询失败:', error);
-        return { domain: null, type: 'Error' };
+function 解析魏烈思请求(chunk, token) {
+    if (chunk.byteLength < 24) return { hasError: true, message: 'Invalid data' };
+    const version = new Uint8Array(chunk.slice(0, 1));
+    if (formatIdentifier(new Uint8Array(chunk.slice(1, 17))) !== token) return { hasError: true, message: 'Invalid uuid' };
+    const optLen = new Uint8Array(chunk.slice(17, 18))[0];
+    const cmd = new Uint8Array(chunk.slice(18 + optLen, 19 + optLen))[0];
+    let isUDP = false;
+    if (cmd === 1) { } else if (cmd === 2) { isUDP = true; } else { return { hasError: true, message: 'Invalid command' }; }
+    const portIdx = 19 + optLen;
+    const port = new DataView(chunk.slice(portIdx, portIdx + 2)).getUint16(0);
+    let addrIdx = portIdx + 2, addrLen = 0, addrValIdx = addrIdx + 1, hostname = '';
+    const addressType = new Uint8Array(chunk.slice(addrIdx, addrValIdx))[0];
+    switch (addressType) {
+        case 1:
+            addrLen = 4;
+            hostname = new Uint8Array(chunk.slice(addrValIdx, addrValIdx + addrLen)).join('.');
+            break;
+        case 2:
+            addrLen = new Uint8Array(chunk.slice(addrValIdx, addrValIdx + 1))[0];
+            addrValIdx += 1;
+            hostname = new TextDecoder().decode(chunk.slice(addrValIdx, addrValIdx + addrLen));
+            break;
+        case 3:
+            addrLen = 16;
+            const ipv6 = [];
+            const ipv6View = new DataView(chunk.slice(addrValIdx, addrValIdx + addrLen));
+            for (let i = 0; i < 8; i++) ipv6.push(ipv6View.getUint16(i * 2).toString(16));
+            hostname = ipv6.join(':');
+            break;
+        default:
+            return { hasError: true, message: `Invalid address type: ${addressType}` };
     }
+    if (!hostname) return { hasError: true, message: `Invalid address: ${addressType}` };
+    return { hasError: false, addressType, port, hostname, isUDP, rawIndex: addrValIdx + addrLen, version };
 }
-
-function parseDNSResponse(dnsPacket) {
-    try {
-        if (!dnsPacket || dnsPacket.byteLength < 12) return { answers: [] };
-        const answerCount = (dnsPacket[6] << 8) | dnsPacket[7];
-        if (answerCount === 0) return { answers: [] };
-
-        let offset = 12;
-        // 跳过查询部分
-        while (offset < dnsPacket.byteLength) {
-            const length = dnsPacket[offset];
-            if (length === 0) { offset += 5; break; }
-            if ((length & 0xC0) === 0xC0) { offset += 6; break; }
-            offset += 1 + length;
-        }
-
-        const answers = [];
-        for (let i = 0; i < answerCount && offset < dnsPacket.byteLength; i++) {
-            try {
-                // 跳过 NAME
-                if ((dnsPacket[offset] & 0xC0) === 0xC0) offset += 2;
-                else { while (offset < dnsPacket.byteLength && dnsPacket[offset] !== 0) offset += 1 + dnsPacket[offset]; offset += 1; }
-
-                if (offset + 10 > dnsPacket.byteLength) break;
-                const type = (dnsPacket[offset] << 8) | dnsPacket[offset + 1];
-                const dataLength = (dnsPacket[offset + 8] << 8) | dnsPacket[offset + 9];
-                offset += 10;
-                if (offset + dataLength > dnsPacket.byteLength) break;
-
-                let answer = '';
-                if (type === 1 && dataLength === 4) answer = `${dnsPacket[offset]}.${dnsPacket[offset + 1]}.${dnsPacket[offset + 2]}.${dnsPacket[offset + 3]}`;
-                else if (type === 28 && dataLength === 16) answer = Array.from({ length: 8 }, (_, j) => ((dnsPacket[offset + j * 2] << 8) | dnsPacket[offset + j * 2 + 1]).toString(16)).join(':');
-                else if (type === 5 || type === 2 || type === 12) answer = parseDNSName(dnsPacket, offset);
-                else if (type === 16) answer = new TextDecoder().decode(dnsPacket.slice(offset + 1, offset + 1 + dnsPacket[offset]));
-                else answer = `TYPE${type}`;
-
-                if (answer) answers.push(answer);
-                offset += dataLength;
-            } catch (e) { break; }
-        }
-        return { answers };
-    } catch (error) {
-        console.error('[UDP DNS] 解析 DNS 响应失败:', error);
-        return { answers: [] };
-    }
-}
-
-function parseDNSName(packet, offset) {
-    const labels = [];
-    let maxJumps = 5;
-    while (offset < packet.byteLength && maxJumps > 0) {
-        const length = packet[offset];
-        if (length === 0) break;
-        if ((length & 0xC0) === 0xC0) { offset = ((length & 0x3F) << 8) | packet[offset + 1]; maxJumps--; continue; }
-        offset++;
-        if (offset + length > packet.byteLength) break;
-        labels.push(new TextDecoder().decode(packet.slice(offset, offset + length)));
-        offset += length;
-    }
-    return labels.join('.');
-}
-
-////////////////////////////////SOCKS5/HTTP函数///////////////////////////////////////////////
-async function httpConnect(addressRemote, portRemote) {
-    const { username, password, hostname, port } = parsedSocks5Address;
-    const sock = await connect({ hostname, port });
-    const authHeader = username && password ? `Proxy-Authorization: Basic ${btoa(`${username}:${password}`)}\r\n` : '';
-    const connectRequest = `CONNECT ${addressRemote}:${portRemote} HTTP/1.1\r\n` +
-        `Host: ${addressRemote}:${portRemote}\r\n` +
-        authHeader +
-        `User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36\r\n` +
-        `Proxy-Connection: Keep-Alive\r\n` +
-        `Connection: Keep-Alive\r\n\r\n`;
-    const writer = sock.writable.getWriter();
-    try {
-        await writer.write(new TextEncoder().encode(connectRequest));
-    } catch (err) {
-        throw new Error(`发送HTTP CONNECT请求失败: ${err.message}`);
-    } finally {
+async function forwardataTCP(host, portNum, rawData, ws, respHeader, remoteConnWrapper) {
+    console.log(JSON.stringify({ configJSON: { 目标地址: host, 目标端口: portNum, 反代IP: 反代IP, 代理类型: 启用SOCKS5反代, 全局代理: 启用SOCKS5全局反代, 代理账号: 我的SOCKS5账号 } }));
+    async function connectDirect(address, port, data) {
+        const remoteSock = connect({ hostname: address, port: port });
+        const writer = remoteSock.writable.getWriter();
+        await writer.write(data);
         writer.releaseLock();
+        return remoteSock;
     }
-    const reader = sock.readable.getReader();
-    let responseBuffer = new Uint8Array(0);
-    try {
-        while (true) {
-            const { value, done } = await reader.read();
-            if (done) throw new Error('HTTP代理连接中断');
-            const newBuffer = new Uint8Array(responseBuffer.length + value.length);
-            newBuffer.set(responseBuffer);
-            newBuffer.set(value, responseBuffer.length);
-            responseBuffer = newBuffer;
-            const respText = new TextDecoder().decode(responseBuffer);
-            if (respText.includes('\r\n\r\n')) {
-                const headersEndPos = respText.indexOf('\r\n\r\n') + 4;
-                const headers = respText.substring(0, headersEndPos);
-
-                if (!headers.startsWith('HTTP/1.1 200') && !headers.startsWith('HTTP/1.0 200')) {
-                    throw new Error(`HTTP代理连接失败: ${headers.split('\r\n')[0]}`);
-                }
-                if (headersEndPos < responseBuffer.length) {
-                    const remainingData = responseBuffer.slice(headersEndPos);
-                    const { readable, writable } = new TransformStream();
-                    new ReadableStream({
-                        start(controller) {
-                            controller.enqueue(remainingData);
-                        }
-                    }).pipeTo(writable).catch(() => { });
-                    // @ts-ignore
-                    sock.readable = readable;
-                }
-                break;
-            }
+    async function connecttoPry() {
+        let newSocket;
+        if (启用SOCKS5反代 === 'socks5') {
+            newSocket = await socks5Connect(host, portNum, rawData);
+        } else if (启用SOCKS5反代 === 'http' || 启用SOCKS5反代 === 'https') {
+            newSocket = await httpConnect(host, portNum, rawData);
+        } else {
+            try {
+                const [反代IP地址, 反代IP端口] = await 解析地址端口(反代IP);
+                newSocket = await connectDirect(反代IP地址, 反代IP端口, rawData);
+            } catch { newSocket = await connectDirect(atob('UFJPWFlJUC50cDEuMDkwMjI3Lnh5eg=='), 1, rawData) }
         }
-    } catch (err) {
-        throw new Error(`处理HTTP代理响应失败: ${err.message}`);
-    } finally {
-        reader.releaseLock();
+        remoteConnWrapper.socket = newSocket;
+        newSocket.closed.catch(() => { }).finally(() => closeSocketQuietly(ws));
+        connectStreams(newSocket, ws, respHeader, null);
     }
-    return sock;
+
+    if (启用SOCKS5反代 && 启用SOCKS5全局反代) {
+        try {
+            await connecttoPry();
+        } catch (err) {
+            throw err;
+        }
+    } else {
+        try {
+            const initialSocket = await connectDirect(host, portNum, rawData);
+            remoteConnWrapper.socket = initialSocket;
+            connectStreams(initialSocket, ws, respHeader, connecttoPry);
+        } catch (err) {
+            await connecttoPry();
+        }
+    }
 }
 
-async function socks5Connect(addressRemote, portRemote, addressType = 3) {
+async function forwardataudp(udpChunk, webSocket, respHeader) {
+    try {
+        const tcpSocket = connect({ hostname: '8.8.4.4', port: 53 });
+        let vlessHeader = respHeader;
+        const writer = tcpSocket.writable.getWriter();
+        await writer.write(udpChunk);
+        writer.releaseLock();
+        await tcpSocket.readable.pipeTo(new WritableStream({
+            async write(chunk) {
+                if (webSocket.readyState === WebSocket.OPEN) {
+                    if (vlessHeader) {
+                        const response = new Uint8Array(vlessHeader.length + chunk.byteLength);
+                        response.set(vlessHeader, 0);
+                        response.set(chunk, vlessHeader.length);
+                        webSocket.send(response.buffer);
+                        vlessHeader = null;
+                    } else {
+                        webSocket.send(chunk);
+                    }
+                }
+            },
+        }));
+    } catch (error) {
+        // console.error('UDP forward error:', error);
+    }
+}
+
+function closeSocketQuietly(socket) {
+    try {
+        if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CLOSING) {
+            socket.close();
+        }
+    } catch (error) { }
+}
+
+function formatIdentifier(arr, offset = 0) {
+    const hex = [...arr.slice(offset, offset + 16)].map(b => b.toString(16).padStart(2, '0')).join('');
+    return `${hex.substring(0, 8)}-${hex.substring(8, 12)}-${hex.substring(12, 16)}-${hex.substring(16, 20)}-${hex.substring(20)}`;
+}
+async function connectStreams(remoteSocket, webSocket, headerData, retryFunc) {
+    let header = headerData, hasData = false;
+    await remoteSocket.readable.pipeTo(
+        new WritableStream({
+            async write(chunk, controller) {
+                hasData = true;
+                if (webSocket.readyState !== WebSocket.OPEN) controller.error('ws.readyState is not open');
+                if (header) {
+                    const response = new Uint8Array(header.length + chunk.byteLength);
+                    response.set(header, 0);
+                    response.set(chunk, header.length);
+                    webSocket.send(response.buffer);
+                    header = null;
+                } else {
+                    webSocket.send(chunk);
+                }
+            },
+            abort() { },
+        })
+    ).catch((err) => {
+        closeSocketQuietly(webSocket);
+    });
+    if (!hasData && retryFunc) {
+        await retryFunc();
+    }
+}
+
+function makeReadableStr(socket, earlyDataHeader) {
+    let cancelled = false;
+    return new ReadableStream({
+        start(controller) {
+            socket.addEventListener('message', (event) => {
+                if (!cancelled) controller.enqueue(event.data);
+            });
+            socket.addEventListener('close', () => {
+                if (!cancelled) {
+                    closeSocketQuietly(socket);
+                    controller.close();
+                }
+            });
+            socket.addEventListener('error', (err) => controller.error(err));
+            const { earlyData, error } = base64ToArray(earlyDataHeader);
+            if (error) controller.error(error);
+            else if (earlyData) controller.enqueue(earlyData);
+        },
+        cancel() {
+            cancelled = true;
+            closeSocketQuietly(socket);
+        }
+    });
+}
+
+function isSpeedTestSite(hostname) {
+    const speedTestDomains = [atob('c3BlZWQuY2xvdWRmbGFyZS5jb20=')];
+    if (speedTestDomains.includes(hostname)) {
+        return true;
+    }
+
+    for (const domain of speedTestDomains) {
+        if (hostname.endsWith('.' + domain) || hostname === domain) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function base64ToArray(b64Str) {
+    if (!b64Str) return { error: null };
+    try {
+        const binaryString = atob(b64Str.replace(/-/g, '+').replace(/_/g, '/'));
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+        }
+        return { earlyData: bytes.buffer, error: null };
+    } catch (error) {
+        return { error };
+    }
+}
+////////////////////////////////SOCKS5/HTTP函数///////////////////////////////////////////////
+async function socks5Connect(targetHost, targetPort, initialData) {
     const { username, password, hostname, port } = parsedSocks5Address;
-    const socket = connect({ hostname, port });
-    const writer = socket.writable.getWriter();
-    const reader = socket.readable.getReader();
-    const encoder = new TextEncoder();
+    const socket = connect({ hostname, port }), writer = socket.writable.getWriter(), reader = socket.readable.getReader();
+    try {
+        const authMethods = username && password ? new Uint8Array([0x05, 0x02, 0x00, 0x02]) : new Uint8Array([0x05, 0x01, 0x00]);
+        await writer.write(authMethods);
+        let response = await reader.read();
+        if (response.done || response.value.byteLength < 2) throw new Error('S5 method selection failed');
 
-    // SOCKS5 握手: VER(5) + NMETHODS(2) + METHODS(0x00,0x02)
-    await writer.write(new Uint8Array([5, 2, 0, 2]));
-    let res = (await reader.read()).value;
-    if (res[0] !== 0x05 || res[1] === 0xff) return;
+        const selectedMethod = new Uint8Array(response.value)[1];
+        if (selectedMethod === 0x02) {
+            if (!username || !password) throw new Error('S5 requires authentication');
+            const userBytes = new TextEncoder().encode(username), passBytes = new TextEncoder().encode(password);
+            const authPacket = new Uint8Array([0x01, userBytes.length, ...userBytes, passBytes.length, ...passBytes]);
+            await writer.write(authPacket);
+            response = await reader.read();
+            if (response.done || new Uint8Array(response.value)[1] !== 0x00) throw new Error('S5 authentication failed');
+        } else if (selectedMethod !== 0x00) throw new Error(`S5 unsupported auth method: ${selectedMethod}`);
 
-    // 如果需要用户名密码认证
-    if (res[1] === 0x02) {
-        if (!username || !password) return;
-        await writer.write(new Uint8Array([1, username.length, ...encoder.encode(username), password.length, ...encoder.encode(password)]));
-        res = (await reader.read()).value;
-        if (res[0] !== 0x01 || res[1] !== 0x00) return;
+        const hostBytes = new TextEncoder().encode(targetHost);
+        const connectPacket = new Uint8Array([0x05, 0x01, 0x00, 0x03, hostBytes.length, ...hostBytes, targetPort >> 8, targetPort & 0xff]);
+        await writer.write(connectPacket);
+        response = await reader.read();
+        if (response.done || new Uint8Array(response.value)[1] !== 0x00) throw new Error('S5 connection failed');
+
+        await writer.write(initialData);
+        writer.releaseLock(); reader.releaseLock();
+        return socket;
+    } catch (error) {
+        try { writer.releaseLock(); } catch (e) { }
+        try { reader.releaseLock(); } catch (e) { }
+        try { socket.close(); } catch (e) { }
+        throw error;
     }
-
-    // 构建目标地址 (ATYP + DST.ADDR)
-    const DSTADDR = addressType === 1 ? new Uint8Array([1, ...addressRemote.split('.').map(Number)])
-        : addressType === 3 ? new Uint8Array([3, addressRemote.length, ...encoder.encode(addressRemote)])
-            : new Uint8Array([4, ...addressRemote.split(':').flatMap(x => [parseInt(x.slice(0, 2), 16), parseInt(x.slice(2), 16)])]);
-
-    // 发送连接请求: VER(5) + CMD(1=CONNECT) + RSV(0) + DSTADDR + DST.PORT
-    await writer.write(new Uint8Array([5, 1, 0, ...DSTADDR, portRemote >> 8, portRemote & 0xff]));
-    res = (await reader.read()).value;
-    if (res[1] !== 0x00) return;
-
-    writer.releaseLock();
-    reader.releaseLock();
-    return socket;
 }
 
+async function httpConnect(targetHost, targetPort, initialData) {
+    const { username, password, hostname, port } = parsedSocks5Address;
+    const socket = connect({ hostname, port }), writer = socket.writable.getWriter(), reader = socket.readable.getReader();
+    try {
+        const auth = username && password ? `Proxy-Authorization: Basic ${btoa(`${username}:${password}`)}\r\n` : '';
+        const request = `CONNECT ${targetHost}:${targetPort} HTTP/1.1\r\nHost: ${targetHost}:${targetPort}\r\n${auth}User-Agent: Mozilla/5.0\r\nConnection: keep-alive\r\n\r\n`;
+        await writer.write(new TextEncoder().encode(request));
+
+        let responseBuffer = new Uint8Array(0), headerEndIndex = -1, bytesRead = 0;
+        while (headerEndIndex === -1 && bytesRead < 8192) {
+            const { done, value } = await reader.read();
+            if (done) throw new Error('Connection closed before receiving HTTP response');
+            responseBuffer = new Uint8Array([...responseBuffer, ...value]);
+            bytesRead = responseBuffer.length;
+            const crlfcrlf = responseBuffer.findIndex((_, i) => i < responseBuffer.length - 3 && responseBuffer[i] === 0x0d && responseBuffer[i + 1] === 0x0a && responseBuffer[i + 2] === 0x0d && responseBuffer[i + 3] === 0x0a);
+            if (crlfcrlf !== -1) headerEndIndex = crlfcrlf + 4;
+        }
+
+        if (headerEndIndex === -1) throw new Error('Invalid HTTP response');
+        const statusCode = parseInt(new TextDecoder().decode(responseBuffer.slice(0, headerEndIndex)).split('\r\n')[0].match(/HTTP\/\d\.\d\s+(\d+)/)[1]);
+        if (statusCode < 200 || statusCode >= 300) throw new Error(`Connection failed: HTTP ${statusCode}`);
+
+        await writer.write(initialData);
+        writer.releaseLock(); reader.releaseLock();
+        return socket;
+    } catch (error) {
+        try { writer.releaseLock(); } catch (e) { }
+        try { reader.releaseLock(); } catch (e) { }
+        try { socket.close(); } catch (e) { }
+        throw error;
+    }
+}
 //////////////////////////////////////////////////功能性函数///////////////////////////////////////////////
 function surge(content, url, config_JSON) {
     let 每行内容;
@@ -1120,7 +714,6 @@ function surge(content, url, config_JSON) {
     let 输出内容 = "";
     for (let x of 每行内容) {
         if (x.includes('= tro' + 'jan,')) {
-            console.log(x);
             const host = x.split("sni=")[1].split(",")[0];
             const 备改内容 = `sni=${host}, skip-cert-verify=${config_JSON.跳过证书验证}`;
             const 正确内容 = `sni=${host}, skip-cert-verify=${config_JSON.跳过证书验证}, ws=true, ws-path=${config_JSON.PATH}, ws-headers=Host:"${host}"`;
@@ -1229,11 +822,13 @@ async function 读取config_JSON(env, host, userID, 重置配置 = false) {
         协议类型: "v" + "le" + "ss",
         传输协议: "ws",
         跳过证书验证: true,
+        启用0RTT: true,
         优选订阅生成: {
             local: true, // true: 基于本地的优选地址  false: 优选订阅生成器
             本地IP库: {
                 随机IP: true, // 当 随机IP 为true时生效，启用随机IP的数量，否则使用KV内的ADD.txt
-                随机数量: 16, // 当local为true时生效，随机IP的数量
+                随机数量: 16,
+                指定端口: -1,
             },
             SUB: null,
             SUBNAME: "edge" + "tunnel",
@@ -1330,10 +925,11 @@ async function 读取config_JSON(env, host, userID, 重置配置 = false) {
     return config_JSON;
 }
 
-async function 生成随机IP(request, count = 16) {
+async function 生成随机IP(request, count = 16, 指定端口 = -1) {
     const asnMap = { '9808': 'cmcc', '4837': 'cu', '4134': 'ct' }, asn = request.cf.asn;
     const cidr_url = asnMap[asn] ? `https://raw.githubusercontent.com/cmliu/cmliu/main/CF-CIDR/${asnMap[asn]}.txt` : 'https://raw.githubusercontent.com/cmliu/cmliu/main/CF-CIDR.txt';
     const cfname = { '9808': 'CF移动优选', '4837': 'CF联通优选', '4134': 'CF电信优选' }[asn] || 'CF官方优选';
+    const cfport = [443, 2053, 2083, 2087, 2096, 8443];
     let cidrList = [];
     try { const res = await fetch(cidr_url); cidrList = res.ok ? await 整理成数组(await res.text()) : ['104.16.0.0/13']; } catch { cidrList = ['104.16.0.0/13']; }
 
@@ -1347,7 +943,7 @@ async function 生成随机IP(request, count = 16) {
 
     const randomIPs = Array.from({ length: count }, () => {
         const ip = generateRandomIPFromCIDR(cidrList[Math.floor(Math.random() * cidrList.length)]);
-        return `${ip}#${cfname}`;
+        return `${ip}:${指定端口 === -1 ? cfport[Math.floor(Math.random() * cfport.length)] : 指定端口}#${cfname}`;
     });
     return [randomIPs, randomIPs.join('\n')];
 }
@@ -1686,7 +1282,8 @@ async function SOCKS5可用性验证(代理协议 = 'socks5', 代理参数) {
     const { username, password, hostname, port } = parsedSocks5Address;
     const 完整代理参数 = username && password ? `${username}:${password}@${hostname}:${port}` : `${hostname}:${port}`;
     try {
-        const tcpSocket = 代理协议 == 'socks5' ? await socks5Connect('check.socks5.090227.xyz', 80, 3) : await httpConnect('check.socks5.090227.xyz', 80);
+        const initialData = new Uint8Array(0);
+        const tcpSocket = 代理协议 == 'socks5' ? await socks5Connect('check.socks5.090227.xyz', 80, initialData) : await httpConnect('check.socks5.090227.xyz', 80, initialData);
         if (!tcpSocket) return { success: false, error: '无法连接到代理服务器', proxy: 代理协议 + "://" + 完整代理参数, responseTime: Date.now() - startTime };
         try {
             const writer = tcpSocket.writable.getWriter(), encoder = new TextEncoder();
