@@ -1,39 +1,39 @@
-﻿import { connect } from "cloudflare:sockets";
-let config_JSON, 反代IP = '', 启用SOCKS5反代 = null, 启用SOCKS5全局反代 = false, 我的SOCKS5账号 = '', parsedSocks5Address = {};
-let SOCKS5白名单 = ['*tapecontent.net', '*cloudatacdn.com', '*loadshare.org', '*cdn-centaurus.com', 'scholar.google.com'];
-const Pages静态页面 = 'https://edt-pages.github.io';
+﻿import { connect } from "cloudflare:sockets";;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+let config_JSON, , , , , , , , 反代IP =  =  =  =  =  =  =  = '', , , , , , , , 启用SOCKS5反代 =  =  =  =  =  =  =  = null, , , , , , , , 启用SOCKS5全局反代 =  =  =  =  =  =  =  = false, , , , , , , , 我的SOCKS5账号 =  =  =  =  =  =  =  = '', , , , , , , , parsedSocks5Address =  =  =  =  =  =  =  = {};;;;;;;;
+let SOCKS5白名单 =  =  =  =  =  =  =  = ['*tapecontent.net', , , , , , , , '*cloudatacdn.com', , , , , , , , '*loadshare.org', , , , , , , , '*cdn-centaurus.com', , , , , , , , 'scholar.google.com'];;;;;;;;
+const Pages静态页面 =  =  =  =  =  =  =  = 'https://edt-pages.github.io';;;;;;;;
 ///////////////////////////////////////////////////////主程序入口///////////////////////////////////////////////
 export default {
-    async fetch(request, env) {
-        const url = new URL(request.url);
-        const UA = request.headers.get('User-Agent') || 'null';
-        const upgradeHeader = request.headers.get('Upgrade');
-        const 管理员密码 = env.ADMIN || env.admin || env.PASSWORD || env.password || env.pswd || env.TOKEN || env.KEY;
-        const 加密秘钥 = env.KEY || '勿动此默认密钥，有需求请自行通过添加变量KEY进行修改';
-        const userIDMD5 = await MD5MD5(管理员密码 + 加密秘钥);
-        const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/;
-        const envUUID = env.UUID || env.uuid;
-        const userID = (envUUID && uuidRegex.test(envUUID)) ? envUUID.toLowerCase() : [userIDMD5.slice(0, 8), userIDMD5.slice(8, 12), '4' + userIDMD5.slice(13, 16), userIDMD5.slice(16, 20), userIDMD5.slice(20)].join('-');
-        if (env.PROXYIP) {
-            const proxyIPs = await 整理成数组(env.PROXYIP);
-            反代IP = proxyIPs[Math.floor(Math.random() * proxyIPs.length)];
-        } else 反代IP = (request.cf.colo + '.PrOxYIp.CmLiUsSsS.nEt').toLowerCase();
-        const 访问IP = request.headers.get('X-Real-IP') || request.headers.get('CF-Connecting-IP') || request.headers.get('X-Forwarded-For') || request.headers.get('True-Client-IP') || request.headers.get('Fly-Client-IP') || request.headers.get('X-Appengine-Remote-Addr') || request.headers.get('X-Forwarded-For') || request.headers.get('X-Real-IP') || request.headers.get('X-Cluster-Client-IP') || request.cf?.clientTcpRtt || '未知IP';
-        if (env.GO2SOCKS5) SOCKS5白名单 = await 整理成数组(env.GO2SOCKS5);
-        if (!upgradeHeader || upgradeHeader !== 'websocket') {
-            if (url.protocol === 'http:') return Response.redirect(url.href.replace(`http://${url.hostname}`, `https://${url.hostname}`), 301);
-            if (!管理员密码) return fetch(Pages静态页面 + '/noADMIN').then(r => { const headers = new Headers(r.headers); headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate'); headers.set('Pragma', 'no-cache'); headers.set('Expires', '0'); return new Response(r.body, { status: 404, statusText: r.statusText, headers }); });
-            if (!env.KV) return fetch(Pages静态页面 + '/noKV').then(r => { const headers = new Headers(r.headers); headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate'); headers.set('Pragma', 'no-cache'); headers.set('Expires', '0'); return new Response(r.body, { status: 404, statusText: r.statusText, headers }); });
-            const 访问路径 = url.pathname.slice(1).toLowerCase();
-            const 区分大小写访问路径 = url.pathname.slice(1);
-            if (访问路径 === 加密秘钥 && 加密秘钥 !== '勿动此默认密钥，有需求请自行通过添加变量KEY进行修改') {//快速订阅
-                const params = new URLSearchParams(url.search);
-                params.set('token', await MD5MD5(url.host + userID));
-                return new Response('重定向中...', { status: 302, headers: { 'Location': `/sub?${params.toString()}` } });
-            } else if (访问路径 === 'login') {//处理登录页面和登录请求
-                const cookies = request.headers.get('Cookie') || '';
-                const authCookie = cookies.split(';').find(c => c.trim().startsWith('auth='))?.split('=')[1];
-                if (authCookie == await MD5MD5(UA + 加密秘钥 + 管理员密码)) return new Response('重定向中...', { status: 302, headers: { 'Location': '/admin' } });
+    async fetch(request, , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , env) {
+        const url =  =  =  =  =  =  =  = new URL(request........url);;;;;;;;
+        const UA =  =  =  =  =  =  =  = request........headers........get('User-Agent') ||  ||  ||  ||  ||  ||  ||  || 'null';;;;;;;;
+        const upgradeHeader =  =  =  =  =  =  =  = request........headers........get('Upgrade');;;;;;;;
+        const 管理员密码 =  =  =  =  =  =  =  = env........ADMIN ||  ||  ||  ||  ||  ||  ||  || env........admin ||  ||  ||  ||  ||  ||  ||  || env........PASSWORD ||  ||  ||  ||  ||  ||  ||  || env........password ||  ||  ||  ||  ||  ||  ||  || env........pswd ||  ||  ||  ||  ||  ||  ||  || env........TOKEN ||  ||  ||  ||  ||  ||  ||  || env........KEY;;;;;;;;
+        const 加密秘钥 =  =  =  =  =  =  =  = env........KEY ||  ||  ||  ||  ||  ||  ||  || '勿动此默认密钥，有需求请自行通过添加变量KEY进行修改';;;;;;;;
+        const userIDMD5 =  =  =  =  =  =  =  = await MD5MD5(管理员密码 +  +  +  +  +  +  +  + 加密秘钥);;;;;;;;
+        const uuidRegex =  =  =  =  =  =  =  = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/;;;;;;;;
+        const envUUID =  =  =  =  =  =  =  = env........UUID ||  ||  ||  ||  ||  ||  ||  || env........uuid;;;;;;;;
+        const userID =  =  =  =  =  =  =  = (envUUID &&  &&  &&  &&  &&  &&  &&  && uuidRegex........test(envUUID)) ?  ?  ?  ?  ?  ?  ?  ? envUUID........toLowerCase() :  :  :  :  :  :  :  : [userIDMD5........slice(0, , , , , , , , 8), , , , , , , , userIDMD5........slice(8, , , , , , , , 12), , , , , , , , '4' +  +  +  +  +  +  +  + userIDMD5........slice(13, , , , , , , , 16), , , , , , , , userIDMD5........slice(16, , , , , , , , 20), , , , , , , , userIDMD5........slice(20)]........join('-');;;;;;;;
+        if (env................................................................................................................................PROXYIP) {
+            const proxyIPs =  =  =  =  =  =  =  = await 整理成数组(env........PROXYIP);;;;;;;;
+            反代IP =  =  =  = proxyIPs[Math....floor(Math....random() *  *  *  * proxyIPs....length)];;;;
+        } else 反代IP =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  = (request................cf................colo +  +  +  +  +  +  +  +  +  +  +  +  +  +  +  + '.PrOxYIp.CmLiUsSsS.nEt')................toLowerCase();;;;;;;;;;;;;;;;
+        const 访问IP =  =  =  =  =  =  =  = request........headers........get('X-Real-IP') ||  ||  ||  ||  ||  ||  ||  || request........headers........get('CF-Connecting-IP') ||  ||  ||  ||  ||  ||  ||  || request........headers........get('X-Forwarded-For') ||  ||  ||  ||  ||  ||  ||  || request........headers........get('True-Client-IP') ||  ||  ||  ||  ||  ||  ||  || request........headers........get('Fly-Client-IP') ||  ||  ||  ||  ||  ||  ||  || request........headers........get('X-Appengine-Remote-Addr') ||  ||  ||  ||  ||  ||  ||  || request........headers........get('X-Forwarded-For') ||  ||  ||  ||  ||  ||  ||  || request........headers........get('X-Real-IP') ||  ||  ||  ||  ||  ||  ||  || request........headers........get('X-Cluster-Client-IP') ||  ||  ||  ||  ||  ||  ||  || request........cf?.?.?.?.?.?.?.?.clientTcpRtt ||  ||  ||  ||  ||  ||  ||  || '未知IP';;;;;;;;
+        if (env................GO2SOCKS5) SOCKS5白名单 =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  = await 整理成数组(env................GO2SOCKS5);;;;;;;;;;;;;;;;
+        if (!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!upgradeHeader ||  ||  ||  ||  ||  ||  ||  ||  ||  ||  ||  ||  ||  ||  ||  ||  ||  ||  ||  ||  ||  ||  ||  ||  ||  ||  ||  ||  ||  ||  ||  ||  ||  ||  ||  ||  ||  ||  ||  ||  ||  ||  ||  ||  ||  ||  ||  ||  ||  ||  ||  ||  ||  ||  ||  ||  ||  ||  ||  ||  ||  ||  ||  || upgradeHeader !==  !==  !==  !==  !==  !==  !==  !==  !==  !==  !==  !==  !==  !==  !==  !==  !==  !==  !==  !==  !==  !==  !==  !==  !==  !==  !==  !==  !==  !==  !==  !==  !==  !==  !==  !==  !==  !==  !==  !==  !==  !==  !==  !==  !==  !==  !==  !==  !==  !==  !==  !==  !==  !==  !==  !==  !==  !==  !==  !==  !==  !==  !==  !== 'websocket') {
+            if (url................protocol ===  ===  ===  ===  ===  ===  ===  ===  ===  ===  ===  ===  ===  ===  ===  === 'http:') return Response................redirect(url................href................replace(`http://${url................hostname}`, , , , , , , , , , , , , , , , `https://${url................hostname}`), , , , , , , , , , , , , , , , 301);;;;;;;;;;;;;;;;
+            if (!!!!!!!!管理员密码) return fetch(Pages静态页面 +  +  +  +  +  +  +  + '/noADMIN')........then(r =>  =>  =>  =>  =>  =>  =>  => { const headers =  =  =  =  =  =  =  = new Headers(r........headers); ; ; ; ; ; ; ; headers........set('Cache-Control', , , , , , , , 'no-store, no-cache, must-revalidate, proxy-revalidate'); ; ; ; ; ; ; ; headers........set('Pragma', , , , , , , , 'no-cache'); ; ; ; ; ; ; ; headers........set('Expires', , , , , , , , '0'); ; ; ; ; ; ; ; return new Response(r........body, , , , , , , , { status: : : : : : : : 404, , , , , , , , statusText: : : : : : : : r........statusText, , , , , , , , headers }); ; ; ; ; ; ; ; });;;;;;;;
+            if (!!!!!!!!env........KV) return fetch(Pages静态页面 +  +  +  +  +  +  +  + '/noKV')........then(r =>  =>  =>  =>  =>  =>  =>  => { const headers =  =  =  =  =  =  =  = new Headers(r........headers); ; ; ; ; ; ; ; headers........set('Cache-Control', , , , , , , , 'no-store, no-cache, must-revalidate, proxy-revalidate'); ; ; ; ; ; ; ; headers........set('Pragma', , , , , , , , 'no-cache'); ; ; ; ; ; ; ; headers........set('Expires', , , , , , , , '0'); ; ; ; ; ; ; ; return new Response(r........body, , , , , , , , { status: : : : : : : : 404, , , , , , , , statusText: : : : : : : : r........statusText, , , , , , , , headers }); ; ; ; ; ; ; ; });;;;;;;;
+            const 访问路径 =  =  =  =  =  =  =  = url........pathname........slice(1)........toLowerCase();;;;;;;;
+            const 区分大小写访问路径 =  =  =  =  =  =  =  = url........pathname........slice(1);;;;;;;;
+            if (访问路径 ===  === 加密秘钥 &&  && 加密秘钥 !==  !== '勿动此默认密钥，有需求请自行通过添加变量KEY进行修改') {//快速订阅
+                const params =  = new URLSearchParams(url..search);;
+                params..set('token', , await MD5MD5(url..host +  + userID));;
+                return new Response('重定向中...', , { status: : 302, , headers: : { 'Location': : `/sub?${params..toString()}` } });;
+            } else if (访问路径 ===  === 'login') {//处理登录页面和登录请求
+                const cookies =  = request..headers..get('Cookie') ||  || '';;
+                const authCookie =  = cookies..split(';')..find(c =>  => c..trim()..startsWith('auth='))?.?.split('=')[1];;
+                if (authCookie ==  == await MD5MD5(UA +  + 加密秘钥 +  + 管理员密码)) return new Response('重定向中...', , { status: : 302, , headers: : { 'Location': : '/admin' } });;
                 if (request.method === 'POST') {
                     const formData = await request.text();
                     const params = new URLSearchParams(formData);
@@ -1433,3 +1433,4 @@ async function html1101(host, 访问IP) {
 </body>
 </html>`;
 }
+
