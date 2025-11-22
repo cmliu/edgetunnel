@@ -14,6 +14,7 @@ export default {
         const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/;
         const envUUID = env.UUID || env.uuid;
         const userID = (envUUID && uuidRegex.test(envUUID)) ? envUUID.toLowerCase() : [userIDMD5.slice(0, 8), userIDMD5.slice(8, 12), '4' + userIDMD5.slice(13, 16), userIDMD5.slice(16, 20), userIDMD5.slice(20)].join('-');
+        const host = env.HOST ? env.HOST.toLowerCase().replace(/^https?:\/\//, '').split('/')[0].split(':')[0] : url.hostname;
         if (env.PROXYIP) {
             const proxyIPs = await 整理成数组(env.PROXYIP);
             反代IP = proxyIPs[Math.floor(Math.random() * proxyIPs.length)];
@@ -28,7 +29,7 @@ export default {
             const 区分大小写访问路径 = url.pathname.slice(1);
             if (访问路径 === 加密秘钥 && 加密秘钥 !== '勿动此默认密钥，有需求请自行通过添加变量KEY进行修改') {//快速订阅
                 const params = new URLSearchParams(url.search);
-                params.set('token', await MD5MD5(url.host + userID));
+                params.set('token', await MD5MD5(host + userID));
                 return new Response('重定向中...', { status: 302, headers: { 'Location': `/sub?${params.toString()}` } });
             } else if (访问路径 === 'login') {//处理登录页面和登录请求
                 const cookies = request.headers.get('Cookie') || '';
@@ -87,11 +88,11 @@ export default {
                     return new Response(JSON.stringify(检测代理响应, null, 2), { status: 200, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
                 }
 
-                config_JSON = await 读取config_JSON(env, url.host, userID);
+                config_JSON = await 读取config_JSON(env, host, userID);
 
                 if (访问路径 === 'admin/init') {// 重置配置为默认值
                     try {
-                        config_JSON = await 读取config_JSON(env, url.host, userID, true);
+                        config_JSON = await 读取config_JSON(env, host, userID, true);
                         await 请求日志记录(env, request, 访问IP, 'Init_Config', config_JSON);
                         config_JSON.init = '配置已重置为默认值';
                         return new Response(JSON.stringify(config_JSON, null, 2), { status: 200, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
@@ -186,9 +187,9 @@ export default {
                 响应.headers.set('Set-Cookie', 'auth=; Path=/; Max-Age=0; HttpOnly');
                 return 响应;
             } else if (访问路径 === 'sub') {//处理订阅请求
-                const 订阅TOKEN = await MD5MD5(url.host + userID);
+                const 订阅TOKEN = await MD5MD5(host + userID);
                 if (url.searchParams.get('token') === 订阅TOKEN) {
-                    config_JSON = await 读取config_JSON(env, url.host, userID);
+                    config_JSON = await 读取config_JSON(env, host, userID);
                     await 请求日志记录(env, request, 访问IP, 'Get_SUB', config_JSON);
                     const ua = UA.toLowerCase();
                     const expire = 4102329600;//2099-12-31 到期时间
@@ -259,14 +260,14 @@ export default {
                                     console.warn(`[订阅内容] 不规范的IP格式已忽略: ${原始地址}`);
                                     return null;
                                 }
-
-                                return `${协议类型}://${config_JSON.UUID}@${节点地址}:${节点端口}?security=tls&type=${config_JSON.传输协议}&host=${config_JSON.HOST}&sni=${config_JSON.HOST}&path=${encodeURIComponent((随机路径() + 节点路径).replace('/?', '?')) + TLS分片参数}&encryption=none${config_JSON.跳过证书验证 ? '&allowInsecure=1' : ''}#${encodeURIComponent(节点备注)}`;
+                                const 节点HOST = 随机替换通配符(host);
+                                return `${协议类型}://${config_JSON.UUID}@${节点地址}:${节点端口}?security=tls&type=${config_JSON.传输协议}&host=${节点HOST}&sni=${节点HOST}&path=${encodeURIComponent(config_JSON.随机路径 ? 随机路径() + 节点路径 : 节点路径) + TLS分片参数}&encryption=none${config_JSON.跳过证书验证 ? '&allowInsecure=1' : ''}#${encodeURIComponent(节点备注)}`;
                             }).filter(item => item !== null).join('\n');
                             订阅内容 = btoa(其他节点LINK + 订阅内容);
                         } else { // 优选订阅生成器
                             let 优选订阅生成器HOST = url.searchParams.get('sub') || config_JSON.优选订阅生成.SUB;
                             优选订阅生成器HOST = 优选订阅生成器HOST && !/^https?:\/\//i.test(优选订阅生成器HOST) ? `https://${优选订阅生成器HOST}` : 优选订阅生成器HOST;
-                            const 优选订阅生成器URL = `${优选订阅生成器HOST}/sub?host=example.com&${协议类型 === ('v' + 'le' + 'ss') ? 'uuid' : 'pw'}=00000000-0000-4000-0000-000000000000&path=${encodeURIComponent((随机路径() + 节点路径).replace('/?', '?')) + TLS分片参数}&type=${config_JSON.传输协议}`;
+                            const 优选订阅生成器URL = `${优选订阅生成器HOST}/sub?host=example.com&${协议类型 === ('v' + 'le' + 'ss') ? 'uuid' : 'pw'}=00000000-0000-4000-8000-000000000000&path=${encodeURIComponent(config_JSON.随机路径 ? 随机路径() + 节点路径 : 节点路径) + TLS分片参数}&type=${config_JSON.传输协议}`;
                             try {
                                 const response = await fetch(优选订阅生成器URL, { headers: { 'User-Agent': 'v2rayN/edge' + 'tunnel (https://github.com/cmliu/edge' + 'tunnel)' } });
                                 if (response.ok) 订阅内容 = btoa(其他节点LINK + atob(await response.text()));
@@ -276,7 +277,7 @@ export default {
                             }
                         }
                     } else { // 订阅转换
-                        const 订阅转换URL = `${config_JSON.订阅转换配置.SUBAPI}/sub?target=${订阅类型}&url=${encodeURIComponent(url.protocol + '//' + url.host + '/sub?target=mixed&token=' + 订阅TOKEN) + (url.searchParams.has('sub') && url.searchParams.get('sub') != '' ? `&sub=${url.searchParams.get('sub')}` : '')}&config=${encodeURIComponent(config_JSON.订阅转换配置.SUBCONFIG)}&emoji=${config_JSON.订阅转换配置.SUBEMOJI}&scv=${config_JSON.跳过证书验证}`;
+                        const 订阅转换URL = `${config_JSON.订阅转换配置.SUBAPI}/sub?target=${订阅类型}&url=${encodeURIComponent(url.protocol + '//' + url.host + '/sub?target=mixed&token=' + 订阅TOKEN + (url.searchParams.has('sub') && url.searchParams.get('sub') != '' ? `&sub=${url.searchParams.get('sub')}` : ''))}&config=${encodeURIComponent(config_JSON.订阅转换配置.SUBCONFIG)}&emoji=${config_JSON.订阅转换配置.SUBEMOJI}&scv=${config_JSON.跳过证书验证}`;
                         try {
                             const response = await fetch(订阅转换URL, { headers: { 'User-Agent': 'Subconverter for ' + 订阅类型 + ' edge' + 'tunnel(https://github.com/cmliu/edge' + 'tunnel)' } });
                             if (response.ok) {
@@ -288,9 +289,9 @@ export default {
                         }
                     }
                     if (订阅类型 === 'mixed') {
-                        订阅内容 = atob(订阅内容).replace(/example.com/g, config_JSON.HOST).replace(/00000000-0000-4000-0000-000000000000/g, config_JSON.UUID);
+                        订阅内容 = 批量替换域名(atob(订阅内容).replace(/00000000-0000-4000-8000-000000000000/g, config_JSON.UUID), host);
                         if (!ua.includes('mozilla')) 订阅内容 = btoa(订阅内容);
-                    } else 订阅内容 = 订阅内容.replace(/example.com/g, config_JSON.HOST).replace(/00000000-0000-4000-0000-000000000000/g, config_JSON.UUID);
+                    } else 订阅内容 = 批量替换域名(订阅内容.replace(/00000000-0000-4000-8000-000000000000/g, config_JSON.UUID), host);
                     if (订阅类型 === 'singbox') {
                         订阅内容 = JSON.stringify(JSON.parse(订阅内容), null, 2);
                         responseHeaders["content-type"] = 'application/json; charset=utf-8';
@@ -818,12 +819,33 @@ async function MD5MD5(文本) {
 
 function 随机路径() {
     const 常用路径目录 = ["#","about","account","acg","act","activity","ad","admin","ads","ajax","album","albums","anime","api","app","apps","archive","archives","article","articles","ask","auth","avatar","bbs","bd","blog","blogs","book","books","bt","buy","cart","category","categories","cb","channel","channels","chat","china","city","class","classify","clip","clips","club","cn","code","collect","collection","comic","comics","community","company","config","contact","content","course","courses","cp","data","detail","details","dh","directory","discount","discuss","dl","dload","doc","docs","document","documents","doujin","download","downloads","drama","edu","en","ep","episode","episodes","event","events","f","faq","favorite","favourites","favs","feedback","file","files","film","films","forum","forums","friend","friends","game","games","gif","go","go.html","go.php","group","groups","help","home","hot","htm","html","image","images","img","index","info","intro","item","items","ja","jp","jump","jump.html","jump.php","jumping","knowledge","lang","lesson","lessons","lib","library","link","links","list","live","lives","login","logout","m","mag","magnet","mall","manhua","map","member","members","message","messages","mobile","movie","movies","music","my","new","news","note","novel","novels","online","order","out","out.html","out.php","outbound","p","page","pages","pay","payment","pdf","photo","photos","pic","pics","picture","pictures","play","player","playlist","post","posts","product","products","program","programs","project","qa","question","rank","ranking","read","readme","redirect","redirect.html","redirect.php","reg","register","res","resource","retrieve","sale","search","season","seasons","section","seller","series","service","services","setting","settings","share","shop","show","shows","site","soft","sort","source","special","star","stars","static","stock","store","stream","streaming","streams","student","study","tag","tags","task","teacher","team","tech","temp","test","thread","tool","tools","topic","topics","torrent","trade","travel","tv","txt","type","u","upload","uploads","url","urls","user","users","v","version","video","videos","view","vip","vod","watch","web","wenku","wiki","work","www","zh","zh-cn","zh-tw","zip"];
-    const 随机数 = Math.floor(Math.random() * 4 + 1);
+    const 随机数 = Math.floor(Math.random() * 3 + 1);
     const 随机路径 = 常用路径目录.sort(() => 0.5 - Math.random()).slice(0, 随机数).join('/');
     return `/${随机路径}`;
 }
 
-async function 读取config_JSON(env, host, userID, 重置配置 = false) {
+function 随机替换通配符(h) {
+    if (!h?.includes('*')) return h;
+    const 字符集 = 'abcdefghijklmnopqrstuvwxyz0123456789';
+    return h.replace(/\*/g, () => {
+        let s = '';
+        for (let i = 0; i < Math.floor(Math.random() * 14) + 3; i++)
+            s += 字符集[Math.floor(Math.random() * 36)];
+        return s;
+    });
+}
+
+function 批量替换域名(内容, host, 每组数量 = 2) {
+    let count = 0, currentRandomHost = null;
+    return 内容.replace(/example\.com/g, () => {
+        if (count % 每组数量 === 0) currentRandomHost = 随机替换通配符(host);
+        count++;
+        return currentRandomHost;
+    });
+}
+
+async function 读取config_JSON(env, hostname, userID, 重置配置 = false) {
+    const host = 随机替换通配符(hostname);
     const 初始化开始时间 = performance.now();
     const 默认配置JSON = {
         TIME: new Date().toISOString(),
@@ -834,6 +856,7 @@ async function 读取config_JSON(env, host, userID, 重置配置 = false) {
         跳过证书验证: true,
         启用0RTT: true,
         TLS分片: null,
+        随机路径: false,
         优选订阅生成: {
             local: true, // true: 基于本地的优选地址  false: 优选订阅生成器
             本地IP库: {
@@ -844,7 +867,7 @@ async function 读取config_JSON(env, host, userID, 重置配置 = false) {
             SUB: null,
             SUBNAME: "edge" + "tunnel",
             SUBUpdateTime: 6, // 订阅更新时间（小时）
-            TOKEN: await MD5MD5(host + userID),
+            TOKEN: await MD5MD5(hostname + userID),
         },
         订阅转换配置: {
             SUBAPI: "https://SUBAPI.cmliussss.net",
@@ -897,7 +920,7 @@ async function 读取config_JSON(env, host, userID, 重置配置 = false) {
     config_JSON.PATH = config_JSON.反代.SOCKS5.启用 ? ('/' + config_JSON.反代.SOCKS5.启用 + (config_JSON.反代.SOCKS5.全局 ? '://' : '=') + config_JSON.反代.SOCKS5.账号) : (config_JSON.反代.PROXYIP === 'auto' ? '/' : `/proxyip=${config_JSON.反代.PROXYIP}`);
     const TLS分片参数 = config_JSON.TLS分片 == 'Shadowrocket' ? `&fragment=${encodeURIComponent('1,40-60,30-50,tlshello')}` : config_JSON.TLS分片 == 'Happ' ? `&fragment=${encodeURIComponent('3,1,tlshello')}` : '';
     config_JSON.LINK = `${config_JSON.协议类型}://${userID}@${host}:443?security=tls&type=${config_JSON.传输协议}&host=${host}&sni=${host}&path=${encodeURIComponent(config_JSON.启用0RTT ? config_JSON.PATH + '?ed=2560' : config_JSON.PATH) + TLS分片参数}&encryption=none${config_JSON.跳过证书验证 ? '&allowInsecure=1' : ''}#${encodeURIComponent(config_JSON.优选订阅生成.SUBNAME)}`;
-    config_JSON.优选订阅生成.TOKEN = await MD5MD5(host + userID);
+    config_JSON.优选订阅生成.TOKEN = await MD5MD5(hostname + userID);
 
     const 初始化TG_JSON = { BotToken: null, ChatID: null };
     config_JSON.TG = { 启用: config_JSON.TG.启用 ? config_JSON.TG.启用 : false, ...初始化TG_JSON };
