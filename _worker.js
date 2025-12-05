@@ -867,7 +867,7 @@ async function 读取config_JSON(env, hostname, userID, 重置配置 = false) {
         },
         订阅转换配置: {
             SUBAPI: "https://SUBAPI.cmliussss.net",
-            SUBCONFIG: "https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/refs/heads/master/Clash/config/ACL4SSR_Online_Mini_MultiMode.ini",
+            SUBCONFIG: "https://raw.githubusercontent.com/cmliu/ACL4SSR/refs/heads/main/Clash/config/ACL4SSR_Online_Mini_MultiMode_CF.ini",
             SUBEMOJI: false,
         },
         反代: {
