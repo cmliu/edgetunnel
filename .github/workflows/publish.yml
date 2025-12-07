@@ -1,3 +1,4 @@
+name: Publish to Cloudflare
 on: [workflow_dispatch]
 
 jobs:
