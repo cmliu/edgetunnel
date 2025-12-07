@@ -16,8 +16,8 @@ jobs:
       - name: Publish to Cloudflare B
         uses: cloudflare/pages-action@v1.5.0
         with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          apiToken: ${{ vars.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           projectName: edge
           directory: ./
           # Optional: Enable this if you want to have GitHub Deployments triggered
@@ -40,8 +40,8 @@ jobs:
       - name: Publish to Cloudflare C
         uses: cloudflare/pages-action@v1.5.0
         with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN_C }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID_C }}
+          apiToken: ${{ vars.CLOUDFLARE_API_TOKEN_C }}
+          accountId: ${{ vars.CLOUDFLARE_ACCOUNT_ID_C }}
           projectName: edge
           directory: ./
           # Optional: Enable this if you want to have GitHub Deployments triggered
