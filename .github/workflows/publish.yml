@@ -1,7 +1,7 @@
 name: Publish to Cloudflare
 on:
-  schedule:
-    - cron: "0 18 * * *" # every day, UTC 18:00 is 2:00AM at China
+#  schedule:
+#    - cron: "0 18 * * *" # every day, UTC 18:00 is 2:00AM at China
   workflow_dispatch:
   
 jobs:
