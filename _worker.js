@@ -318,7 +318,11 @@ export default {
                     return new Response(订阅内容, { status: 200, headers: responseHeaders });
                 }
                 return new Response('无效的订阅TOKEN', { status: 403 });
-            } else if (访问路径 === 'locations') return fetch(new Request('https://speed.cloudflare.com/locations', { headers: { 'Referer': 'https://speed.cloudflare.com/' } }));
+            } else if (访问路径 === 'locations') {//反代locations列表
+                const cookies = request.headers.get('Cookie') || '';
+                const authCookie = cookies.split(';').find(c => c.trim().startsWith('auth='))?.split('=')[1];
+                if (authCookie && authCookie == await MD5MD5(UA + 加密秘钥 + 管理员密码)) return fetch(new Request('https://speed.cloudflare.com/locations', { headers: { 'Referer': 'https://speed.cloudflare.com/' } }));
+            }
         } else if (管理员密码) {// ws代理
             await 反代参数获取(request);
             return await 处理WS请求(request, userID);
@@ -495,8 +499,26 @@ function 解析魏烈思请求(chunk, token) {
 }
 async function forwardataTCP(host, portNum, rawData, ws, respHeader, remoteConnWrapper) {
     console.log(JSON.stringify({ configJSON: { 目标地址: host, 目标端口: portNum, 反代IP: 反代IP, 代理类型: 启用SOCKS5反代, 全局代理: 启用SOCKS5全局反代, 代理账号: 我的SOCKS5账号 } }));
-    async function connectDirect(address, port, data) {
-        const remoteSock = connect({ hostname: address, port: port });
+    async function connectDirect(address, port, data, 所有反代数组 = null) {
+        let remoteSock;
+        if (所有反代数组 && 所有反代数组.length > 0) {
+            const 打乱后数组 = [...所有反代数组].sort(() => Math.random() - 0.5);
+            const 最大尝试次数 = Math.min(8, 打乱后数组.length);
+            for (let i = 0; i < 最大尝试次数; i++) {
+                const [反代地址, 反代端口] = 打乱后数组[i];
+                try {
+                    remoteSock = connect({ hostname: 反代地址, port: 反代端口 });
+                    const testWriter = remoteSock.writable.getWriter();
+                    await testWriter.write(data);
+                    testWriter.releaseLock();
+                    return remoteSock;
+                } catch (err) {
+                    try { remoteSock?.close?.(); } catch (e) { }
+                    continue;
+                }
+            }
+        }
+        remoteSock = connect({ hostname: address, port: port });
         const writer = remoteSock.writable.getWriter();
         await writer.write(data);
         writer.releaseLock();
@@ -509,10 +531,8 @@ async function forwardataTCP(host, portNum, rawData, ws, respHeader, remoteConnW
         } else if (启用SOCKS5反代 === 'http' || 启用SOCKS5反代 === 'https') {
             newSocket = await httpConnect(host, portNum, rawData);
         } else {
-            try {
-                const [反代IP地址, 反代IP端口] = await 解析地址端口(反代IP);
-                newSocket = await connectDirect(反代IP地址, 反代IP端口, rawData);
-            } catch { newSocket = await connectDirect(atob('UFJPWFlJUC50cDEuMDkwMjI3Lnh5eg=='), 1, rawData) }
+            const 所有反代数组 = await 解析地址端口(反代IP);
+            newSocket = await connectDirect(atob('UFJPWFlJUC50cDEuMDkwMjI3Lnh5eg=='), 1, rawData, 所有反代数组);
         }
         remoteConnWrapper.socket = newSocket;
         newSocket.closed.catch(() => { }).finally(() => closeSocketQuietly(ws));
@@ -1295,42 +1315,84 @@ function sha224(s) {
 
 async function 解析地址端口(proxyIP) {
     proxyIP = proxyIP.toLowerCase();
-    if (proxyIP.includes('.william')) {
-        const williamResult = await (async function 解析William域名(william) {
-            try {
-                const response = await fetch(`https://1.1.1.1/dns-query?name=${william}&type=TXT`, { headers: { 'Accept': 'application/dns-json' } });
-                if (!response.ok) return null;
-                const data = await response.json();
-                const txtRecords = (data.Answer || []).filter(record => record.type === 16).map(record => record.data);
-                if (txtRecords.length === 0) return null;
-                let txtData = txtRecords[0];
-                if (txtData.startsWith('"') && txtData.endsWith('"')) txtData = txtData.slice(1, -1);
-                const prefixes = txtData.replace(/\\010/g, ',').replace(/\n/g, ',').split(',').map(s => s.trim()).filter(Boolean);
-                if (prefixes.length === 0) return null;
-                return prefixes[Math.floor(Math.random() * prefixes.length)];
-            } catch (error) {
-                console.error('解析ProxyIP失败:', error);
-                return null;
-            }
-        })(proxyIP);
-        proxyIP = williamResult || proxyIP;
+    async function DoH查询(域名, 记录类型) {
+        try {
+            const response = await fetch(`https://1.1.1.1/dns-query?name=${域名}&type=${记录类型}`, {
+                headers: { 'Accept': 'application/dns-json' }
+            });
+            if (!response.ok) return [];
+            const data = await response.json();
+            return data.Answer || [];
+        } catch (error) {
+            console.error(`DoH查询失败 (${记录类型}):`, error);
+            return [];
+        }
     }
-    let 地址 = proxyIP, 端口 = 443;
-    if (proxyIP.includes('.tp')) {
-        const tpMatch = proxyIP.match(/\.tp(\d+)/);
-        if (tpMatch) 端口 = parseInt(tpMatch[1], 10);
+
+    function 解析地址端口字符串(str) {
+        let 地址 = str, 端口 = 443;
+        if (str.includes(']:')) {
+            const parts = str.split(']:');
+            地址 = parts[0] + ']';
+            端口 = parseInt(parts[1], 10) || 端口;
+        } else if (str.includes(':') && !str.startsWith('[')) {
+            const colonIndex = str.lastIndexOf(':');
+            地址 = str.slice(0, colonIndex);
+            端口 = parseInt(str.slice(colonIndex + 1), 10) || 端口;
+        }
         return [地址, 端口];
     }
-    if (proxyIP.includes(']:')) {
-        const parts = proxyIP.split(']:');
-        地址 = parts[0] + ']';
-        端口 = parseInt(parts[1], 10) || 端口;
-    } else if (proxyIP.includes(':') && !proxyIP.startsWith('[')) {
-        const colonIndex = proxyIP.lastIndexOf(':');
-        地址 = proxyIP.slice(0, colonIndex);
-        端口 = parseInt(proxyIP.slice(colonIndex + 1), 10) || 端口;
+
+    let 所有反代数组 = [];
+
+    if (proxyIP.includes('.william')) {
+        try {
+            const txtRecords = await DoH查询(proxyIP, 'TXT');
+            const txtData = txtRecords.filter(r => r.type === 16).map(r => r.data);
+            if (txtData.length > 0) {
+                let data = txtData[0];
+                if (data.startsWith('"') && data.endsWith('"')) data = data.slice(1, -1);
+                const prefixes = data.replace(/\\010/g, ',').replace(/\n/g, ',').split(',').map(s => s.trim()).filter(Boolean);
+                所有反代数组 = prefixes.map(prefix => 解析地址端口字符串(prefix));
+            }
+        } catch (error) {
+            console.error('解析William域名失败:', error);
+        }
+    } else {
+        let [地址, 端口] = 解析地址端口字符串(proxyIP);
+
+        if (proxyIP.includes('.tp')) {
+            const tpMatch = proxyIP.match(/\.tp(\d+)/);
+            if (tpMatch) 端口 = parseInt(tpMatch[1], 10);
+        }
+
+        // 判断是否是域名（非IP地址）
+        const ipv4Regex = /^(25[0-5]|2[0-4]\d|[01]?\d\d?)\.(25[0-5]|2[0-4]\d|[01]?\d\d?)\.(25[0-5]|2[0-4]\d|[01]?\d\d?)\.(25[0-5]|2[0-4]\d|[01]?\d\d?)$/;
+        const ipv6Regex = /^\[?([a-fA-F0-9:]+)\]?$/;
+
+        if (!ipv4Regex.test(地址) && !ipv6Regex.test(地址)) {
+            // 并行查询 A 和 AAAA 记录
+            const [aRecords, aaaaRecords] = await Promise.all([
+                DoH查询(地址, 'A'),
+                DoH查询(地址, 'AAAA')
+            ]);
+
+            const ipv4List = aRecords.filter(r => r.type === 1).map(r => r.data);
+            const ipv6List = aaaaRecords.filter(r => r.type === 28).map(r => `[${r.data}]`);
+            const ipAddresses = [...ipv4List, ...ipv6List];
+
+            所有反代数组 = ipAddresses.length > 0
+                ? ipAddresses.map(ip => [ip, 端口])
+                : [[地址, 端口]];
+        } else {
+            所有反代数组 = [[地址, 端口]];
+        }
     }
-    return [地址, 端口];
+
+    return 所有反代数组;
+    // low
+    const [选中地址, 选中端口] = 所有反代数组[Math.floor(Math.random() * 所有反代数组.length)];
+    return [选中地址, 选中端口];
 }
 
 async function SOCKS5可用性验证(代理协议 = 'socks5', 代理参数) {
