@@ -269,7 +269,7 @@ export default {
                             }
                         }
 
-                        订阅内容 = 完整优选IP.map(原始地址 => {
+                        订阅内容 = 其他节点LINK + 完整优选IP.map(原始地址 => {
                             // 统一正则: 匹配 域名/IPv4/IPv6地址 + 可选端口 + 可选备注
                             // 示例: 
                             //   - 域名: hj.xmm1993.top:2096#备注 或 example.com
