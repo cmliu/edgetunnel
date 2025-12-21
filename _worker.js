@@ -1,5 +1,6 @@
 ﻿import { connect } from "cloudflare:sockets";
 let config_JSON, 反代IP = '', 启用SOCKS5反代 = null, 启用SOCKS5全局反代 = false, 我的SOCKS5账号 = '', parsedSocks5Address = {};
+let 缓存反代IP, 缓存反代解析数组, 缓存反代数组索引 = 0;
 let SOCKS5白名单 = ['*tapecontent.net', '*cloudatacdn.com', '*loadshare.org', '*cdn-centaurus.com', 'scholar.google.com'];
 const Pages静态页面 = 'https://edt-pages.github.io';
 ///////////////////////////////////////////////////////主程序入口///////////////////////////////////////////////
@@ -498,21 +499,28 @@ function 解析魏烈思请求(chunk, token) {
     return { hasError: false, addressType, port, hostname, isUDP, rawIndex: addrValIdx + addrLen, version };
 }
 async function forwardataTCP(host, portNum, rawData, ws, respHeader, remoteConnWrapper) {
-    console.log(JSON.stringify({ configJSON: { 目标地址: host, 目标端口: portNum, 反代IP: 反代IP, 代理类型: 启用SOCKS5反代, 全局代理: 启用SOCKS5全局反代, 代理账号: 我的SOCKS5账号 } }));
+    console.log(`[TCP转发] 目标: ${host}:${portNum} | 反代IP: ${反代IP} | 反代类型: ${启用SOCKS5反代 || 'proxyip'} | 全局: ${启用SOCKS5全局反代 ? '是' : '否'}`);
     async function connectDirect(address, port, data, 所有反代数组 = null) {
         let remoteSock;
         if (所有反代数组 && 所有反代数组.length > 0) {
-            const 打乱后数组 = [...所有反代数组].sort(() => Math.random() - 0.5);
-            const 最大尝试次数 = Math.min(8, 打乱后数组.length);
-            for (let i = 0; i < 最大尝试次数; i++) {
-                const [反代地址, 反代端口] = 打乱后数组[i];
+            const 最大尝试次数 = 缓存反代数组索引 + Math.min(8, 所有反代数组.length);
+            for (; 缓存反代数组索引 < 最大尝试次数; 缓存反代数组索引++) {
+                const [反代地址, 反代端口] = 所有反代数组[缓存反代数组索引 % 所有反代数组.length];
                 try {
+                    console.log(`[反代连接] 尝试连接到: ${反代地址}:${反代端口} (索引: ${缓存反代数组索引})`);
                     remoteSock = connect({ hostname: 反代地址, port: 反代端口 });
+                    // 等待TCP连接真正建立，设置1秒超时
+                    await Promise.race([
+                        remoteSock.opened,
+                        new Promise((_, reject) => setTimeout(() => reject(new Error('连接超时')), 1000))
+                    ]);
                     const testWriter = remoteSock.writable.getWriter();
                     await testWriter.write(data);
                     testWriter.releaseLock();
+                    console.log(`[反代连接] 成功连接到: ${反代地址}:${反代端口}`);
                     return remoteSock;
                 } catch (err) {
+                    console.log(`[反代连接] 连接失败: ${反代地址}:${反代端口}, 错误: ${err.message}`);
                     try { remoteSock?.close?.(); } catch (e) { }
                     continue;
                 }
@@ -853,7 +861,7 @@ async function MD5MD5(文本) {
 }
 
 function 随机路径() {
-    const 常用路径目录 = ["#", "about", "account", "acg", "act", "activity", "ad", "admin", "ads", "ajax", "album", "albums", "anime", "api", "app", "apps", "archive", "archives", "article", "articles", "ask", "auth", "avatar", "bbs", "bd", "blog", "blogs", "book", "books", "bt", "buy", "cart", "category", "categories", "cb", "channel", "channels", "chat", "china", "city", "class", "classify", "clip", "clips", "club", "cn", "code", "collect", "collection", "comic", "comics", "community", "company", "config", "contact", "content", "course", "courses", "cp", "data", "detail", "details", "dh", "directory", "discount", "discuss", "dl", "dload", "doc", "docs", "document", "documents", "doujin", "download", "downloads", "drama", "edu", "en", "ep", "episode", "episodes", "event", "events", "f", "faq", "favorite", "favourites", "favs", "feedback", "file", "files", "film", "films", "forum", "forums", "friend", "friends", "game", "games", "gif", "go", "go.html", "go.php", "group", "groups", "help", "home", "hot", "htm", "html", "image", "images", "img", "index", "info", "intro", "item", "items", "ja", "jp", "jump", "jump.html", "jump.php", "jumping", "knowledge", "lang", "lesson", "lessons", "lib", "library", "link", "links", "list", "live", "lives", "login", "logout", "m", "mag", "magnet", "mall", "manhua", "map", "member", "members", "message", "messages", "mobile", "movie", "movies", "music", "my", "new", "news", "note", "novel", "novels", "online", "order", "out", "out.html", "out.php", "outbound", "p", "page", "pages", "pay", "payment", "pdf", "photo", "photos", "pic", "pics", "picture", "pictures", "play", "player", "playlist", "post", "posts", "product", "products", "program", "programs", "project", "qa", "question", "rank", "ranking", "read", "readme", "redirect", "redirect.html", "redirect.php", "reg", "register", "res", "resource", "retrieve", "sale", "search", "season", "seasons", "section", "seller", "series", "service", "services", "setting", "settings", "share", "shop", "show", "shows", "site", "soft", "sort", "source", "special", "star", "stars", "static", "stock", "store", "stream", "streaming", "streams", "student", "study", "tag", "tags", "task", "teacher", "team", "tech", "temp", "test", "thread", "tool", "tools", "topic", "topics", "torrent", "trade", "travel", "tv", "txt", "type", "u", "upload", "uploads", "url", "urls", "user", "users", "v", "version", "video", "videos", "view", "vip", "vod", "watch", "web", "wenku", "wiki", "work", "www", "zh", "zh-cn", "zh-tw", "zip"];
+    const 常用路径目录 = ["about", "account", "acg", "act", "activity", "ad", "ads", "ajax", "album", "albums", "anime", "api", "app", "apps", "archive", "archives", "article", "articles", "ask", "auth", "avatar", "bbs", "bd", "blog", "blogs", "book", "books", "bt", "buy", "cart", "category", "categories", "cb", "channel", "channels", "chat", "china", "city", "class", "classify", "clip", "clips", "club", "cn", "code", "collect", "collection", "comic", "comics", "community", "company", "config", "contact", "content", "course", "courses", "cp", "data", "detail", "details", "dh", "directory", "discount", "discuss", "dl", "dload", "doc", "docs", "document", "documents", "doujin", "download", "downloads", "drama", "edu", "en", "ep", "episode", "episodes", "event", "events", "f", "faq", "favorite", "favourites", "favs", "feedback", "file", "files", "film", "films", "forum", "forums", "friend", "friends", "game", "games", "gif", "go", "go.html", "go.php", "group", "groups", "help", "home", "hot", "htm", "html", "image", "images", "img", "index", "info", "intro", "item", "items", "ja", "jp", "jump", "jump.html", "jump.php", "jumping", "knowledge", "lang", "lesson", "lessons", "lib", "library", "link", "links", "list", "live", "lives", "m", "mag", "magnet", "mall", "manhua", "map", "member", "members", "message", "messages", "mobile", "movie", "movies", "music", "my", "new", "news", "note", "novel", "novels", "online", "order", "out", "out.html", "out.php", "outbound", "p", "page", "pages", "pay", "payment", "pdf", "photo", "photos", "pic", "pics", "picture", "pictures", "play", "player", "playlist", "post", "posts", "product", "products", "program", "programs", "project", "qa", "question", "rank", "ranking", "read", "readme", "redirect", "redirect.html", "redirect.php", "reg", "register", "res", "resource", "retrieve", "sale", "search", "season", "seasons", "section", "seller", "series", "service", "services", "setting", "settings", "share", "shop", "show", "shows", "site", "soft", "sort", "source", "special", "star", "stars", "static", "stock", "store", "stream", "streaming", "streams", "student", "study", "tag", "tags", "task", "teacher", "team", "tech", "temp", "test", "thread", "tool", "tools", "topic", "topics", "torrent", "trade", "travel", "tv", "txt", "type", "u", "upload", "uploads", "url", "urls", "user", "users", "v", "version", "video", "videos", "view", "vip", "vod", "watch", "web", "wenku", "wiki", "work", "www", "zh", "zh-cn", "zh-tw", "zip"];
     const 随机数 = Math.floor(Math.random() * 3 + 1);
     const 随机路径 = 常用路径目录.sort(() => 0.5 - Math.random()).slice(0, 随机数).join('/');
     return `/${随机路径}`;
@@ -1316,85 +1324,86 @@ function sha224(s) {
 }
 
 async function 解析地址端口(proxyIP) {
-    proxyIP = proxyIP.toLowerCase();
-    async function DoH查询(域名, 记录类型) {
-        try {
-            const response = await fetch(`https://1.1.1.1/dns-query?name=${域名}&type=${记录类型}`, {
-                headers: { 'Accept': 'application/dns-json' }
-            });
-            if (!response.ok) return [];
-            const data = await response.json();
-            return data.Answer || [];
-        } catch (error) {
-            console.error(`DoH查询失败 (${记录类型}):`, error);
-            return [];
-        }
-    }
-
-    function 解析地址端口字符串(str) {
-        let 地址 = str, 端口 = 443;
-        if (str.includes(']:')) {
-            const parts = str.split(']:');
-            地址 = parts[0] + ']';
-            端口 = parseInt(parts[1], 10) || 端口;
-        } else if (str.includes(':') && !str.startsWith('[')) {
-            const colonIndex = str.lastIndexOf(':');
-            地址 = str.slice(0, colonIndex);
-            端口 = parseInt(str.slice(colonIndex + 1), 10) || 端口;
-        }
-        return [地址, 端口];
-    }
-
-    let 所有反代数组 = [];
-
-    if (proxyIP.includes('.william')) {
-        try {
-            const txtRecords = await DoH查询(proxyIP, 'TXT');
-            const txtData = txtRecords.filter(r => r.type === 16).map(r => r.data);
-            if (txtData.length > 0) {
-                let data = txtData[0];
-                if (data.startsWith('"') && data.endsWith('"')) data = data.slice(1, -1);
-                const prefixes = data.replace(/\\010/g, ',').replace(/\n/g, ',').split(',').map(s => s.trim()).filter(Boolean);
-                所有反代数组 = prefixes.map(prefix => 解析地址端口字符串(prefix));
+    if (!缓存反代IP || !缓存反代解析数组 || 缓存反代IP !== proxyIP) {
+        proxyIP = proxyIP.toLowerCase();
+        async function DoH查询(域名, 记录类型) {
+            try {
+                const response = await fetch(`https://1.1.1.1/dns-query?name=${域名}&type=${记录类型}`, {
+                    headers: { 'Accept': 'application/dns-json' }
+                });
+                if (!response.ok) return [];
+                const data = await response.json();
+                return data.Answer || [];
+            } catch (error) {
+                console.error(`DoH查询失败 (${记录类型}):`, error);
+                return [];
             }
-        } catch (error) {
-            console.error('解析William域名失败:', error);
-        }
-    } else {
-        let [地址, 端口] = 解析地址端口字符串(proxyIP);
-
-        if (proxyIP.includes('.tp')) {
-            const tpMatch = proxyIP.match(/\.tp(\d+)/);
-            if (tpMatch) 端口 = parseInt(tpMatch[1], 10);
         }
 
-        // 判断是否是域名（非IP地址）
-        const ipv4Regex = /^(25[0-5]|2[0-4]\d|[01]?\d\d?)\.(25[0-5]|2[0-4]\d|[01]?\d\d?)\.(25[0-5]|2[0-4]\d|[01]?\d\d?)\.(25[0-5]|2[0-4]\d|[01]?\d\d?)$/;
-        const ipv6Regex = /^\[?([a-fA-F0-9:]+)\]?$/;
+        function 解析地址端口字符串(str) {
+            let 地址 = str, 端口 = 443;
+            if (str.includes(']:')) {
+                const parts = str.split(']:');
+                地址 = parts[0] + ']';
+                端口 = parseInt(parts[1], 10) || 端口;
+            } else if (str.includes(':') && !str.startsWith('[')) {
+                const colonIndex = str.lastIndexOf(':');
+                地址 = str.slice(0, colonIndex);
+                端口 = parseInt(str.slice(colonIndex + 1), 10) || 端口;
+            }
+            return [地址, 端口];
+        }
 
-        if (!ipv4Regex.test(地址) && !ipv6Regex.test(地址)) {
-            // 并行查询 A 和 AAAA 记录
-            const [aRecords, aaaaRecords] = await Promise.all([
-                DoH查询(地址, 'A'),
-                DoH查询(地址, 'AAAA')
-            ]);
+        let 所有反代数组 = [];
 
-            const ipv4List = aRecords.filter(r => r.type === 1).map(r => r.data);
-            const ipv6List = aaaaRecords.filter(r => r.type === 28).map(r => `[${r.data}]`);
-            const ipAddresses = [...ipv4List, ...ipv6List];
-
-            所有反代数组 = ipAddresses.length > 0
-                ? ipAddresses.map(ip => [ip, 端口])
-                : [[地址, 端口]];
+        if (proxyIP.includes('.william')) {
+            try {
+                const txtRecords = await DoH查询(proxyIP, 'TXT');
+                const txtData = txtRecords.filter(r => r.type === 16).map(r => r.data);
+                if (txtData.length > 0) {
+                    let data = txtData[0];
+                    if (data.startsWith('"') && data.endsWith('"')) data = data.slice(1, -1);
+                    const prefixes = data.replace(/\\010/g, ',').replace(/\n/g, ',').split(',').map(s => s.trim()).filter(Boolean);
+                    所有反代数组 = prefixes.map(prefix => 解析地址端口字符串(prefix));
+                }
+            } catch (error) {
+                console.error('解析William域名失败:', error);
+            }
         } else {
-            所有反代数组 = [[地址, 端口]];
-        }
-    }
+            let [地址, 端口] = 解析地址端口字符串(proxyIP);
 
-    return 所有反代数组;
-    // low
-    const [选中地址, 选中端口] = 所有反代数组[Math.floor(Math.random() * 所有反代数组.length)];
-    return [选中地址, 选中端口];
+            if (proxyIP.includes('.tp')) {
+                const tpMatch = proxyIP.match(/\.tp(\d+)/);
+                if (tpMatch) 端口 = parseInt(tpMatch[1], 10);
+            }
+
+            // 判断是否是域名（非IP地址）
+            const ipv4Regex = /^(25[0-5]|2[0-4]\d|[01]?\d\d?)\.(25[0-5]|2[0-4]\d|[01]?\d\d?)\.(25[0-5]|2[0-4]\d|[01]?\d\d?)\.(25[0-5]|2[0-4]\d|[01]?\d\d?)$/;
+            const ipv6Regex = /^\[?([a-fA-F0-9:]+)\]?$/;
+
+            if (!ipv4Regex.test(地址) && !ipv6Regex.test(地址)) {
+                // 并行查询 A 和 AAAA 记录
+                const [aRecords, aaaaRecords] = await Promise.all([
+                    DoH查询(地址, 'A'),
+                    DoH查询(地址, 'AAAA')
+                ]);
+
+                const ipv4List = aRecords.filter(r => r.type === 1).map(r => r.data);
+                const ipv6List = aaaaRecords.filter(r => r.type === 28).map(r => `[${r.data}]`);
+                const ipAddresses = [...ipv4List, ...ipv6List];
+
+                所有反代数组 = ipAddresses.length > 0
+                    ? ipAddresses.map(ip => [ip, 端口])
+                    : [[地址, 端口]];
+            } else {
+                所有反代数组 = [[地址, 端口]];
+            }
+        }
+        缓存反代解析数组 = 所有反代数组;
+        console.log(`[反代解析] 解析完成 总数: ${缓存反代解析数组.length}个\n${缓存反代解析数组.map(([ip, port], index) => `${index + 1}. ${ip}:${port}`).join('\n')}`);
+        缓存反代IP = proxyIP;
+    } else console.log(`[反代解析] 读取缓存 总数: ${缓存反代解析数组.length}个\n${缓存反代解析数组.map(([ip, port], index) => `${index + 1}. ${ip}:${port}`).join('\n')}`);
+    return 缓存反代解析数组;
 }
 
 async function SOCKS5可用性验证(代理协议 = 'socks5', 代理参数) {
