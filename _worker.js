@@ -72,7 +72,7 @@ export default {
                         try {
                             new URL(待验证优选URL);
                             const 请求优选API内容 = await 请求优选API([待验证优选URL], url.searchParams.get('port') || '443');
-                            const 优选API的IP = 请求优选API内容[0] != '' ? 请求优选API内容[0] : 请求优选API内容[1].split(/\r?\n/).filter(line => line.trim() !== '');
+                            const 优选API的IP = 请求优选API内容[0].length > 0 ? 请求优选API内容[0] : 请求优选API内容[1];
                             return new Response(JSON.stringify({ success: true, data: 优选API的IP }, null, 2), { status: 200, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
                         } catch (err) {
                             const errorResponse = { msg: '验证优选API失败，失败原因：' + err.message, error: err.message };
@@ -248,7 +248,8 @@ export default {
                                 } else 优选IP.push(元素);
                             }
                             const 请求优选API内容 = await 请求优选API(优选API);
-                            其他节点LINK = 其他节点.join('\n') + '\n' + 请求优选API内容[1];
+                            const 合并其他节点数组 = [...new Set(其他节点.concat(请求优选API内容[1]))];
+                            其他节点LINK = 合并其他节点数组.length > 0 ? 合并其他节点数组.join('\n') + '\n' : '';
                             const 优选API的IP = 请求优选API内容[0];
                             完整优选IP = [...new Set(优选IP.concat(优选API的IP))];
                         } else { // 优选订阅生成器
@@ -1186,7 +1187,9 @@ async function 请求优选API(urls, 默认端口 = '443', 超时时间 = 3000) 
             }
         } catch (e) { }
     }));
-    return [Array.from(results), 订阅链接响应的明文LINK内容, 需要订阅转换订阅URLs];
+    // 将LINK内容转换为数组并去重
+    const LINK数组 = 订阅链接响应的明文LINK内容.trim() ? [...new Set(订阅链接响应的明文LINK内容.split(/\r?\n/).filter(line => line.trim() !== ''))] : [];
+    return [Array.from(results), LINK数组, 需要订阅转换订阅URLs];
 }
 
 async function 反代参数获取(request) {
