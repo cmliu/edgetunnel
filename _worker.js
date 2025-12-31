@@ -1073,7 +1073,7 @@ function base64Decode(str) {
 }
 
 async function 请求优选API(urls, 默认端口 = '443', 超时时间 = 3000) {
-    if (!urls?.length) return [];
+    if (!urls?.length) return [[], [], []];
     const results = new Set();
     let 订阅链接响应的明文LINK内容 = '', 需要订阅转换订阅URLs = [];
     await Promise.allSettled(urls.map(async (url) => {
