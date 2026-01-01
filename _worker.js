@@ -71,7 +71,8 @@ export default {
                         const 待验证优选URL = url.searchParams.get('url');
                         try {
                             new URL(待验证优选URL);
-                            const 优选API的IP = await 请求优选API([待验证优选URL], url.searchParams.get('port') || '443');
+                            const 请求优选API内容 = await 请求优选API([待验证优选URL], url.searchParams.get('port') || '443');
+                            const 优选API的IP = 请求优选API内容[0].length > 0 ? 请求优选API内容[0] : 请求优选API内容[1];
                             return new Response(JSON.stringify({ success: true, data: 优选API的IP }, null, 2), { status: 200, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
                         } catch (err) {
                             const errorResponse = { msg: '验证优选API失败，失败原因：' + err.message, error: err.message };
@@ -246,8 +247,10 @@ export default {
                                     } else 其他节点.push(元素);
                                 } else 优选IP.push(元素);
                             }
-                            其他节点LINK = 其他节点.join('\n') + '\n';
-                            const 优选API的IP = await 请求优选API(优选API);
+                            const 请求优选API内容 = await 请求优选API(优选API);
+                            const 合并其他节点数组 = [...new Set(其他节点.concat(请求优选API内容[1]))];
+                            其他节点LINK = 合并其他节点数组.length > 0 ? 合并其他节点数组.join('\n') + '\n' : '';
+                            const 优选API的IP = 请求优选API内容[0];
                             完整优选IP = [...new Set(优选IP.concat(优选API的IP))];
                         } else { // 优选订阅生成器
                             let 优选订阅生成器HOST = url.searchParams.get('sub') || config_JSON.优选订阅生成.SUB;
@@ -1049,6 +1052,7 @@ async function 生成随机IP(request, count = 16, 指定端口 = -1) {
     });
     return [randomIPs, randomIPs.join('\n')];
 }
+
 async function 整理成数组(内容) {
     var 替换后的内容 = 内容.replace(/[	"'\r\n]+/g, ',').replace(/,+/g, ',');
     if (替换后的内容.charAt(0) == ',') 替换后的内容 = 替换后的内容.slice(1);
@@ -1057,9 +1061,30 @@ async function 整理成数组(内容) {
     return 地址数组;
 }
 
+function isValidBase64(str) {
+    if (typeof str !== 'string') return false;
+    const cleanStr = str.replace(/\s/g, '');
+    if (cleanStr.length === 0 || cleanStr.length % 4 !== 0) return false;
+    const base64Regex = /^[A-Za-z0-9+/]+={0,2}$/;
+    if (!base64Regex.test(cleanStr)) return false;
+    try {
+        atob(cleanStr);
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+function base64Decode(str) {
+    const bytes = new Uint8Array(atob(str).split('').map(c => c.charCodeAt(0)));
+    const decoder = new TextDecoder('utf-8');
+    return decoder.decode(bytes);
+}
+
 async function 请求优选API(urls, 默认端口 = '443', 超时时间 = 3000) {
-    if (!urls?.length) return [];
+    if (!urls?.length) return [[], [], []];
     const results = new Set();
+    let 订阅链接响应的明文LINK内容 = '', 需要订阅转换订阅URLs = [];
     await Promise.allSettled(urls.map(async (url) => {
         try {
             const controller = new AbortController();
@@ -1111,6 +1136,21 @@ async function 请求优选API(urls, 默认端口 = '443', 超时时间 = 3000) 
                 console.error('Failed to decode response:', e);
                 return;
             }
+
+            // 预处理订阅内容
+            /*
+            if (text.includes('proxies:') || (text.includes('outbounds"') && text.includes('inbounds"'))) {// Clash Singbox 配置
+                需要订阅转换订阅URLs.add(url);
+                return;
+            }
+            */
+
+            const 预处理订阅明文内容 = isValidBase64(text) ? base64Decode(text) : text;
+            if (预处理订阅明文内容.split('#')[0].includes('://')) {
+                订阅链接响应的明文LINK内容 += 预处理订阅明文内容 + '\n'; // 追加LINK明文内容
+                return;
+            }
+
             const lines = text.trim().split('\n').map(l => l.trim()).filter(l => l);
             const isCSV = lines.length > 1 && lines[0].includes(',');
             const IPV6_PATTERN = /^[^\[\]]*:[^\[\]]*:[^\[\]]/;
@@ -1156,7 +1196,9 @@ async function 请求优选API(urls, 默认端口 = '443', 超时时间 = 3000) 
             }
         } catch (e) { }
     }));
-    return Array.from(results);
+    // 将LINK内容转换为数组并去重
+    const LINK数组 = 订阅链接响应的明文LINK内容.trim() ? [...new Set(订阅链接响应的明文LINK内容.split(/\r?\n/).filter(line => line.trim() !== ''))] : [];
+    return [Array.from(results), LINK数组, 需要订阅转换订阅URLs];
 }
 
 async function 反代参数获取(request) {
