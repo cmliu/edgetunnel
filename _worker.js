@@ -122,18 +122,20 @@ export default {
                         } else if (访问路径 === 'admin/cf.json') { // 保存cf.json配置
                             try {
                                 const newConfig = await request.json();
-                                const CF_JSON = { Email: null, GlobalAPIKey: null, AccountID: null, APIToken: null };
+                                const CF_JSON = { Email: null, GlobalAPIKey: null, AccountID: null, APIToken: null, UsageAPI: null };
                                 if (!newConfig.init || newConfig.init !== true) {
                                     if (newConfig.Email && newConfig.GlobalAPIKey) {
                                         CF_JSON.Email = newConfig.Email;
                                         CF_JSON.GlobalAPIKey = newConfig.GlobalAPIKey;
                                         CF_JSON.AccountID = null;
                                         CF_JSON.APIToken = null;
+                                        CF_JSON.UsageAPI = null;
                                     } else if (newConfig.AccountID && newConfig.APIToken) {
                                         CF_JSON.Email = null;
                                         CF_JSON.GlobalAPIKey = null;
                                         CF_JSON.AccountID = newConfig.AccountID;
                                         CF_JSON.APIToken = newConfig.APIToken;
+                                        CF_JSON.UsageAPI = null;
                                     } else {
                                         return new Response(JSON.stringify({ error: '配置不完整' }), { status: 400, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
                                     }
@@ -205,7 +207,7 @@ export default {
                         if (config_JSON.CF.Usage.success) {
                             pagesSum = config_JSON.CF.Usage.pages;
                             workersSum = config_JSON.CF.Usage.workers;
-                            total = 1024 * 100;
+                            total = Number.isFinite(config_JSON.CF.Usage.max) ? (config_JSON.CF.Usage.max / 1000) * 1024 : 1024 * 100;
                         }
                         const responseHeaders = {
                             "content-type": "text/plain; charset=utf-8",
@@ -330,7 +332,6 @@ export default {
                         }
                         return new Response(订阅内容, { status: 200, headers: responseHeaders });
                     }
-                    return new Response('无效的订阅TOKEN', { status: 403 });
                 } else if (访问路径 === 'locations') {//反代locations列表
                     const cookies = request.headers.get('Cookie') || '';
                     const authCookie = cookies.split(';').find(c => c.trim().startsWith('auth='))?.split('=')[1];
@@ -1125,11 +1126,13 @@ async function 读取config_JSON(env, hostname, userID, path, 重置配置 = fal
             GlobalAPIKey: null,
             AccountID: null,
             APIToken: null,
+            UsageAPI: null,
             Usage: {
                 success: false,
                 pages: 0,
                 workers: 0,
                 total: 0,
+                max: 100000,
             },
         }
     };
@@ -1171,20 +1174,31 @@ async function 读取config_JSON(env, hostname, userID, path, 重置配置 = fal
         console.error(`读取tg.json出错: ${error.message}`);
     }
 
-    const 初始化CF_JSON = { Email: null, GlobalAPIKey: null, AccountID: null, APIToken: null };
-    config_JSON.CF = { ...初始化CF_JSON, Usage: { success: false, pages: 0, workers: 0, total: 0 } };
+    const 初始化CF_JSON = { Email: null, GlobalAPIKey: null, AccountID: null, APIToken: null, UsageAPI: null };
+    config_JSON.CF = { ...初始化CF_JSON, Usage: { success: false, pages: 0, workers: 0, total: 0, max: 100000 } };
     try {
         const CF_TXT = await env.KV.get('cf.json');
         if (!CF_TXT) {
             await env.KV.put('cf.json', JSON.stringify(初始化CF_JSON, null, 2));
         } else {
             const CF_JSON = JSON.parse(CF_TXT);
-            config_JSON.CF.Email = CF_JSON.Email ? CF_JSON.Email : null;
-            config_JSON.CF.GlobalAPIKey = CF_JSON.GlobalAPIKey ? 掩码敏感信息(CF_JSON.GlobalAPIKey) : null;
-            config_JSON.CF.AccountID = CF_JSON.AccountID ? 掩码敏感信息(CF_JSON.AccountID) : null;
-            config_JSON.CF.APIToken = CF_JSON.APIToken ? 掩码敏感信息(CF_JSON.APIToken) : null;
-            const Usage = await getCloudflareUsage(CF_JSON.Email, CF_JSON.GlobalAPIKey, CF_JSON.AccountID, CF_JSON.APIToken);
-            config_JSON.CF.Usage = Usage;
+            if (CF_JSON.UsageAPI) {
+                try {
+                    const response = await fetch(CF_JSON.UsageAPI);
+                    const Usage = await response.json();
+                    config_JSON.CF.Usage = Usage;
+                } catch (err) {
+                    console.error(`请求 CF_JSON.UsageAPI 失败: ${err.message}`);
+                }
+            } else {
+                config_JSON.CF.Email = CF_JSON.Email ? CF_JSON.Email : null;
+                config_JSON.CF.GlobalAPIKey = CF_JSON.GlobalAPIKey ? 掩码敏感信息(CF_JSON.GlobalAPIKey) : null;
+                config_JSON.CF.AccountID = CF_JSON.AccountID ? 掩码敏感信息(CF_JSON.AccountID) : null;
+                config_JSON.CF.APIToken = CF_JSON.APIToken ? 掩码敏感信息(CF_JSON.APIToken) : null;
+                config_JSON.CF.UsageAPI = null;
+                const Usage = await getCloudflareUsage(CF_JSON.Email, CF_JSON.GlobalAPIKey, CF_JSON.AccountID, CF_JSON.APIToken);
+                config_JSON.CF.Usage = Usage;
+            }
         }
     } catch (error) {
         console.error(`读取cf.json出错: ${error.message}`);
@@ -1466,7 +1480,7 @@ async function getCloudflareUsage(Email, GlobalAPIKey, AccountID, APIToken) {
     const cfg = { "Content-Type": "application/json" };
 
     try {
-        if (!AccountID && (!Email || !GlobalAPIKey)) return { success: false, pages: 0, workers: 0, total: 0 };
+        if (!AccountID && (!Email || !GlobalAPIKey)) return { success: false, pages: 0, workers: 0, total: 0, max: 100000 };
 
         if (!AccountID) {
             const r = await fetch(`${API}/accounts`, {
@@ -1508,12 +1522,13 @@ async function getCloudflareUsage(Email, GlobalAPIKey, AccountID, APIToken) {
         const pages = sum(acc.pagesFunctionsInvocationsAdaptiveGroups);
         const workers = sum(acc.workersInvocationsAdaptive);
         const total = pages + workers;
-        console.log(`统计结果 - Pages: ${pages}, Workers: ${workers}, 总计: ${total}`);
-        return { success: true, pages, workers, total };
+        const max = 100000;
+        console.log(`统计结果 - Pages: ${pages}, Workers: ${workers}, 总计: ${total}, 上限: 100000`);
+        return { success: true, pages, workers, total, max };
 
     } catch (error) {
         console.error('获取使用量错误:', error.message);
-        return { success: false, pages: 0, workers: 0, total: 0 };
+        return { success: false, pages: 0, workers: 0, total: 0, max: 100000 };
     }
 }
 

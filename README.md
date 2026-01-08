@@ -1,7 +1,7 @@
 # 🚀 edgetunnel 2.0
 ![后台页面](./img.png)
 
-- **edgetunnel 最新教程**：https://www.youtube.com/watch?v=tKe9xUuFODA ***必看内容!必看内容!必看内容!!!***
+- **Edgetunnel 图文教程**：https://cmliussss.com/p/edt2 ***必看内容!必看内容!必看内容!!!***
 - **报错 Error 1101 详解**：https://www.youtube.com/watch?v=r4uVTEJptdE
 
 - Telegram交流群：[@CMLiussss](https://t.me/CMLiussss)
@@ -32,7 +32,7 @@
 - 另外，您也可以选择自行部署 [WorkerVless2sub 订阅生成服务](https://github.com/cmliu/WorkerVless2sub)，这样既可以利用订阅生成器的便利。
    
 ## 💡 如何使用?
-### ⚙️ Workers 部署方法 [视频教程](https://www.youtube.com/watch?v=tKe9xUuFODA&t=191s)
+### ⚙️ Workers 部署方法
 
 <details>
 <summary><code><strong>「 Workers 部署文字教程 」</strong></code></summary>
@@ -50,14 +50,13 @@
 3. 给 Workers绑定 自定义域： 
    - 在 workers控制台的 `触发器`选项卡，下方点击 `添加自定义域`。
    - 填入你已转入 CF 域名解析服务的次级域名，例如:`vless.google.com`后 点击`添加自定义域`，等待证书生效即可。
-   - **如果你是小白，你现在可以直接起飞，不用再往下看了！！！**
 
 4. 访问后台：
    - 访问 `https://vless.google.com/admin` 输入管理员密码即可登录后台。
 
 </details>
 
-### 🛠 Pages 上传 部署方法 **最佳推荐!!!** [视频教程](https://www.youtube.com/watch?v=tKe9xUuFODA&t=436s)
+### 🛠 Pages 上传 部署方法 **最佳推荐!!!** [图文教程](https://cmliussss.com/p/edt2/)
 
 <details>
 <summary><code><strong>「 Pages 上传文件部署文字教程 」</strong></code></summary>
@@ -78,14 +77,13 @@
    - 填入你的自定义次级域名，注意不要使用你的根域名，例如：
      您分配到的域名是 `fuck.cloudns.biz`，则添加自定义域填入 `lizi.fuck.cloudns.biz`即可；
    - 按照 CF 的要求将返回你的域名DNS服务商，添加 该自定义域 `lizi`的 CNAME记录 `edgetunnel.pages.dev` 后，点击 `激活域`即可。
-   - **如果你是小白，那么你的 pages 绑定`自定义域`之后即可直接起飞，不用再往下看了！！！**
    
 4. 访问后台：
    - 访问 `https://lizi.fuck.cloudns.biz/admin` 输入管理员密码即可登录后台。
 
 </details>
 
-### 🛠 Pages GitHub 部署方法 [视频教程](https://www.youtube.com/watch?v=tKe9xUuFODA&t=317s)
+### 🛠 Pages GitHub 部署方法
 
 <details>
 <summary><code><strong>「 Pages GitHub 部署文字教程 」</strong></code></summary>
@@ -105,7 +103,6 @@
    - 填入你的自定义次级域名，注意不要使用你的根域名，例如：
      您分配到的域名是 `fuck.cloudns.biz`，则添加自定义域填入 `lizi.fuck.cloudns.biz`即可；
    - 按照 CF 的要求将返回你的域名DNS服务商，添加 该自定义域 `lizi`的 CNAME记录 `edgetunnel.pages.dev` 后，点击 `激活域`即可。
-   - **如果你是小白，那么你的 pages 绑定`自定义域`之后即可直接起飞，不用再往下看了！！！**
 
 4. 访问后台：
    - 访问 `https://lizi.fuck.cloudns.biz/admin` 输入管理员密码即可登录后台。
@@ -126,7 +123,7 @@
 | GO2SOCKS5  | `blog.cmliussss.com`,`*.ip111.cn`,`*google.com` |❌| 设置`SOCKS5`或`HTTP`变量之后，可设置强制使用socks5访问名单(设置为`*`可作为全局代理) |
 
 ## 🔧 实用技巧
-该项目部署的节点可通过节点PATH(路径)的方式，使用指定的`PROXYIP`或`SOCKS5`！！！**
+该项目部署的节点可通过节点PATH(路径)的方式，使用指定的`PROXYIP`或`SOCKS5`！！！
 
 - 指定 `PROXYIP` 案例
    ```url
