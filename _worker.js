@@ -127,15 +127,11 @@ export default {
                                     if (newConfig.Email && newConfig.GlobalAPIKey) {
                                         CF_JSON.Email = newConfig.Email;
                                         CF_JSON.GlobalAPIKey = newConfig.GlobalAPIKey;
-                                        CF_JSON.AccountID = null;
-                                        CF_JSON.APIToken = null;
-                                        CF_JSON.UsageAPI = null;
                                     } else if (newConfig.AccountID && newConfig.APIToken) {
-                                        CF_JSON.Email = null;
-                                        CF_JSON.GlobalAPIKey = null;
                                         CF_JSON.AccountID = newConfig.AccountID;
                                         CF_JSON.APIToken = newConfig.APIToken;
-                                        CF_JSON.UsageAPI = null;
+                                    } else if (newConfig.UsageAPI){
+                                        CF_JSON.UsageAPI = newConfig.UsageAPI;
                                     } else {
                                         return new Response(JSON.stringify({ error: '配置不完整' }), { status: 400, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
                                     }
