@@ -130,7 +130,7 @@ export default {
                                     } else if (newConfig.AccountID && newConfig.APIToken) {
                                         CF_JSON.AccountID = newConfig.AccountID;
                                         CF_JSON.APIToken = newConfig.APIToken;
-                                    } else if (newConfig.UsageAPI){
+                                    } else if (newConfig.UsageAPI) {
                                         CF_JSON.UsageAPI = newConfig.UsageAPI;
                                     } else {
                                         return new Response(JSON.stringify({ error: '配置不完整' }), { status: 400, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
@@ -184,7 +184,7 @@ export default {
 
                     ctx.waitUntil(请求日志记录(env, request, 访问IP, 'Admin_Login', config_JSON));
                     return fetch(Pages静态页面 + '/admin');
-                } else if (访问路径 === 'logout') {//清除cookie并跳转到登录页面
+                } else if (访问路径 === 'logout' || uuidRegex.test(访问路径)) {//清除cookie并跳转到登录页面
                     const 响应 = new Response('重定向中...', { status: 302, headers: { 'Location': '/login' } });
                     响应.headers.set('Set-Cookie', 'auth=; Path=/; Max-Age=0; HttpOnly');
                     return 响应;
