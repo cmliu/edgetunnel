@@ -324,7 +324,7 @@ export default {
                             订阅内容 = Singbox订阅配置文件热补丁(订阅内容, config_JSON.UUID, config_JSON.Fingerprint, config_JSON.ECH ? await getECH(host) : null);
                             responseHeaders["content-type"] = 'application/json; charset=utf-8';
                         } else if (订阅类型 === 'clash') {
-                            订阅内容 = Clash订阅配置文件热补丁(订阅内容, config_JSON.UUID, config_JSON.ECH ? await getECH(host) : null);
+                            订阅内容 = Clash订阅配置文件热补丁(订阅内容, config_JSON.UUID, config_JSON.ECH);
                             responseHeaders["content-type"] = 'application/x-yaml; charset=utf-8';
                         }
                         return new Response(订阅内容, { status: 200, headers: responseHeaders });
@@ -785,15 +785,32 @@ async function httpConnect(targetHost, targetPort, initialData) {
     }
 }
 //////////////////////////////////////////////////功能性函数///////////////////////////////////////////////
-function Clash订阅配置文件热补丁(clash_yaml, uuid = null, ech_config = null) {
-    // 判断uuid字段是否为真
-    if (!uuid) {
-        return clash_yaml;
-    }
+function Clash订阅配置文件热补丁(Clash_原始订阅内容, uuid = null, ECH启用 = false) {
+    const clash_yaml = `dns:
+  enable: true
+  default-nameserver:
+    - 223.5.5.5
+    - 119.29.29.29
+    - 114.114.114.114
+  use-hosts: true
+  nameserver:
+    - https://sm2.doh.pub/dns-query
+    - https://dns.alidns.com/dns-query
+  fallback:
+    - 'https://dns.google/dns-query'
+    - 'https://1.1.1.1/dns-query'
+  fallback-filter:
+    geoip: true
+    ipcidr:
+      - 240.0.0.0/4
+      - 0.0.0.0/32
+    geoip-code: CN
+  proxy-server-nameserver:
+    - https://doh.cmliussss.com/CMLiussss
+    - https://doh.cmliussss.net/CMLiussss
+` + Clash_原始订阅内容;
 
-    // 如果ech_config为null，直接返回
-    if (!ech_config) return clash_yaml;
-
+    if (!uuid || !ECH启用) return clash_yaml;
     const lines = clash_yaml.split('\n');
     const processedLines = [];
     let i = 0;
@@ -830,7 +847,7 @@ function Clash订阅配置文件热补丁(clash_yaml, uuid = null, ech_config = 
 
             if (credentialMatch && credentialMatch[1].trim() === uuid.trim()) {
                 // 在最后一个}前添加ech-opts
-                fullNode = fullNode.replace(/\}(\s*)$/, `, ech-opts: {enable: true, config: "${ech_config}"}}$1`);
+                fullNode = fullNode.replace(/\}(\s*)$/, `, ech-opts: {enable: true}}$1`);
             }
 
             processedLines.push(fullNode);
@@ -905,8 +922,7 @@ function Clash订阅配置文件热补丁(clash_yaml, uuid = null, ech_config = 
                     // 在节点末尾（最后一个属性块之后）插入 ech-opts 属性
                     nodeLines.splice(insertIndex + 1, 0,
                         `${indent}ech-opts:`,
-                        `${indent}  enable: true`,
-                        `${indent}  config: "${ech_config}"`
+                        `${indent}  enable: true`
                     );
                 }
             }
