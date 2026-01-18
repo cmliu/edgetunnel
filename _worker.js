@@ -786,6 +786,8 @@ async function httpConnect(targetHost, targetPort, initialData) {
 }
 //////////////////////////////////////////////////功能性函数///////////////////////////////////////////////
 function Clash订阅配置文件热补丁(Clash_原始订阅内容, uuid = null, ECH启用 = false) {
+    if (!ECH启用) return Clash_原始订阅内容;
+
     const clash_yaml = `dns:
   enable: true
   default-nameserver:
@@ -797,10 +799,12 @@ function Clash订阅配置文件热补丁(Clash_原始订阅内容, uuid = null,
     - https://sm2.doh.pub/dns-query
     - https://dns.alidns.com/dns-query
   fallback:
-    - 'https://dns.google/dns-query'
-    - 'https://1.1.1.1/dns-query'
+    - 8.8.4.4
+    - 101.101.101.101
+    - 208.67.220.220
   fallback-filter:
     geoip: true
+    domain: [+.google.com, +.facebook.com, +.youtube.com]
     ipcidr:
       - 240.0.0.0/4
       - 0.0.0.0/32
@@ -810,7 +814,7 @@ function Clash订阅配置文件热补丁(Clash_原始订阅内容, uuid = null,
     - https://doh.cmliussss.net/CMLiussss
 ` + Clash_原始订阅内容;
 
-    if (!uuid || !ECH启用) return clash_yaml;
+    if (!uuid) return clash_yaml;
     const lines = clash_yaml.split('\n');
     const processedLines = [];
     let i = 0;
