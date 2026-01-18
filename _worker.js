@@ -367,7 +367,7 @@ export default {
     }
 };
 ///////////////////////////////////////////////////////////////////////WS传输数据///////////////////////////////////////////////
-async function 处理WS请求(request, yourUUID) {
+ 处理WS请求(request, yourUUID) {
     const wssPair = new WebSocketPair();
     const [clientSock, serverSock] = Object.values(wssPair);
     serverSock.accept();
@@ -1598,7 +1598,28 @@ async function 反代参数获取(request) {
     const url = new URL(request.url);
     const { pathname, searchParams } = url;
     const pathLower = pathname.toLowerCase();
-
+// 添加一个能查询IP所属国家的函数
+async function 获取IP国家信息(ipOrDomain) {
+    try {
+        // 如果是IPv6格式，需要去掉方括号
+        const cleanIP = ipOrDomain.replace(/[\[\]]/g, '');
+        
+        // 使用 IP2Location 或其他API查询
+        const response = await fetch(`https://ipapi.co/${cleanIP}/json/`, {
+            method: 'GET',
+            headers: { 'Accept': 'application/json' }
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            return data. country_code || data.country_name || 'Unknown';
+        }
+        return 'Unknown';
+    } catch (error) {
+        console.error(`获取IP地理位置失败:  ${error. message}`);
+        return 'Unknown';
+    }
+}
     // 初始化
     我的SOCKS5账号 = searchParams.get('socks5') || searchParams.get('http') || null;
     启用SOCKS5全局反代 = searchParams.has('globalproxy') || false;
@@ -2014,5 +2035,6 @@ async function html1101(host, 访问IP) {
 </body>
 </html>`;
 }
+
 
 
