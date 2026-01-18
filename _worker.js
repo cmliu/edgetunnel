@@ -1,4 +1,4 @@
-﻿import { connect } from "cloudflare:sockets";
+import { connect } from "cloudflare:sockets";
 let config_JSON, 反代IP = '', 启用SOCKS5反代 = null, 启用SOCKS5全局反代 = false, 我的SOCKS5账号 = '', parsedSocks5Address = {};
 let 缓存反代IP, 缓存反代解析数组, 缓存反代数组索引 = 0, 启用反代兜底 = true;
 let SOCKS5白名单 = ['*tapecontent.net', '*cloudatacdn.com', '*loadshare.org', '*cdn-centaurus.com', 'scholar.google.com'];
@@ -367,7 +367,7 @@ export default {
     }
 };
 ///////////////////////////////////////////////////////////////////////WS传输数据///////////////////////////////////////////////
- 处理WS请求(request, yourUUID) {
+async function 处理WS请求(request, yourUUID) {
     const wssPair = new WebSocketPair();
     const [clientSock, serverSock] = Object.values(wssPair);
     serverSock.accept();
@@ -1479,13 +1479,11 @@ function base64Decode(str) {
     return decoder.decode(bytes);
 }
 
-// 找到 请求优选API 函数，修改返回结果处理部分
-
 async function 请求优选API(urls, 默认端口 = '443', 超时时间 = 3000) {
-    if (!urls?. length) return [[], [], []];
+    if (!urls?.length) return [[], [], []];
     const results = new Set();
     let 订阅链接响应的明文LINK内容 = '', 需要订阅转换订阅URLs = [];
-    await Promise.allSettled(urls. map(async (url) => {
+    await Promise.allSettled(urls.map(async (url) => {
         try {
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 超时时间);
@@ -1497,32 +1495,39 @@ async function 请求优选API(urls, 默认端口 = '443', 超时时间 = 3000) 
                 const contentType = (response.headers.get('content-type') || '').toLowerCase();
                 const charset = contentType.match(/charset=([^\s;]+)/i)?.[1]?.toLowerCase() || '';
 
-                let decoders = ['utf-8', 'gb2312'];
-                if (charset. includes('gb') || charset.includes('gbk') || charset.includes('gb2312')) {
-                    decoders = ['gb2312', 'utf-8'];
+                // 根据 Content-Type 响应头判断编码优先级
+                let decoders = ['utf-8', 'gb2312']; // 默认优先 UTF-8
+                if (charset.includes('gb') || charset.includes('gbk') || charset.includes('gb2312')) {
+                    decoders = ['gb2312', 'utf-8']; // 如果明确指定 GB 系编码，优先尝试 GB2312
                 }
 
+                // 尝试多种编码解码
                 let decodeSuccess = false;
                 for (const decoder of decoders) {
                     try {
                         const decoded = new TextDecoder(decoder).decode(buffer);
-                        if (decoded && decoded.length > 0 && ! decoded.includes('\ufffd')) {
+                        // 验证解码结果的有效性
+                        if (decoded && decoded.length > 0 && !decoded.includes('\ufffd')) {
                             text = decoded;
                             decodeSuccess = true;
                             break;
                         } else if (decoded && decoded.length > 0) {
+                            // 如果有替换字符 (U+FFFD)，说明编码不匹配，继续尝试下一个编码
                             continue;
                         }
                     } catch (e) {
+                        // 该编码解码失败，尝试下一个
                         continue;
                     }
                 }
 
+                // 如果所有编码都失败或无效，尝试 response.text()
                 if (!decodeSuccess) {
                     text = await response.text();
                 }
 
-                if (! text || text.trim().length === 0) {
+                // 如果返回的是空或无效数据，返回
+                if (!text || text.trim().length === 0) {
                     return;
                 }
             } catch (e) {
@@ -1530,38 +1535,36 @@ async function 请求优选API(urls, 默认端口 = '443', 超时时间 = 3000) 
                 return;
             }
 
+            // 预处理订阅内容
+            /*
+            if (text.includes('proxies:') || (text.includes('outbounds"') && text.includes('inbounds"'))) {// Clash Singbox 配置
+                需要订阅转换订阅URLs.add(url);
+                return;
+            }
+            */
+
             const 预处理订阅明文内容 = isValidBase64(text) ? base64Decode(text) : text;
-            if (预处理订阅明文内容. split('#')[0]. includes('://')) {
-                订阅链接响应的明文LINK内容 += 预处理订阅明文内容 + '\n';
+            if (预处理订阅明文内容.split('#')[0].includes('://')) {
+                订阅链接响应的明文LINK内容 += 预处理订阅明文内容 + '\n'; // 追加LINK明文内容
                 return;
             }
 
             const lines = text.trim().split('\n').map(l => l.trim()).filter(l => l);
             const isCSV = lines.length > 1 && lines[0].includes(',');
             const IPV6_PATTERN = /^[^\[\]]*:[^\[\]]*:[^\[\]]/;
-            if (! isCSV) {
+            if (!isCSV) {
                 lines.forEach(line => {
                     const hashIndex = line.indexOf('#');
                     const [hostPart, remark] = hashIndex > -1 ? [line.substring(0, hashIndex), line.substring(hashIndex)] : [line, ''];
                     let hasPort = false;
                     if (hostPart.startsWith('[')) {
-                        hasPort = /\]: (\d+)$/.test(hostPart);
+                        hasPort = /\]:(\d+)$/.test(hostPart);
                     } else {
                         const colonIndex = hostPart.lastIndexOf(':');
                         hasPort = colonIndex > -1 && /^\d+$/.test(hostPart.substring(colonIndex + 1));
                     }
                     const port = new URL(url).searchParams.get('port') || 默认端口;
-                    const 格式化的IP行 = hasPort ? line : `${hostPart}: ${port}${remark}`;
-                    
-                    // 提取IP或域名进行地理位置查询
-                    const ipMatch = 格式化的IP行.match(/^(\[? [^\]: ]+\]?):(\d+)(?:#(. *))?$/);
-                    if (ipMatch) {
-                        const ipOrDomain = ipMatch[1];
-                        const resultWithLocation = 格式化的IP行. includes('#') ? 格式化的IP行 : 格式化的IP行 + '#Unknown';
-                        results.add(resultWithLocation);
-                    } else {
-                        results.add(格式化的IP行);
-                    }
+                    results.add(hasPort ? line : `${hostPart}:${port}${remark}`);
                 });
             } else {
                 const headers = lines[0].split(',').map(h => h.trim());
@@ -1581,45 +1584,30 @@ async function 请求优选API(urls, 默认端口 = '443', 超时时间 = 3000) 
                     const ipIdx = headers.findIndex(h => h.includes('IP'));
                     const delayIdx = headers.findIndex(h => h.includes('延迟'));
                     const speedIdx = headers.findIndex(h => h.includes('下载速度'));
+                    // 额外尝试从表头中识别“国家/地区/城市”列，用于在“CF优选”后面追加国家地区信息
+                    const countryIdx = headers.findIndex(h => h.includes('国家') || h.includes('地区') || h.includes('城市'));
                     const port = new URL(url).searchParams.get('port') || 默认端口;
                     dataLines.forEach(line => {
                         const cols = line.split(',').map(c => c.trim());
                         const wrappedIP = IPV6_PATTERN.test(cols[ipIdx]) ? `[${cols[ipIdx]}]` : cols[ipIdx];
-                        results.add(`${wrappedIP}:${port}#CF优选 ${cols[delayIdx]}ms ${cols[speedIdx]}MB/s`);
+                        const country = countryIdx !== -1 && cols[countryIdx] ? cols[countryIdx] : '';
+                        const countrySuffix = country ? ` ${country}` : '';
+                        results.add(`${wrappedIP}:${port}#CF优选${countrySuffix} ${cols[delayIdx]}ms ${cols[speedIdx]}MB/s`);
                     });
                 }
             }
         } catch (e) { }
     }));
-    const LINK数组 = 订阅链接响应的明文LINK内容. trim() ?  [... new Set(订阅链接响应的明文LINK内容.split(/\r?\n/).filter(line => line.trim() !== ''))] : [];
+    // 将LINK内容转换为数组并去重
+    const LINK数组 = 订阅链接响应的明文LINK内容.trim() ? [...new Set(订阅链接响应的明文LINK内容.split(/\r?\n/).filter(line => line.trim() !== ''))] : [];
     return [Array.from(results), LINK数组, 需要订阅转换订阅URLs];
 }
+
 async function 反代参数获取(request) {
     const url = new URL(request.url);
     const { pathname, searchParams } = url;
     const pathLower = pathname.toLowerCase();
-// 添加一个能查询IP所属国家的函数
-async function 获取IP国家信息(ipOrDomain) {
-    try {
-        // 如果是IPv6格式，需要去掉方括号
-        const cleanIP = ipOrDomain.replace(/[\[\]]/g, '');
-        
-        // 使用 IP2Location 或其他API查询
-        const response = await fetch(`https://ipapi.co/${cleanIP}/json/`, {
-            method: 'GET',
-            headers: { 'Accept': 'application/json' }
-        });
-        
-        if (response.ok) {
-            const data = await response.json();
-            return data. country_code || data.country_name || 'Unknown';
-        }
-        return 'Unknown';
-    } catch (error) {
-        console.error(`获取IP地理位置失败:  ${error. message}`);
-        return 'Unknown';
-    }
-}
+
     // 初始化
     我的SOCKS5账号 = searchParams.get('socks5') || searchParams.get('http') || null;
     启用SOCKS5全局反代 = searchParams.has('globalproxy') || false;
@@ -2035,6 +2023,4 @@ async function html1101(host, 访问IP) {
 </body>
 </html>`;
 }
-
-
 
