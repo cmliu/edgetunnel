@@ -24,13 +24,14 @@ export default {
         } else 反代IP = (request.cf.colo + '.PrOxYIp.CmLiUsSsS.nEt').toLowerCase();
         const 访问IP = request.headers.get('X-Real-IP') || request.headers.get('CF-Connecting-IP') || request.headers.get('X-Forwarded-For') || request.headers.get('True-Client-IP') || request.headers.get('Fly-Client-IP') || request.headers.get('X-Appengine-Remote-Addr') || request.headers.get('X-Forwarded-For') || request.headers.get('X-Real-IP') || request.headers.get('X-Cluster-Client-IP') || request.cf?.clientTcpRtt || '未知IP';
         if (env.GO2SOCKS5) SOCKS5白名单 = await 整理成数组(env.GO2SOCKS5);
+        ECH_DOH = env.ECH_DOH || env.DOH || ECH_DOH;
         if (!upgradeHeader || upgradeHeader !== 'websocket') {
             if (url.protocol === 'http:') return Response.redirect(url.href.replace(`http://${url.hostname}`, `https://${url.hostname}`), 301);
             if (!管理员密码) return fetch(Pages静态页面 + '/noADMIN').then(r => { const headers = new Headers(r.headers); headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate'); headers.set('Pragma', 'no-cache'); headers.set('Expires', '0'); return new Response(r.body, { status: 404, statusText: r.statusText, headers }); });
             if (env.KV && typeof env.KV.get === 'function') {
                 const 访问路径 = url.pathname.slice(1).toLowerCase();
                 const 区分大小写访问路径 = url.pathname.slice(1);
-                if (访问路径 === 加密秘钥 && 加密秘钥 !== '勿动此默认密钥，有需求请自行通过添加变量KEY进行修改') {//快速订阅
+                if (区分大小写访问路径 === 加密秘钥 && 加密秘钥 !== '勿动此默认密钥，有需求请自行通过添加变量KEY进行修改') {//快速订阅
                     const params = new URLSearchParams(url.search);
                     params.set('token', await MD5MD5(host + userID));
                     return new Response('重定向中...', { status: 302, headers: { 'Location': `/sub?${params.toString()}` } });
@@ -279,7 +280,7 @@ export default {
                                     return new Response('优选订阅生成器异常：' + error.message, { status: 403 });
                                 }
                             }
-                            const ECHLINK参数 = config_JSON.ECH ? `&ech=${encodeURIComponent(ECH_DOH)}` : '';
+                            const ECHLINK参数 = config_JSON.ECH ? `&ech=${encodeURIComponent('cloudflare-ech.com+' + ECH_DOH)}` : '';
                             订阅内容 = 其他节点LINK + 完整优选IP.map(原始地址 => {
                                 // 统一正则: 匹配 域名/IPv4/IPv6地址 + 可选端口 + 可选备注
                                 // 示例: 
@@ -1375,7 +1376,7 @@ async function 读取config_JSON(env, hostname, userID, path, 重置配置 = fal
     if (!config_JSON.Fingerprint) config_JSON.Fingerprint = "chrome";
     if (!config_JSON.ECH) config_JSON.ECH = false;
     else config_JSON.优选订阅生成.SUBUpdateTime = 1; // 启用 ECH 时强制将订阅更新时间改为 1 小时
-    const ECHLINK参数 = config_JSON.ECH ? `&ech=${encodeURIComponent(ECH_DOH)}` : '';
+    const ECHLINK参数 = config_JSON.ECH ? `&ech=${encodeURIComponent('cloudflare-ech.com+' + ECH_DOH)}` : '';
     config_JSON.LINK = `${config_JSON.协议类型}://${userID}@${host}:443?security=tls&type=${config_JSON.传输协议 + ECHLINK参数}&host=${host}&fp=${config_JSON.Fingerprint}&sni=${host}&path=${encodeURIComponent(config_JSON.启用0RTT ? config_JSON.PATH + '?ed=2560' : config_JSON.PATH) + TLS分片参数}&encryption=none${config_JSON.跳过证书验证 ? '&insecure=1&allowInsecure=1' : ''}#${encodeURIComponent(config_JSON.优选订阅生成.SUBNAME)}`;
     config_JSON.优选订阅生成.TOKEN = await MD5MD5(hostname + userID);
 
