@@ -2,6 +2,7 @@ name: Upstream Sync
 
 permissions:
   contents: write
+  actions: read
 
 on:
   schedule:
@@ -9,6 +10,8 @@ on:
   workflow_dispatch:    # 允许手动运行
   push:
     branches: [ main ]  # 当上游推送时也触发
+  repository_dispatch:    # API触发
+    types: [sync-request]
 
 jobs:
   sync_latest_from_upstream:
