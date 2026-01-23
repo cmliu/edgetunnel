@@ -5,7 +5,7 @@ permissions:
 
 on:
   schedule:
-    - cron: "0 */2 * * *" # 每天 UTC 00:00（北京时间 08:00）
+    - cron: '0 */2 * * *' # 每天 UTC 00:00（北京时间 08:00）
   workflow_dispatch:    # 允许手动运行
   push:
     branches: [ main ]  # 当上游推送时也触发
