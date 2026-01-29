@@ -1448,6 +1448,7 @@ async function 读取config_JSON(env, hostname, userID, 重置配置 = false) {
 
     const { SOCKS5, PROXYIP } = config_JSON.反代;
     const PATH反代参数 = SOCKS5.启用 ? `${SOCKS5.启用}${SOCKS5.全局 ? '://' : '='}${SOCKS5.账号}` : (PROXYIP === 'auto' ? '' : `proxyip=${PROXYIP}`);
+    config_JSON.PATH = config_JSON.PATH.replace(PATH反代参数, '').replace('//', '/');
     const normalizedPath = config_JSON.PATH === '/' ? '' : config_JSON.PATH.replace(/\/+(?=\?|$)/, '').replace(/\/+$/, '');
     const [路径部分, ...查询数组] = normalizedPath.split('?');
     const 查询部分 = 查询数组.length ? '?' + 查询数组.join('?') : '';
@@ -1513,11 +1514,11 @@ async function 读取config_JSON(env, hostname, userID, 重置配置 = false) {
 
 async function 生成随机IP(request, count = 16, 指定端口 = -1) {
     const ISP配置 = {
-        '9808':  { file: 'cmcc', name: 'CF移动优选' },
-        '4837':  { file: 'cu',   name: 'CF联通优选' },
-        '17623': { file: 'cu',   name: 'CF联通优选' },
-        '17816': { file: 'cu',   name: 'CF联通优选' },
-        '4134':  { file: 'ct',   name: 'CF电信优选' },
+        '9808': { file: 'cmcc', name: 'CF移动优选' },
+        '4837': { file: 'cu', name: 'CF联通优选' },
+        '17623': { file: 'cu', name: 'CF联通优选' },
+        '17816': { file: 'cu', name: 'CF联通优选' },
+        '4134': { file: 'ct', name: 'CF电信优选' },
     };
     const asn = request.cf.asn, isp = ISP配置[asn];
     const cidr_url = isp ? `https://raw.githubusercontent.com/cmliu/cmliu/main/CF-CIDR/${isp.file}.txt` : 'https://raw.githubusercontent.com/cmliu/cmliu/main/CF-CIDR.txt';
