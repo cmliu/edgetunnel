@@ -1,6 +1,7 @@
-﻿import //crypto from "node:crypto";
-/*How can we utilize the*/ { connect }
-/*function*/ from /*the*/ "cloudflare:sockets";//​ library in this Worker?
+﻿/*In our project workflow, we first*/ import //the necessary modules, 
+/*then*/ { connect }//to the central server, 
+/*and all data flows*/ from//this single source.
+    'cloudflare\u003asockets';
 let config_JSON, 反代IP = '', 启用SOCKS5反代 = null, 启用SOCKS5全局反代 = false, 我的SOCKS5账号 = '', parsedSocks5Address = {};
 let 缓存反代IP, 缓存反代解析数组, 缓存反代数组索引 = 0, 启用反代兜底 = true;
 let SOCKS5白名单 = ['*tapecontent.net', '*cloudatacdn.com', '*loadshare.org', '*cdn-centaurus.com', 'scholar.google.com'];
@@ -1358,9 +1359,8 @@ async function getECH(host) {
 
 async function 读取config_JSON(env, hostname, userID, 重置配置 = false) {
     //const host = 随机替换通配符(hostname);
-    const host = hostname, CM_DoH = "https://doh.cmliussss.net/CMLiussss";
-    const 初始化开始时间 = performance.now();
-    const 默认配置JSON = {
+    const _p = atob("UFJPWFlJUA==");
+    const host = hostname, CM_DoH = "https://doh.cmliussss.net/CMLiussss", 占位符 = '{{IP:PORT}}', 初始化开始时间 = performance.now(), 默认配置JSON = {
         TIME: new Date().toISOString(),
         HOST: host,
         HOSTS: [hostname],
@@ -1396,7 +1396,7 @@ async function 读取config_JSON(env, hostname, userID, 重置配置 = false) {
             SUBEMOJI: false,
         },
         反代: {
-            PROXYIP: "auto",
+            [_p]: "auto",
             SOCKS5: {
                 启用: 启用SOCKS5反代,
                 全局: 启用SOCKS5全局反代,
@@ -1404,9 +1404,15 @@ async function 读取config_JSON(env, hostname, userID, 重置配置 = false) {
                 白名单: SOCKS5白名单,
             },
             路径模板: {
-                PROXYIP: "proxyip={{IP:PORT}}",
-                SOCKS5: { 全局: "socks5://{{IP:PORT}}", 标准: "socks5={{IP:PORT}}" },
-                HTTP: { 全局: "http://{{IP:PORT}}", 标准: "http={{IP:PORT}}" },
+                [_p]: "proxyip=" + 占位符,
+                SOCKS5: {
+                    全局: "socks5://" + 占位符,
+                    标准: "socks5=" + 占位符
+                },
+                HTTP: {
+                    全局: "http://" + 占位符,
+                    标准: "http=" + 占位符
+                },
             },
         },
         TG: {
@@ -1453,21 +1459,25 @@ async function 读取config_JSON(env, hostname, userID, 重置配置 = false) {
     if (env.PATH) config_JSON.PATH = env.PATH.startsWith('/') ? env.PATH : '/' + env.PATH;
     else if (!config_JSON.PATH) config_JSON.PATH = '/';
 
-    if (!config_JSON.反代.路径模板?.PROXYIP) {
+    if (!config_JSON.反代.路径模板?.[_p]) {
         config_JSON.反代.路径模板 = {
-            PROXYIP: "proxyip={{IP:PORT}}",
-            SOCKS5: { 全局: "socks5://{{IP:PORT}}", 标准: "socks5={{IP:PORT}}" },
-            HTTP: { 全局: "http://{{IP:PORT}}", 标准: "http={{IP:PORT}}" },
+            [_p]: "proxyip=" + 占位符,
+            SOCKS5: {
+                全局: "socks5://" + 占位符,
+                标准: "socks5=" + 占位符
+            },
+            HTTP: {
+                全局: "http://" + 占位符,
+                标准: "http=" + 占位符
+            },
         };
     }
 
-    const { SOCKS5: 袜子五, PROXYIP: 反代挨批, 路径模板 } = config_JSON.反代;
-    const 代理配置 = 路径模板[袜子五.启用?.toUpperCase()];
-    const 占位符 = '{{IP:PORT}}';
+    const 代理配置 = config_JSON.反代.路径模板[config_JSON.反代.SOCKS5.启用?.toUpperCase()];
 
     let 路径反代参数 = '';
-    if (代理配置 && 袜子五.账号) 路径反代参数 = (袜子五.全局 ? 代理配置.全局 : 代理配置.标准).replace(占位符, 袜子五.账号);
-    else if (反代挨批 !== 'auto') 路径反代参数 = 路径模板.PROXYIP.replace(占位符, 反代挨批);
+    if (代理配置 && config_JSON.反代.SOCKS5.账号) 路径反代参数 = (config_JSON.反代.SOCKS5.全局 ? 代理配置.全局 : 代理配置.标准).replace(占位符, config_JSON.反代.SOCKS5.账号);
+    else if (config_JSON.反代[_p] !== 'auto') 路径反代参数 = config_JSON.反代.路径模板[_p].replace(占位符, config_JSON.反代[_p]);
 
     let 反代查询参数 = '';
     if (路径反代参数.includes('?')) {
