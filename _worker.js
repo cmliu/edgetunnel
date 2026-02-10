@@ -1,5 +1,5 @@
-﻿/*In our project workflow, we first*/ import //the necessary modules, 
-/*then*/ { connect }//to the central server, 
+/*In our project workflow, we first*/ import //the necessary modules,
+/*then*/ { connect }//to the central server,
 /*and all data flows*/ from//this single source.
     'cloudflare\u003asockets';
 let config_JSON, 反代IP = '', 启用SOCKS5反代 = null, 启用SOCKS5全局反代 = false, 我的SOCKS5账号 = '', parsedSocks5Address = {};
@@ -46,13 +46,107 @@ export default {
                         const params = new URLSearchParams(formData);
                         const 输入密码 = params.get('password');
                         if (输入密码 === 管理员密码) {
+                            config_JSON = await 读取config_JSON(env, host, userID);
+                            if (config_JSON.双重验证 && config_JSON.双重验证.启用 && config_JSON.双重验证.秘钥) {
+                                const 输入验证码 = params.get('2fa');
+                                if (!输入验证码 || !(await 验证TOTP(config_JSON.双重验证.秘钥, 输入验证码))) {
+                                    return new Response(JSON.stringify({ success: false, message: '2FA verification failed' }), { status: 401, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
+                                }
+                            }
                             // 密码正确，设置cookie并返回成功标记
                             const 响应 = new Response(JSON.stringify({ success: true }), { status: 200, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
                             响应.headers.set('Set-Cookie', `auth=${await MD5MD5(UA + 加密秘钥 + 管理员密码)}; Path=/; Max-Age=86400; HttpOnly`);
                             return 响应;
                         }
                     }
-                    return fetch(Pages静态页面 + '/login');
+                    config_JSON = await 读取config_JSON(env, host, userID);
+                    const response = await fetch(Pages静态页面 + '/login');
+                    let body = await response.text();
+                    const script = `
+                    <script>
+                    (function() {
+                        const is2FAEnabled = ${JSON.stringify(config_JSON.双重验证 && config_JSON.双重验证.启用)};
+                        const passwordInput = document.getElementById('password');
+                        if (passwordInput && is2FAEnabled) {
+                            const twoFaInput = document.createElement('input');
+                            twoFaInput.type = 'text';
+                            twoFaInput.id = '2fa';
+                            twoFaInput.name = '2fa';
+                            twoFaInput.placeholder = '双重验证码 (2FA Code)';
+                            // Copy styles from password input
+                            const computedStyle = window.getComputedStyle(passwordInput);
+                            twoFaInput.className = passwordInput.className;
+                            twoFaInput.style.cssText = passwordInput.style.cssText;
+                            twoFaInput.style.marginTop = '15px';
+                            twoFaInput.style.marginBottom = '15px';
+                            twoFaInput.style.width = '100%';
+                            twoFaInput.style.boxSizing = 'border-box';
+                            // Remove icon/emoji styles
+                            twoFaInput.style.backgroundImage = 'none';
+                            twoFaInput.style.paddingLeft = '15px'; // Standard padding
+                            passwordInput.parentNode.insertBefore(twoFaInput, passwordInput.nextSibling);
+                        }
+
+                        const form = document.getElementById('loginForm');
+                        if (form) {
+                            const newForm = form.cloneNode(true);
+                            form.parentNode.replaceChild(newForm, form);
+                            newForm.addEventListener('submit', async (e) => {
+                                e.preventDefault();
+                                const password = document.getElementById('password').value;
+                                const twoFaCode = document.getElementById('2fa') ? document.getElementById('2fa').value : '';
+                                const loginBtn = document.getElementById('loginBtn');
+                                const errorMsg = document.getElementById('errorMsg');
+
+                                if (loginBtn) {
+                                    loginBtn.disabled = true;
+                                    loginBtn.classList.add('btn-loading');
+                                }
+                                if (errorMsg) errorMsg.classList.add('login-error-hidden');
+
+                                try {
+                                    const response = await fetch('/login', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                                        body: 'password=' + encodeURIComponent(password) + '&2fa=' + encodeURIComponent(twoFaCode)
+                                    });
+
+                                    let data = {};
+                                    const contentType = response.headers.get('content-type');
+                                    if (contentType && contentType.includes('application/json')) {
+                                        data = await response.json();
+                                    }
+
+                                    if (response.ok && data.success) {
+                                        window.location.href = '/admin';
+                                    } else {
+                                        if (errorMsg) {
+                                            errorMsg.textContent = data.message || '登录失败';
+                                            errorMsg.classList.remove('login-error-hidden');
+                                        }
+                                        if (document.getElementById('password')) {
+                                            document.getElementById('password').focus();
+                                            document.getElementById('password').select();
+                                        }
+                                    }
+                                } catch (error) {
+                                    if (errorMsg) {
+                                        errorMsg.textContent = '网络错误';
+                                        errorMsg.classList.remove('login-error-hidden');
+                                    }
+                                } finally {
+                                    if (loginBtn) {
+                                        loginBtn.disabled = false;
+                                        loginBtn.classList.remove('btn-loading');
+                                    }
+                                }
+                            });
+                        }
+                    })();
+                    </script>
+                    `;
+                    body = body.replace('</body>', script + '</body>');
+                    return new Response(body, { status: response.status, headers: response.headers });
                 } else if (访问路径 === 'admin' || 访问路径.startsWith('admin/')) {//验证cookie后响应管理页面
                     const cookies = request.headers.get('Cookie') || '';
                     const authCookie = cookies.split(';').find(c => c.trim().startsWith('auth='))?.split('=')[1];
@@ -61,6 +155,9 @@ export default {
                     if (访问路径 === 'admin/log.json') {// 读取日志内容
                         const 读取日志内容 = await env.KV.get('log.json') || '[]';
                         return new Response(读取日志内容, { status: 200, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
+                    } else if (区分大小写访问路径 === 'admin/2fa/status') {
+                        config_JSON = await 读取config_JSON(env, host, userID);
+                        return new Response(JSON.stringify({ enabled: config_JSON.双重验证?.启用 || false }), { status: 200, headers: { 'Content-Type': 'application/json' } });
                     } else if (区分大小写访问路径 === 'admin/getCloudflareUsage') {// 查询请求量
                         try {
                             const Usage_JSON = await getCloudflareUsage(url.searchParams.get('Email'), url.searchParams.get('GlobalAPIKey'), url.searchParams.get('AccountID'), url.searchParams.get('APIToken'));
@@ -108,6 +205,30 @@ export default {
                             return new Response(JSON.stringify(errorResponse, null, 2), { status: 500, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
                         }
                     } else if (request.method === 'POST') {// 处理 KV 操作（POST 请求）
+                        if (区分大小写访问路径 === 'admin/2fa/generate') {
+                            const secret = 生成随机秘钥();
+                            return new Response(JSON.stringify({ secret, qr: `otpauth://totp/EdgeTunnel:${host}?secret=${secret}&issuer=EdgeTunnel` }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+                        } else if (区分大小写访问路径 === 'admin/2fa/enable') {
+                            const { secret, code } = await request.json();
+                            if (await 验证TOTP(secret, code)) {
+                                config_JSON = await 读取config_JSON(env, host, userID);
+                                if (!config_JSON.双重验证) config_JSON.双重验证 = {};
+                                config_JSON.双重验证.启用 = true;
+                                config_JSON.双重验证.秘钥 = secret;
+                                await env.KV.put('config.json', JSON.stringify(config_JSON, null, 2));
+                                return new Response(JSON.stringify({ success: true }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+                            }
+                            return new Response(JSON.stringify({ success: false, message: 'Invalid code' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
+                        } else if (区分大小写访问路径 === 'admin/2fa/disable') {
+                            config_JSON = await 读取config_JSON(env, host, userID);
+                            if (config_JSON.双重验证) {
+                                config_JSON.双重验证.启用 = false;
+                                config_JSON.双重验证.秘钥 = null;
+                                await env.KV.put('config.json', JSON.stringify(config_JSON, null, 2));
+                            }
+                            return new Response(JSON.stringify({ success: true }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+                        }
+
                         if (访问路径 === 'admin/config.json') { // 保存config.json配置
                             try {
                                 const newConfig = await request.json();
@@ -186,7 +307,122 @@ export default {
                     }
 
                     ctx.waitUntil(请求日志记录(env, request, 访问IP, 'Admin_Login', config_JSON));
-                    return fetch(Pages静态页面 + '/admin');
+                    const response = await fetch(Pages静态页面 + '/admin');
+                    let body = await response.text();
+                    const script = `
+                    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+                    <script>
+                    (async function() {
+                        // Find the "View Operation Logs" module
+                        const modules = document.querySelectorAll('.module');
+                        let logsModule = null;
+                        for (const m of modules) {
+                            if (m.innerText.includes('查看操作日志')) {
+                                logsModule = m;
+                                break;
+                            }
+                        }
+
+                        if (logsModule) {
+                            const newModule = document.createElement('div');
+                            newModule.className = 'module collapsed advanced-module';
+                            newModule.innerHTML = '<div class="module-title">' +
+                                '🔐 双重验证设置' +
+                                '<svg class="collapse-icon" viewBox="0 0 24 24"><path d="M7 10l5 5 5-5z"/></svg>' +
+                                '</div>' +
+                                '<div class="module-content" style="padding: 20px;">' +
+                                '<div id="2fa-content">Loading...</div>' +
+                                '</div>';
+
+                            newModule.querySelector('.module-title').onclick = function() {
+                                this.parentNode.classList.toggle('collapsed');
+                                if(!this.parentNode.classList.contains('collapsed')) {
+                                    loadStatus();
+                                }
+                            };
+
+                            logsModule.parentNode.insertBefore(newModule, logsModule.nextSibling);
+                        }
+
+                        // Define functions globally so onclick works
+                        window.loadStatus = async function() {
+                            const content = document.getElementById('2fa-content');
+                            if (!content) return;
+                            content.innerHTML = 'Checking status...';
+                            try {
+                                const res = await fetch('/admin/2fa/status');
+                                const data = await res.json();
+                                if (data.enabled) {
+                                    content.innerHTML = '<p style="color: green; font-weight: bold; margin-bottom: 10px;">✅ 双重验证已启用</p>' +
+                                        '<p style="margin-bottom: 10px;">您的账户目前受到 Google Authenticator 的保护。</p>' +
+                                        '<button id="2fa-disable-btn" style="background: #dc3545; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer;">禁用 2FA</button>';
+                                    document.getElementById('2fa-disable-btn').onclick = disable2FA;
+                                } else {
+                                    content.innerHTML = '<p style="margin-bottom: 10px;">双重验证 (2FA) 可以为您的账户提供额外的安全保护。</p>' +
+                                        '<button id="2fa-enable-setup-btn" style="background: #28a745; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer;">启用 2FA</button>';
+                                    document.getElementById('2fa-enable-setup-btn').onclick = setup2FA;
+                                }
+                            } catch (e) {
+                                content.textContent = 'Error: ' + e.message;
+                            }
+                        };
+
+                        window.disable2FA = async function() {
+                            if (!confirm('确定要禁用双重验证吗？禁用后登录将不再需要验证码。')) return;
+                            await fetch('/admin/2fa/disable', { method: 'POST' });
+                            loadStatus();
+                        };
+
+                        window.setup2FA = async function() {
+                            const content = document.getElementById('2fa-content');
+                            content.innerHTML = 'Generating secret...';
+                            const res = await fetch('/admin/2fa/generate', { method: 'POST' });
+                            const data = await res.json();
+
+                            content.innerHTML = '<p style="margin-bottom: 10px;">1. 请使用 Google Authenticator 扫描下方二维码:</p>' +
+                                '<div id="qrcode" style="display: flex; justify-content: center; margin: 15px 0;"></div>' +
+                                '<p style="word-break: break-all; font-size: 12px; color: #666; margin-bottom: 10px;">或手动输入密钥: ' + data.secret + '</p>' +
+                                '<p style="margin-bottom: 5px;">2. 输入6位验证码以确认启用:</p>' +
+                                '<div style="display: flex; gap: 10px; justify-content: center; margin-top: 10px; align-items: center;">' +
+                                '<input type="text" id="2fa-verify-code" placeholder="6位验证码" style="padding: 8px; width: 120px; text-align: center; border: 1px solid #ccc; border-radius: 4px;"> ' +
+                                '<button id="2fa-confirm-btn" style="background: #007bff; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer;">确认启用</button>' +
+                                '</div>' +
+                                '<p id="2fa-msg" style="color: red; font-size: 12px; margin-top: 10px;"></p>';
+
+                            new QRCode(document.getElementById("qrcode"), {
+                                text: data.qr,
+                                width: 128,
+                                height: 128
+                            });
+
+                            document.getElementById('2fa-confirm-btn').onclick = async () => {
+                                const code = document.getElementById('2fa-verify-code').value;
+                                if (!code) return;
+                                const btn = document.getElementById('2fa-confirm-btn');
+                                btn.disabled = true;
+                                btn.textContent = 'Verifying...';
+
+                                const verifyRes = await fetch('/admin/2fa/enable', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ secret: data.secret, code })
+                                });
+                                const verifyData = await verifyRes.json();
+                                if (verifyData.success) {
+                                    alert('双重验证已启用！下次登录时需要输入验证码。');
+                                    loadStatus();
+                                } else {
+                                    document.getElementById('2fa-msg').textContent = '验证失败，请确保验证码正确';
+                                    btn.disabled = false;
+                                    btn.textContent = '确认启用';
+                                }
+                            };
+                        };
+                    })();
+                    </script>
+                    `;
+                    body = body.replace('</body>', script + '</body>');
+                    return new Response(body, { status: response.status, headers: response.headers });
                 } else if (访问路径 === 'logout' || uuidRegex.test(访问路径)) {//清除cookie并跳转到登录页面
                     const 响应 = new Response('重定向中...', { status: 302, headers: { 'Location': '/login' } });
                     响应.headers.set('Set-Cookie', 'auth=; Path=/; Max-Age=0; HttpOnly');
@@ -284,7 +520,7 @@ export default {
                             const ECHLINK参数 = config_JSON.ECH ? `&ech=${encodeURIComponent((config_JSON.ECHConfig.SNI ? config_JSON.ECHConfig.SNI + '+' : '') + config_JSON.ECHConfig.DNS)}` : '';
                             订阅内容 = 其他节点LINK + 完整优选IP.map(原始地址 => {
                                 // 统一正则: 匹配 域名/IPv4/IPv6地址 + 可选端口 + 可选备注
-                                // 示例: 
+                                // 示例:
                                 //   - 域名: hj.xmm1993.top:2096#备注 或 example.com
                                 //   - IPv4: 166.0.188.128:443#Los Angeles 或 166.0.188.128
                                 //   - IPv6: [2606:4700::]:443#CMCC 或 [2606:4700::]
@@ -1377,6 +1613,10 @@ async function 读取config_JSON(env, hostname, userID, 重置配置 = false) {
             DNS: CM_DoH,
             SNI: null,
         },
+        双重验证: {
+            启用: false,
+            秘钥: null,
+        },
         Fingerprint: "chrome",
         优选订阅生成: {
             local: true, // true: 基于本地的优选地址  false: 优选订阅生成器
@@ -1455,6 +1695,7 @@ async function 读取config_JSON(env, hostname, userID, 重置配置 = false) {
     config_JSON.UUID = userID;
     if (!config_JSON.随机路径) config_JSON.随机路径 = false;
     if (!config_JSON.启用0RTT) config_JSON.启用0RTT = false;
+    if (!config_JSON.双重验证) config_JSON.双重验证 = { 启用: false, 秘钥: null };
 
     if (env.PATH) config_JSON.PATH = env.PATH.startsWith('/') ? env.PATH : '/' + env.PATH;
     else if (!config_JSON.PATH) config_JSON.PATH = '/';
@@ -2082,12 +2323,12 @@ async function nginx() {
 	<h1>Welcome to nginx!</h1>
 	<p>If you see this page, the nginx web server is successfully installed and
 	working. Further configuration is required.</p>
-	
+
 	<p>For online documentation and support please refer to
 	<a href="http://nginx.org/">nginx.org</a>.<br/>
 	Commercial support is available at
 	<a href="http://nginx.com/">nginx.com</a>.</p>
-	
+
 	<p><em>Thank you for using nginx.</em></p>
 	</body>
 	</html>
@@ -2140,24 +2381,24 @@ async function html1101(host, 访问IP) {
                 </h1>
                 <h2 class="cf-subheadline" data-translate="error_desc">Worker threw exception</h2>
             </div><!-- /.header -->
-    
+
             <section></section><!-- spacer -->
-    
+
             <div class="cf-section cf-wrapper">
                 <div class="cf-columns two">
                     <div class="cf-column">
                         <h2 data-translate="what_happened">What happened?</h2>
                             <p>You've requested a page on a website (${host}) that is on the <a href="https://www.cloudflare.com/5xx-error-landing?utm_source=error_100x" target="_blank">Cloudflare</a> network. An unknown error occurred while rendering the page.</p>
                     </div>
-                    
+
                     <div class="cf-column">
                         <h2 data-translate="what_can_i_do">What can I do?</h2>
                             <p><strong>If you are the owner of this website:</strong><br />refer to <a href="https://developers.cloudflare.com/workers/observability/errors/" target="_blank">Workers - Errors and Exceptions</a> and check Workers Logs for ${host}.</p>
                     </div>
-                    
+
                 </div>
             </div><!-- /.section -->
-    
+
             <div class="cf-error-footer cf-wrapper w-240 lg:w-full py-10 sm:py-4 sm:px-8 mx-auto text-center sm:text-left border-solid border-0 border-t border-gray-300">
     <p class="text-13">
       <span class="cf-footer-item sm:block sm:mb-1">Cloudflare Ray ID: <strong class="font-semibold"> ${随机字符串}</strong></span>
@@ -2169,7 +2410,7 @@ async function html1101(host, 访问IP) {
         <span class="cf-footer-separator sm:hidden">&bull;</span>
       </span>
       <span class="cf-footer-item sm:block sm:mb-1"><span>Performance &amp; security by</span> <a rel="noopener noreferrer" href="https://www.cloudflare.com/5xx-error-landing" id="brand_link" target="_blank">Cloudflare</a></span>
-      
+
     </p>
     <script>(function(){function d(){var b=a.getElementById("cf-footer-item-ip"),c=a.getElementById("cf-footer-ip-reveal");b&&"classList"in b&&(b.classList.remove("hidden"),c.addEventListener("click",function(){c.classList.add("hidden");a.getElementById("cf-footer-ip").classList.remove("hidden")}))}var a=document;document.addEventListener&&a.addEventListener("DOMContentLoaded",d)})();</script>
   </div><!-- /.error-footer -->
@@ -2179,9 +2420,126 @@ async function html1101(host, 访问IP) {
 
      <script>
     window._cf_translation = {};
-    
-    
-  </script> 
+
+
+  </script>
 </body>
 </html>`;
+}
+
+//////////////////////////////////////////////////2FA 函数///////////////////////////////////////////////
+function base32ToBuffer(str) {
+    const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+    let val = 0;
+    let bits = 0;
+    const bytes = [];
+    for (let i = 0; i < str.length; i++) {
+        const char = str[i].toUpperCase();
+        const index = alphabet.indexOf(char);
+        if (index === -1) continue;
+        val = (val << 5) | index;
+        bits += 5;
+        while (bits >= 8) {
+            bytes.push((val >>> (bits - 8)) & 0xFF);
+            bits -= 8;
+            val &= (1 << bits) - 1;
+        }
+    }
+    return new Uint8Array(bytes);
+}
+
+function bufferToBase32(buffer) {
+    const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+    let bits = 0;
+    let value = 0;
+    let output = "";
+    for (let i = 0; i < buffer.length; i++) {
+        value = (value << 8) | buffer[i];
+        bits += 8;
+        while (bits >= 5) {
+            output += alphabet[(value >>> (bits - 5)) & 31];
+            bits -= 5;
+        }
+    }
+    if (bits > 0) {
+        output += alphabet[(value << (5 - bits)) & 31];
+    }
+    return output;
+}
+
+async function hmacSha1(key, data) {
+    const cryptoKey = await crypto.subtle.importKey(
+        "raw", key, { name: "HMAC", hash: "SHA-1" }, false, ["sign"]
+    );
+    const signature = await crypto.subtle.sign("HMAC", cryptoKey, data);
+    return new Uint8Array(signature);
+}
+
+async function 计算TOTP(秘钥, window = 1) {
+    const epoch = Math.floor(Date.now() / 1000);
+    const timeStep = 30;
+    const counter = Math.floor(epoch / timeStep);
+
+    // Create 8-byte buffer for counter (big-endian)
+    const buffer = new ArrayBuffer(8);
+    const view = new DataView(buffer);
+    view.setUint32(4, counter, false); // Set lower 32 bits
+    view.setUint32(0, 0, false);       // Set upper 32 bits (0 for now)
+
+    const keyBytes = base32ToBuffer(秘钥);
+    const signatureBytes = await hmacSha1(keyBytes, buffer);
+
+    const offset = signatureBytes[signatureBytes.length - 1] & 0xf;
+    const binary =
+        ((signatureBytes[offset] & 0x7f) << 24) |
+        ((signatureBytes[offset + 1] & 0xff) << 16) |
+        ((signatureBytes[offset + 2] & 0xff) << 8) |
+        (signatureBytes[offset + 3] & 0xff);
+
+    const otp = binary % 1000000;
+    const currentOtp = otp.toString().padStart(6, '0');
+
+    // For verification, we might check adjacent windows if needed, but for now just current.
+    // If window > 0, we could return multiple valid codes or check against them.
+    // But since this function is 'CalculateTOTP', it should return the current one.
+    // If we want verification logic:
+    return currentOtp;
+}
+
+async function 验证TOTP(秘钥, 输入验证码, window = 1) {
+    const epoch = Math.floor(Date.now() / 1000);
+    const timeStep = 30;
+    const currentCounter = Math.floor(epoch / timeStep);
+
+    for (let i = -window; i <= window; i++) {
+        const counter = currentCounter + i;
+        const buffer = new ArrayBuffer(8);
+        const view = new DataView(buffer);
+        view.setUint32(4, counter, false);
+        view.setUint32(0, 0, false);
+
+        const keyBytes = base32ToBuffer(秘钥);
+        const signatureBytes = await hmacSha1(keyBytes, buffer);
+
+        const offset = signatureBytes[signatureBytes.length - 1] & 0xf;
+        const binary =
+            ((signatureBytes[offset] & 0x7f) << 24) |
+            ((signatureBytes[offset + 1] & 0xff) << 16) |
+            ((signatureBytes[offset + 2] & 0xff) << 8) |
+            (signatureBytes[offset + 3] & 0xff);
+
+        const otp = binary % 1000000;
+        if (otp.toString().padStart(6, '0') === 输入验证码) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function 生成随机秘钥() {
+    const buffer = new Uint8Array(10); // 80 bits is minimal, but 10 bytes = 16 base32 chars (clean).
+    // Standard is often 10 bytes (80 bits) or 20 bytes (160 bits).
+    // 10 bytes -> 16 chars base32.
+    crypto.getRandomValues(buffer);
+    return bufferToBase32(buffer);
 }
