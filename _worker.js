@@ -326,13 +326,21 @@ export default {
                         if (logsModule) {
                             const newModule = document.createElement('div');
                             newModule.className = 'module collapsed advanced-module';
-                            newModule.innerHTML = '<div class="module-title" onclick="this.parentNode.classList.toggle(\'collapsed\'); if(!this.parentNode.classList.contains(\'collapsed\')) loadStatus();">' +
+                            newModule.innerHTML = '<div class="module-title">' +
                                 '🔐 双重验证设置' +
                                 '<svg class="collapse-icon" viewBox="0 0 24 24"><path d="M7 10l5 5 5-5z"/></svg>' +
                                 '</div>' +
                                 '<div class="module-content" style="padding: 20px;">' +
                                 '<div id="2fa-content">Loading...</div>' +
                                 '</div>';
+
+                            newModule.querySelector('.module-title').onclick = function() {
+                                this.parentNode.classList.toggle('collapsed');
+                                if(!this.parentNode.classList.contains('collapsed')) {
+                                    loadStatus();
+                                }
+                            };
+
                             logsModule.parentNode.insertBefore(newModule, logsModule.nextSibling);
                         }
 
