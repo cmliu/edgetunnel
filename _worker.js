@@ -1,7 +1,7 @@
 ﻿/*In our project workflow, we first*/ import //the necessary modules, 
-/*then*/ { connect }//to the central server, 
-/*and all data flows*/ from//this single source.
-    'cloudflare\u003asockets';
+    /*then*/ { connect }//to the central server,
+    /*and all data flows*/ from//this single source.
+        'cloudflare\u003asockets';
 let config_JSON, 反代IP = '', 启用SOCKS5反代 = null, 启用SOCKS5全局反代 = false, 我的SOCKS5账号 = '', parsedSocks5Address = {};
 let 缓存反代IP, 缓存反代解析数组, 缓存反代数组索引 = 0, 启用反代兜底 = true;
 let SOCKS5白名单 = ['*tapecontent.net', '*cloudatacdn.com', '*loadshare.org', '*cdn-centaurus.com', 'scholar.google.com'];
@@ -275,7 +275,7 @@ export default {
                             const ECHLINK参数 = config_JSON.ECH ? `&ech=${encodeURIComponent((config_JSON.ECHConfig.SNI ? config_JSON.ECHConfig.SNI + '+' : '') + config_JSON.ECHConfig.DNS)}` : '';
                             订阅内容 = 其他节点LINK + 完整优选IP.map(原始地址 => {
                                 // 统一正则: 匹配 域名/IPv4/IPv6地址 + 可选端口 + 可选备注
-                                // 示例: 
+                                // 示例:
                                 //   - 域名: hj.xmm1993.top:2096#备注 或 example.com
                                 //   - IPv4: 166.0.188.128:443#Los Angeles 或 166.0.188.128
                                 //   - IPv6: [2606:4700::]:443#CMCC 或 [2606:4700::]
@@ -1968,9 +1968,9 @@ async function 反代参数获取(request) {
             return;
         }
     }
-    // query 中的 ?socks5= 和 ?http= 已在初始化时由 searchParams.get 处理
+        // query 中的 ?socks5= 和 ?http= 已在初始化时由 searchParams.get 处理
 
-    // ==================== 第二步：处理路径中的 SOCKS5/HTTP 协议关键词 ====================
+        // ==================== 第二步：处理路径中的 SOCKS5/HTTP 协议关键词 ====================
     // 匹配：/socks5://..., /socks://.., /http://...
     else if ((socksMatch = pathname.match(/\/(socks5?|http):\/?\/?([^/?#\s]+)/i))) {
         启用SOCKS5反代 = socksMatch[1].toLowerCase() === 'http' ? 'http' : 'socks5';
