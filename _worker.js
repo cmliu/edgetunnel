@@ -1528,6 +1528,9 @@ async function 读取config_JSON(env, hostname, userID, 重置配置 = false) {
                 白名单: SOCKS5白名单,
             },
             路径模板: {
+                PROXYIP: "proxyip={{IP:PORT}}",
+                SOCKS5: { 全局: "socks5://{{IP:PORT}}", 标准: "socks5={{IP:PORT}}" },
+                HTTP: { 全局: "http://{{IP:PORT}}", 标准: "http={{IP:PORT}}" },
                 [_p]: "proxyip=" + 占位符,
                 SOCKS5: {
                     全局: "socks5://" + 占位符,
@@ -1583,6 +1586,21 @@ async function 读取config_JSON(env, hostname, userID, 重置配置 = false) {
     if (env.PATH) config_JSON.PATH = env.PATH.startsWith('/') ? env.PATH : '/' + env.PATH;
     else if (!config_JSON.PATH) config_JSON.PATH = '/';
 
+    if (!config_JSON.反代.路径模板?.PROXYIP) {
+        config_JSON.反代.路径模板 = {
+            PROXYIP: "proxyip={{IP:PORT}}",
+            SOCKS5: { 全局: "socks5://{{IP:PORT}}", 标准: "socks5={{IP:PORT}}" },
+            HTTP: { 全局: "http://{{IP:PORT}}", 标准: "http={{IP:PORT}}" },
+        };
+    }
+
+    const { SOCKS5: 袜子五, PROXYIP: 反代挨批, 路径模板 } = config_JSON.反代;
+    const 代理配置 = 路径模板[袜子五.启用?.toUpperCase()];
+    const 占位符 = '{{IP:PORT}}';
+
+    let 路径反代参数 = '';
+    if (代理配置 && 袜子五.账号) 路径反代参数 = (袜子五.全局 ? 代理配置.全局 : 代理配置.标准).replace(占位符, 袜子五.账号);
+    else if (反代挨批 !== 'auto') 路径反代参数 = 路径模板.PROXYIP.replace(占位符, 反代挨批);
     if (!config_JSON.反代.路径模板?.[_p]) {
         config_JSON.反代.路径模板 = {
             [_p]: "proxyip=" + 占位符,
