@@ -247,8 +247,8 @@ export default {
                                         优选API.push(元素);
                                     } else {
                                         const subMatch = 元素.match(/sub\s*=\s*([^\s&#]+)/i);
-                                        if (subMatch) {
-                                            优选API.push('sub://' + subMatch[1].trim());
+                                        if (subMatch && subMatch[1].trim().includes('.')) {
+                                            优选API.push('sub://' + subMatch[1].trim() + (元素.includes('#') ? ('#' + 元素.split('#')[1]) : ''));
                                         } else if (元素.toLowerCase().startsWith('https://')) {
                                             优选API.push(元素);
                                         } else if (元素.toLowerCase().includes('://')) {
@@ -583,6 +583,7 @@ async function forwardataTCP(host, portNum, rawData, ws, respHeader, remoteConnW
         try {
             await connecttoPry();
         } catch (err) {
+            console.log(`[TCP转发] SOCKS5/HTTP 代理连接失败: ${err.message}`);
             throw err;
         }
     } else {
@@ -592,6 +593,7 @@ async function forwardataTCP(host, portNum, rawData, ws, respHeader, remoteConnW
             remoteConnWrapper.socket = initialSocket;
             connectStreams(initialSocket, ws, respHeader, connecttoPry);
         } catch (err) {
+            console.log(`[TCP转发] 直连 ${host}:${portNum} 失败: ${err.message}`);
             await connecttoPry();
         }
     }
@@ -1741,7 +1743,7 @@ function base64Decode(str) {
 }
 
 async function 获取优选订阅生成器数据(优选订阅生成器HOST) {
-    let 优选IP = [], 其他节点LINK = '', 格式化HOST = 优选订阅生成器HOST.replace(/^sub:\/\//i, 'https://');
+    let 优选IP = [], 其他节点LINK = '', 格式化HOST = 优选订阅生成器HOST.replace(/^sub:\/\//i, 'https://').split('#')[0];
     if (!/^https?:\/\//i.test(格式化HOST)) 格式化HOST = `https://${格式化HOST}`;
 
     try {
@@ -1797,15 +1799,42 @@ async function 请求优选API(urls, 默认端口 = '443', 超时时间 = 3000) 
     const proxyIPPool = new Set();
     let 订阅链接响应的明文LINK内容 = '', 需要订阅转换订阅URLs = [];
     await Promise.allSettled(urls.map(async (url) => {
+        // 检查URL是否包含备注名
+        const hashIndex = url.indexOf('#');
+        const urlWithoutHash = hashIndex > -1 ? url.substring(0, hashIndex) : url;
+        const API备注名 = hashIndex > -1 ? decodeURIComponent(url.substring(hashIndex + 1)) : null;
         const isProxyIP = url.toLowerCase().includes('proxyip=true');
-        if (url.toLowerCase().startsWith('sub://')) {
+        
+        if (urlWithoutHash.toLowerCase().startsWith('sub://')) {
             try {
-                const [优选IP, 其他节点LINK] = await 获取优选订阅生成器数据(url);
-                for (const ip of 优选IP) {
-                    results.add(ip);
-                    if (isProxyIP) proxyIPPool.add(ip.split('#')[0]);
+                const [优选IP, 其他节点LINK] = await 获取优选订阅生成器数据(urlWithoutHash);
+                // 处理第一个数组 - 优选IP
+                if (API备注名) {
+                    for (const ip of 优选IP) {
+                        const 处理后IP = ip.includes('#') 
+                            ? `${ip} [${API备注名}]` 
+                            : `${ip}#[${API备注名}]`;
+                        results.add(处理后IP);
+                        if (isProxyIP) proxyIPPool.add(ip.split('#')[0]);
+                    }
+                } else {
+                    for (const ip of 优选IP) {
+                        results.add(ip);
+                        if (isProxyIP) proxyIPPool.add(ip.split('#')[0]);
+                    }
                 }
-                if (其他节点LINK) 订阅链接响应的明文LINK内容 += 其他节点LINK;
+                // 处理第二个数组 - 其他节点LINK
+                if (其他节点LINK && typeof 其他节点LINK === 'string' && API备注名) {
+                    const 处理后LINK内容 = 其他节点LINK.replace(/([a-z][a-z0-9+\-.]*:\/\/[^\r\n]*?)(\r?\n|$)/gi, (match, link, lineEnd) => {
+                        const 完整链接 = link.includes('#')
+                            ? `${link}${encodeURIComponent(` [${API备注名}]`)}`
+                            : `${link}${encodeURIComponent(`#[${API备注名}]`)}`;
+                        return `${完整链接}${lineEnd}`;
+                    });
+                    订阅链接响应的明文LINK内容 += 处理后LINK内容;
+                } else if (其他节点LINK && typeof 其他节点LINK === 'string') {
+                    订阅链接响应的明文LINK内容 += 其他节点LINK;
+                }
             } catch (e) { }
             return;
         }
@@ -1813,7 +1842,7 @@ async function 请求优选API(urls, 默认端口 = '443', 超时时间 = 3000) 
         try {
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 超时时间);
-            const response = await fetch(url, { signal: controller.signal });
+            const response = await fetch(urlWithoutHash, { signal: controller.signal });
             clearTimeout(timeoutId);
             let text = '';
             try {
@@ -1871,17 +1900,29 @@ async function 请求优选API(urls, 默认端口 = '443', 超时时间 = 3000) 
 
             const 预处理订阅明文内容 = isValidBase64(text) ? base64Decode(text) : text;
             if (预处理订阅明文内容.split('#')[0].includes('://')) {
-                订阅链接响应的明文LINK内容 += 预处理订阅明文内容 + '\n'; // 追加LINK明文内容
+                // 处理LINK内容
+                if (API备注名) {
+                    const 处理后LINK内容 = 预处理订阅明文内容.replace(/([a-z][a-z0-9+\-.]*:\/\/[^\r\n]*?)(\r?\n|$)/gi, (match, link, lineEnd) => {
+                        const 完整链接 = link.includes('#')
+                            ? `${link}${encodeURIComponent(` [${API备注名}]`)}`
+                            : `${link}${encodeURIComponent(`#[${API备注名}]`)}`;
+                        return `${完整链接}${lineEnd}`;
+                    });
+                    订阅链接响应的明文LINK内容 += 处理后LINK内容 + '\n';
+                } else {
+                    订阅链接响应的明文LINK内容 += 预处理订阅明文内容 + '\n';
+                }
                 return;
             }
 
             const lines = text.trim().split('\n').map(l => l.trim()).filter(l => l);
             const isCSV = lines.length > 1 && lines[0].includes(',');
             const IPV6_PATTERN = /^[^\[\]]*:[^\[\]]*:[^\[\]]/;
+            const parsedUrl = new URL(urlWithoutHash);
             if (!isCSV) {
                 lines.forEach(line => {
-                    const hashIndex = line.indexOf('#');
-                    const [hostPart, remark] = hashIndex > -1 ? [line.substring(0, hashIndex), line.substring(hashIndex)] : [line, ''];
+                    const lineHashIndex = line.indexOf('#');
+                    const [hostPart, remark] = lineHashIndex > -1 ? [line.substring(0, lineHashIndex), line.substring(lineHashIndex)] : [line, ''];
                     let hasPort = false;
                     if (hostPart.startsWith('[')) {
                         hasPort = /\]:(\d+)$/.test(hostPart);
@@ -1889,10 +1930,18 @@ async function 请求优选API(urls, 默认端口 = '443', 超时时间 = 3000) 
                         const colonIndex = hostPart.lastIndexOf(':');
                         hasPort = colonIndex > -1 && /^\d+$/.test(hostPart.substring(colonIndex + 1));
                     }
-                    const port = new URL(url).searchParams.get('port') || 默认端口;
-                    const formattedIP = hasPort ? line : `${hostPart}:${port}${remark}`;
-                    results.add(formattedIP);
-                    if (isProxyIP) proxyIPPool.add(formattedIP.split('#')[0]);
+                    const port = parsedUrl.searchParams.get('port') || 默认端口;
+                    const ipItem = hasPort ? line : `${hostPart}:${port}${remark}`;
+                    // 处理第一个数组 - 优选IP
+                    if (API备注名) {
+                        const 处理后IP = ipItem.includes('#') 
+                            ? `${ipItem} [${API备注名}]` 
+                            : `${ipItem}#[${API备注名}]`;
+                        results.add(处理后IP);
+                    } else {
+                        results.add(ipItem);
+                    }
+                    if (isProxyIP) proxyIPPool.add(ipItem.split('#')[0]);
                 });
             } else {
                 const headers = lines[0].split(',').map(h => h.trim());
@@ -1906,20 +1955,32 @@ async function 请求优选API(urls, 默认端口 = '443', 超时时间 = 3000) 
                         const cols = line.split(',').map(c => c.trim());
                         if (tlsIdx !== -1 && cols[tlsIdx]?.toLowerCase() !== 'true') return;
                         const wrappedIP = IPV6_PATTERN.test(cols[ipIdx]) ? `[${cols[ipIdx]}]` : cols[ipIdx];
-                        const formattedIP = `${wrappedIP}:${cols[portIdx]}#${cols[remarkIdx]}`;
-                        results.add(formattedIP);
+                        const ipItem = `${wrappedIP}:${cols[portIdx]}#${cols[remarkIdx]}`;
+                        // 处理第一个数组 - 优选IP
+                        if (API备注名) {
+                            const 处理后IP = `${ipItem} [${API备注名}]`;
+                            results.add(处理后IP);
+                        } else {
+                            results.add(ipItem);
+                        }
                         if (isProxyIP) proxyIPPool.add(`${wrappedIP}:${cols[portIdx]}`);
                     });
                 } else if (headers.some(h => h.includes('IP')) && headers.some(h => h.includes('延迟')) && headers.some(h => h.includes('下载速度'))) {
                     const ipIdx = headers.findIndex(h => h.includes('IP'));
                     const delayIdx = headers.findIndex(h => h.includes('延迟'));
                     const speedIdx = headers.findIndex(h => h.includes('下载速度'));
-                    const port = new URL(url).searchParams.get('port') || 默认端口;
+                    const port = parsedUrl.searchParams.get('port') || 默认端口;
                     dataLines.forEach(line => {
                         const cols = line.split(',').map(c => c.trim());
                         const wrappedIP = IPV6_PATTERN.test(cols[ipIdx]) ? `[${cols[ipIdx]}]` : cols[ipIdx];
-                        const formattedIP = `${wrappedIP}:${port}#CF优选 ${cols[delayIdx]}ms ${cols[speedIdx]}MB/s`;
-                        results.add(formattedIP);
+                        const ipItem = `${wrappedIP}:${port}#CF优选 ${cols[delayIdx]}ms ${cols[speedIdx]}MB/s`;
+                        // 处理第一个数组 - 优选IP
+                        if (API备注名) {
+                            const 处理后IP = `${ipItem} [${API备注名}]`;
+                            results.add(处理后IP);
+                        } else {
+                            results.add(ipItem);
+                        }
                         if (isProxyIP) proxyIPPool.add(`${wrappedIP}:${port}`);
                     });
                 }
