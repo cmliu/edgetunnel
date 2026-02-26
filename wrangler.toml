@@ -1,5 +1,5 @@
 name = "v20251104"
-main = "_worker.js"
+main = "cfcf"
 compatibility_date = "2025-11-04"
 keep_vars = true
 
@@ -7,3 +7,4 @@ keep_vars = true
 binding = "KV"			#KV绑定名默认不可修改
 
 id = "34b5b00c544842ff8344f71711106bd1"				#KV数据库id
+
