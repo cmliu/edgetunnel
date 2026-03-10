@@ -1215,12 +1215,19 @@ function Surge订阅配置文件热补丁(content, url, config_JSON) {
 }
 
 async function 请求日志记录(env, request, 访问IP, 请求类型 = "Get_SUB", config_JSON) {
-    const KV容量限制 = 4;//MB
     try {
         const 当前时间 = new Date();
         const 日志内容 = { TYPE: 请求类型, IP: 访问IP, ASN: `AS${request.cf.asn || '0'} ${request.cf.asOrganization || 'Unknown'}`, CC: `${request.cf.country || 'N/A'} ${request.cf.city || 'N/A'}`, URL: request.url, UA: request.headers.get('User-Agent') || 'Unknown', TIME: 当前时间.getTime() };
+        if (config_JSON.TG.启用) {
+            try {
+                const TG_TXT = await env.KV.get('tg.json');
+                const TG_JSON = JSON.parse(TG_TXT);
+                await sendMessage(TG_JSON.BotToken, TG_JSON.ChatID, 日志内容, config_JSON);
+            } catch (error) { console.error(`读取tg.json出错: ${error.message}`) }
+        }
+        if (env.OFF_LOG && ['1', 'true'].includes(env.OFF_LOG)) return;
+        const 现有日志 = await env.KV.get('log.json'), KV容量限制 = 4;//MB
         let 日志数组 = [];
-        const 现有日志 = await env.KV.get('log.json');
         if (现有日志) {
             try {
                 日志数组 = JSON.parse(现有日志);
@@ -1236,14 +1243,7 @@ async function 请求日志记录(env, request, 访问IP, 请求类型 = "Get_SU
                 }
             } catch (e) { 日志数组 = [日志内容] }
         } else { 日志数组 = [日志内容] }
-        if (config_JSON.TG.启用) {
-            try {
-                const TG_TXT = await env.KV.get('tg.json');
-                const TG_JSON = JSON.parse(TG_TXT);
-                await sendMessage(TG_JSON.BotToken, TG_JSON.ChatID, 日志内容, config_JSON);
-            } catch (error) { console.error(`读取tg.json出错: ${error.message}`) }
-        }
-        if (!env.OFF_LOG || ['0', 'false'].includes(env.OFF_LOG)) await env.KV.put('log.json', JSON.stringify(日志数组, null, 2));
+        await env.KV.put('log.json', JSON.stringify(日志数组, null, 2));
     } catch (error) { console.error(`日志记录失败: ${error.message}`); }
 }
 
