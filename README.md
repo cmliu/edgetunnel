@@ -1,38 +1,39 @@
 # 🚀 edgetunnel 2.0
 ![后台页面](./img.png)
 
-- **edgetunnel 最新教程**：https://www.youtube.com/watch?v=tKe9xUuFODA ***必看内容!必看内容!必看内容!!!***
-- **报错 Error 1101 详解**：https://www.youtube.com/watch?v=r4uVTEJptdE
+[![Stars](https://img.shields.io/github/stars/cmliu/edgetunnel?style=flat-square&logo=github)](https://github.com/cmliu/edgetunnel/stargazers)
+[![Forks](https://img.shields.io/github/forks/cmliu/edgetunnel?style=flat-square&logo=github)](https://github.com/cmliu/edgetunnel/network/members)
+[![License](https://img.shields.io/github/license/cmliu/edgetunnel?style=flat-square)](https://github.com/cmliu/edgetunnel/blob/main/LICENSE)
+[![Telegram](https://img.shields.io/badge/Telegram-Group-blue?style=flat-square&logo=telegram)](https://t.me/CMLiussss)
+[![YouTube](https://img.shields.io/badge/YouTube-Channel-red?style=flat-square&logo=youtube)](https://www.youtube.com/watch?v=LeT4jQUh8ok)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/cmliu/edgetunnel)
+---
 
-- Telegram交流群：[@CMLiussss](https://t.me/CMLiussss)
+## 📖 项目简介
 
-## ⚠️ 免责声明
+**edgetunnel** 是一个基于 CF Workers/Pages 平台的边缘计算隧道解密方案。它能够高效地处理网络流量，并提供强大的管理面板和灵活的节点配置能力。
 
-本免责声明适用于 GitHub 上的 “edgetunnel” 项目（以下简称“本项目”），项目链接为：https://github.com/cmliu/edgetunnel 。
+- 🖥️ **Demo 演示站点**：[https://EDT-Pages.github.io/admin](https://EDT-Pages.github.io/admin)
 
-### 用途
-本项目仅供教育、研究和安全测试目的而设计和开发。旨在为安全研究人员、学术界人士及技术爱好者提供一个探索和实践网络通信技术的工具。
+### ✨ 核心特性
 
-### 合法性
-在下载和使用本项目代码时，必须遵守使用者所适用的法律和规定。使用者有责任确保其行为符合所在地区的法律框架、规章制度及其他相关规定。
+- 🛡️ **协议支持**：支持 VLESS、Trojan 等主流协议，深度集成加密传输。
+- 📊 **管理面板**：内置可视化后台，支持实时配置修改、日志查看及流量统计。
+- 🛠️ **部署灵活**：完整适配 CF Workers 及 CF Pages (GitHub / 上传)。
+- 🔄 **订阅系统**：内置自动订阅生成及混淆转换，适配主流客户端（Clash, Sing-box, Surge 等）。
+- ⚡ **性能加速**：支持自定义 ProxyIP、SOCKS5/HTTP 链式代理及优选 API，优化网络延迟。
+- 🌐 **多台适配**：完美适配 Windows, Android, iOS, MacOS 及各种软路由固件。
 
-### 免责
-1. 作为本项目的 **二次开发作者**（以下简称“作者”），我 **cmliu** 强调本项目仅应用于合法、道德和教育目的。
-2. 作者不认可、不支持亦不鼓励任何形式的非法使用。如果发现本项目被用于任何非法或不道德的活动，作者将对此强烈谴责。
-3. 作者对任何人或组织利用本项目代码从事的任何非法活动不承担责任。使用本项目代码所产生的任何后果，均由使用者自行承担。
-4. 作者不对使用本项目代码可能引起的任何直接或间接损害负责。
-5. 为避免任何意外后果或法律风险，使用者应在使用本项目代码后的 24 小时内删除代码。
+---
 
-通过使用本项目代码，使用者即表示理解并同意本免责声明的所有条款。如使用者不同意这些条款，应立即停止使用本项目。
+## 💡 快速部署
+>[!TIP]
+> 📖 **详尽图文教程**：[edgetunnel 部署指南](https://cmliussss.com/p/edt2/)
 
-作者保留随时更新本免责声明的权利，且不另行通知。最新版本的免责声明将发布在本项目的 GitHub 页面上。
+>[!WARNING]
+> ⚠️ **Error 1101问题**：[视频解析](https://www.youtube.com/watch?v=r4uVTEJptdE)
 
-## 🔥 风险提示
-- 通过提交虚假的节点配置给订阅服务，避免节点配置信息泄露。
-- 另外，您也可以选择自行部署 [WorkerVless2sub 订阅生成服务](https://github.com/cmliu/WorkerVless2sub)，这样既可以利用订阅生成器的便利。
-   
-## 💡 如何使用?
-### ⚙️ Workers 部署方法 [视频教程](https://www.youtube.com/watch?v=tKe9xUuFODA&t=191s)
+### ⚙️ Workers 部署
 
 <details>
 <summary><code><strong>「 Workers 部署文字教程 」</strong></code></summary>
@@ -50,14 +51,13 @@
 3. 给 Workers绑定 自定义域： 
    - 在 workers控制台的 `触发器`选项卡，下方点击 `添加自定义域`。
    - 填入你已转入 CF 域名解析服务的次级域名，例如:`vless.google.com`后 点击`添加自定义域`，等待证书生效即可。
-   - **如果你是小白，你现在可以直接起飞，不用再往下看了！！！**
 
 4. 访问后台：
    - 访问 `https://vless.google.com/admin` 输入管理员密码即可登录后台。
 
 </details>
 
-### 🛠 Pages 上传 部署方法 **最佳推荐!!!** [视频教程](https://www.youtube.com/watch?v=tKe9xUuFODA&t=436s)
+### 🛠 Pages 上传 部署方法 **最佳推荐!!!** [图文教程](https://cmliussss.com/p/edt2/)
 
 <details>
 <summary><code><strong>「 Pages 上传文件部署文字教程 」</strong></code></summary>
@@ -78,17 +78,16 @@
    - 填入你的自定义次级域名，注意不要使用你的根域名，例如：
      您分配到的域名是 `fuck.cloudns.biz`，则添加自定义域填入 `lizi.fuck.cloudns.biz`即可；
    - 按照 CF 的要求将返回你的域名DNS服务商，添加 该自定义域 `lizi`的 CNAME记录 `edgetunnel.pages.dev` 后，点击 `激活域`即可。
-   - **如果你是小白，那么你的 pages 绑定`自定义域`之后即可直接起飞，不用再往下看了！！！**
    
 4. 访问后台：
    - 访问 `https://lizi.fuck.cloudns.biz/admin` 输入管理员密码即可登录后台。
 
 </details>
 
-### 🛠 Pages GitHub 部署方法 [视频教程](https://www.youtube.com/watch?v=tKe9xUuFODA&t=317s)
+### 🛠 Pages + GitHub 部署方法
 
 <details>
-<summary><code><strong>「 Pages GitHub 部署文字教程 」</strong></code></summary>
+<summary><code><strong>「 Pages + GitHub 部署文字教程 」</strong></code></summary>
 
 1. 部署 CF Pages：
    - 在 Github 上先 Fork 本项目，并点上 Star !!!
@@ -105,28 +104,33 @@
    - 填入你的自定义次级域名，注意不要使用你的根域名，例如：
      您分配到的域名是 `fuck.cloudns.biz`，则添加自定义域填入 `lizi.fuck.cloudns.biz`即可；
    - 按照 CF 的要求将返回你的域名DNS服务商，添加 该自定义域 `lizi`的 CNAME记录 `edgetunnel.pages.dev` 后，点击 `激活域`即可。
-   - **如果你是小白，那么你的 pages 绑定`自定义域`之后即可直接起飞，不用再往下看了！！！**
 
 4. 访问后台：
    - 访问 `https://lizi.fuck.cloudns.biz/admin` 输入管理员密码即可登录后台。
 
 </details>
 
-## 🔑 变量说明
+---
 
-| 变量名 | 示例 | 必填 | 备注 |
-|--------|---------|-|-----|
-| ADMIN | `123456` |✅| 面板登录密码 |
-| KEY | `CMLiussss` |❌| 快速订阅密钥，访问`/CMLiussss`即可快读订阅。 |
-| HOST | `edt-pages.github.io` |❌| 强制固定伪装域名(支持多元素，使用`换行符`或`,`做间隔) |
-| UUID | `90cd4a77-141a-43c9-991b-08263cfe9c10` |❌| 强制固定UUID |
-| PATH | `/` |❌| 强制固定路径 |
-| PROXYIP | `proxyip.cmliussss.net:443` |❌| 更换默认内置PROXYIP |
-| URL | `https://cloudflare-error-page-3th.pages.dev` |❌| 主页反代伪装(乱设容易触发反诈，反代被墙的网站会加速域名被墙) |
-| GO2SOCKS5  | `blog.cmliussss.com`,`*.ip111.cn`,`*google.com` |❌| 设置`SOCKS5`或`HTTP`变量之后，可设置强制使用socks5访问名单(设置为`*`可作为全局代理) |
+## 🔑 环境变量说明
 
-## 🔧 实用技巧
-该项目部署的节点可通过节点PATH(路径)的方式，使用指定的`PROXYIP`或`SOCKS5`！！！**
+| 变量名 | 必填 | 示例 | 详细备注 |
+| :--- | :---: | :--- | :--- |
+| **ADMIN** | ✅ | `123456` | 后台管理面板登录密码 |
+| **KEY** | ❌ | `CMLiussss` | 快速订阅路径密钥，访问 `/CMLiussss` 即可快速获取节点 |
+| **UUID** | ❌ | `90cd4a77-141a-43c9-991b-08263cfe9c10` | 强制固定UUID，只支持**UUIDv4**标准格式 |
+| ~~HOST~~ | ❌ | `edt.pages.dev` | ~~强制固定伪装域名~~ 可通过面板直接设置 |
+| ~~PATH~~ | ❌ | `/` | ~~强制固定伪装路径~~ 可通过面板直接设置 |
+| **PROXYIP** | ❌ | `proxyip.cmliussss.net:443` | 全局自定义反代 IP  |
+| **URL** | ❌ | `https://cloudflare-error-page-3th.pages.dev` | 默认主页伪装地址（可填写网页 URL 或 `1101`） |
+| **GO2SOCKS5** | ❌ | `blog.cmliussss.com`,`*.ip111.cn`,`*google.com` | 强制走 SOCKS5 的名单 (`*` 为全局，域名用逗号分隔) |
+| **OFF_LOG** | ❌ | `1`或`true` | 默认开启日志记录功能，设置`1`或`true`则关闭日志记录功能 |
+
+---
+
+## 🔧 高级实用技巧
+
+本工具支持通过 **PATH路径** 动态切换底层代理方案：
 
 - 指定 `PROXYIP` 案例
    ```url
@@ -149,24 +153,26 @@
    /http://user:password@127.0.0.1:8080 (默认激活全局SOCKS5)
    ```
 
-## ⭐ Star 星星走起
+---
+
+## 💻 客户端适配情况
+
+| 平台 | 推荐客户端 | 备注 |
+| :--- | :--- | :--- |
+| **Windows** | [v2rayN](https://github.com/2dust/v2rayN), [FlClash](https://github.com/chen08209/FlClash), [mihomo-party](https://github.com/mihomo-party-org/mihomo-party), [Clash Verge Rev](https://github.com/ClashVerge/ClashVerge-Rev) | 全面支持 |
+| **Android** | [ClashMetaForAndroid](https://github.com/chen08209/ClashMetaForAndroid), [FlClash](https://github.com/chen08209/FlClash), [v2rayNG](https://github.com/2dust/v2rayNG) | 建议使用 Meta 核心 |
+| **iOS** | [Surge](https://surgeapp.com/), [Shadowrocket](https://shadowrocket.com/), [Stash](https://stashapp.com/) | 完美适配 |
+| **MacOS** | [FlClash](https://github.com/chen08209/FlClash), [mihomo-party](https://github.com/mihomo-party-org/mihomo-party), [Clash Verge Rev](https://github.com/ClashVerge/ClashVerge-Rev), [Surge](https://surgeapp.com/) | M1/M2 完美兼容 |
+
+---
+
+## ⭐ 项目热度
+
 [![Stargazers over time](https://starchart.cc/cmliu/edgetunnel.svg?variant=adaptive)](https://starchart.cc/cmliu/edgetunnel)
 
-## 💻 已适配客户端
-### Windows
-   - [v2rayN](https://github.com/2dust/v2rayN)
-   - clash.meta（[FlClash](https://github.com/chen08209/FlClash)，[mihomo-party](https://github.com/mihomo-party-org/mihomo-party)，[clash-verge-rev](https://github.com/clash-verge-rev/clash-verge-rev)，[Clash Nyanpasu](https://github.com/keiko233/clash-nyanpasu)）
-### IOS
-   - Surge，小火箭
-   - sing-box（[SFI](https://sing-box.sagernet.org/zh/clients/apple/)）
-### 安卓
-   - clash.meta（[ClashMetaForAndroid](https://github.com/MetaCubeX/ClashMetaForAndroid)，[FlClash](https://github.com/chen08209/FlClash)）
-   - sing-box（[SFA](https://github.com/SagerNet/sing-box)）
-### MacOS
-   - clash.meta（[FlClash](https://github.com/chen08209/FlClash)，[mihomo-party](https://github.com/mihomo-party-org/mihomo-party)）
+---
 
-
-# 🙏 特别鸣谢
+## 🙏 特别鸣谢
 ### 💖 赞助支持 - 提供云服务器维持[订阅转换服务](https://sub.cmliussss.net/)
 - [NodeLoc](https://www.nodeloc.com/)
 - [Alice](https://url.cmliussss.com/alice)
@@ -183,6 +189,21 @@
 - [Workers/Pages Metrics](https://t.me/zhetengsha/3382)
 - [白嫖哥](https://t.me/bestcfipas)
 - [Mingyu](https://github.com/ymyuuu/workers-vless)
-- [Alexandre Kojève](https://t.me/Enkelte_notif/784)：stallTCP v1.3
+- [Alexandre Kojève](https://t.me/Enkelte_notif/784)
 - [eooce](https://github.com/eooce/Cloudflare-proxy)
 - [Sukka](https://ip.skk.moe/)
+- [zhangtaile](https://github.com/cmliu/edgetunnel/pull/999)
+
+---
+
+## ⚠️ 免责声明
+
+1. 本项目（"edgetunnel"）仅供**教育、科学研究及个人安全测试**之目的。
+2. 使用者在下载或使用本项目代码时，必须严格遵守所在地区的法律法规。
+3. 作者 **cmliu** 对任何滥用本项目代码导致的行为或后果均不承担任何责任。
+4. 本项目不对因使用代码引起的任何直接或间接损害负责。
+5. 建议在测试完成后 24 小时内删除本项目相关部署。
+
+---
+
+**如果您觉得项目对您有帮助，请给一个 Star 🌟，这是对我最大的鼓励！**
