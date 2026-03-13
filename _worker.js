@@ -75,7 +75,8 @@ export default {
                             try {
                                 new URL(待验证优选URL);
                                 const 请求优选API内容 = await 请求优选API([待验证优选URL], url.searchParams.get('port') || '443');
-                                const 优选API的IP = 请求优选API内容[0].length > 0 ? 请求优选API内容[0] : 请求优选API内容[1];
+                                let 优选API的IP = 请求优选API内容[0].length > 0 ? 请求优选API内容[0] : 请求优选API内容[1];
+                                优选API的IP = 优选API的IP.map(item => item.replace(/#(.+)$/, (_, remark) => '#' + decodeURIComponent(remark)));
                                 return new Response(JSON.stringify({ success: true, data: 优选API的IP }, null, 2), { status: 200, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
                             } catch (err) {
                                 const errorResponse = { msg: '验证优选API失败，失败原因：' + err.message, error: err.message };
@@ -1214,12 +1215,19 @@ function Surge订阅配置文件热补丁(content, url, config_JSON) {
 }
 
 async function 请求日志记录(env, request, 访问IP, 请求类型 = "Get_SUB", config_JSON) {
-    const KV容量限制 = 4;//MB
     try {
         const 当前时间 = new Date();
         const 日志内容 = { TYPE: 请求类型, IP: 访问IP, ASN: `AS${request.cf.asn || '0'} ${request.cf.asOrganization || 'Unknown'}`, CC: `${request.cf.country || 'N/A'} ${request.cf.city || 'N/A'}`, URL: request.url, UA: request.headers.get('User-Agent') || 'Unknown', TIME: 当前时间.getTime() };
+        if (config_JSON.TG.启用) {
+            try {
+                const TG_TXT = await env.KV.get('tg.json');
+                const TG_JSON = JSON.parse(TG_TXT);
+                await sendMessage(TG_JSON.BotToken, TG_JSON.ChatID, 日志内容, config_JSON);
+            } catch (error) { console.error(`读取tg.json出错: ${error.message}`) }
+        }
+        if (env.OFF_LOG && !['0', 'false'].includes(env.OFF_LOG)) return;
         let 日志数组 = [];
-        const 现有日志 = await env.KV.get('log.json');
+        const 现有日志 = await env.KV.get('log.json'), KV容量限制 = 4;//MB
         if (现有日志) {
             try {
                 日志数组 = JSON.parse(现有日志);
@@ -1232,13 +1240,6 @@ async function 请求日志记录(env, request, 访问IP, 请求类型 = "Get_SU
                 } else {
                     日志数组.push(日志内容);
                     while (JSON.stringify(日志数组, null, 2).length > KV容量限制 * 1024 * 1024 && 日志数组.length > 0) 日志数组.shift();
-                }
-                if (config_JSON.TG.启用) {
-                    try {
-                        const TG_TXT = await env.KV.get('tg.json');
-                        const TG_JSON = JSON.parse(TG_TXT);
-                        await sendMessage(TG_JSON.BotToken, TG_JSON.ChatID, 日志内容, config_JSON);
-                    } catch (error) { console.error(`读取tg.json出错: ${error.message}`) }
                 }
             } catch (e) { 日志数组 = [日志内容]; }
         } else { 日志数组 = [日志内容]; }
