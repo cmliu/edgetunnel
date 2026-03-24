@@ -324,6 +324,7 @@ export default {
                                 }
                                 if (isLoonOrSurge) 完整节点路径 = 完整节点路径.replace(/,/g, '%2C');
 
+                                节点备注 = 节点备注 + '-' + 节点地址.replace(/^\[|\]$/g, '');
                                 return `${协议类型}://00000000-0000-4000-8000-000000000000@${节点地址}:${节点端口}?security=tls&type=${传输协议 + ECHLINK参数}&${域名字段名}=example.com&fp=${config_JSON.Fingerprint}&sni=example.com&${路径字段名}=${encodeURIComponent(作为优选订阅生成器 ? '/' : (config_JSON.随机路径 ? 随机路径(完整节点路径) : 完整节点路径)) + TLS分片参数}&encryption=none${config_JSON.跳过证书验证 ? '&insecure=1&allowInsecure=1' : ''}#${encodeURIComponent(节点备注)}`;
                             }).filter(item => item !== null).join('\n');
                         } else { // 订阅转换
