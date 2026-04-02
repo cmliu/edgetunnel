@@ -2953,4 +2953,8 @@ async function SOCKS5可用性驗證(代理協定 = 'socks5', 代理參數) {
 			writer.releaseLock();
 			const reader = tcpSocket.readable.getReader(), decoder = new TextDecoder();
 			let response = '';
-			try { while (true) { const { done, value } = await reader.read(); if (done) break; response
+			try { while (true) { const { done, value } = await reader.read(); if (done) break; response += decoder.decode(value, { stream: true }); } } catch (readErr) { return { success: false, error: '讀取代理回應失敗: ' + readErr.message, proxy: 代理協定 + "://" + 完整代理參數, responseTime: Date.now() - startTime }; }
+			const ipMatch = response.match(/ip=([^\r\n]+)/);} catch (err) { return { success: false, error: '代理連線測試失敗: ' + err.message, proxy: 代理協定 + "://" + 完整代理參數, responseTime: Date.now() - startTime }; }
+	} catch (err) { return { success: false, error: '代理連線失敗: ' + err.message, proxy: 代理協定 + "://" + 代理參數, responseTime: Date.now() - startTime }; }
+	return { success: true, proxy: 代理協定 + "://" + 完整代理參數, responseTime: Date.now() - startTime };
+}
