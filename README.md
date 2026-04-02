@@ -17,7 +17,7 @@
 
 ### ✨ 核心特性
 
-- 🛡️ **协议支持**：支持 VLESS、Trojan 等主流协议，深度集成加密传输。
+- 🛡️ **协议支持**：支持 VLESS、Trojan、Shadowsocks 等主流协议，深度集成加密传输。
 - 📊 **管理面板**：内置可视化后台，支持实时配置修改、日志查看及流量统计。
 - 🛠️ **部署灵活**：完整适配 CF Workers 及 CF Pages (GitHub / 上传)。
 - 🔄 **订阅系统**：内置自动订阅生成及混淆转换，适配主流客户端（Clash, Sing-box, Surge 等）。
@@ -124,6 +124,7 @@
 | **PROXYIP** | ❌ | `proxyip.cmliussss.net:443` | 全局自定义反代 IP  |
 | **URL** | ❌ | `https://cloudflare-error-page-3th.pages.dev` | 默认主页伪装地址（可填写网页 URL 或 `1101`） |
 | **GO2SOCKS5** | ❌ | `blog.cmliussss.com`,`*.ip111.cn`,`*google.com` | 强制走 SOCKS5 的名单 (`*` 为全局，域名用逗号分隔) |
+| **DEBUG** | ❌ | `1`或`true` | 默认关闭调试日志功能（console.log），设置`1`或`true`则开启调试日志功能 |
 | **OFF_LOG** | ❌ | `1`或`true` | 默认开启日志记录功能，设置`1`或`true`则关闭日志记录功能 |
 | **BEST_SUB** | ❌ | `1`或`true` | 默认关闭作为**优选订阅生成器**的功能，设置`1`或`true`则开启该功能 |
 
