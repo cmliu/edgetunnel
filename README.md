@@ -125,10 +125,14 @@
 | **URL** | ❌ | `https://cloudflare-error-page-3th.pages.dev` | 默认主页伪装地址（可填写网页 URL 或 `1101`） |
 | **GO2SOCKS5** | ❌ | `blog.cmliussss.com`,`*.ip111.cn`,`*google.com` | 强制走 SOCKS5 的名单 (`*` 为全局，域名用逗号分隔) |
 | **OFF_LOG** | ❌ | `1`或`true` | 默认开启日志记录功能，设置`1`或`true`则关闭日志记录功能 |
+| **BEST_SUB** | ❌ | `1`或`true` | 默认关闭作为**优选订阅生成器**的功能，设置`1`或`true`则开启该功能 |
 
 ---
 
 ## 🔧 高级实用技巧
+如需修改 **订阅地址里的TOKEN** 和 **用于节点验证的UUID** ，可通过修改变量
+1. 修改`ADMIN`或`KEY`变量的值，可以随机修改 **订阅地址里的TOKEN** 和 **用于节点验证的UUID**
+2. 设置`UUID`变量可以强制固定 **订阅地址里的TOKEN** 和 **用于节点验证的UUID**，注意必须是**UUIDv4**标准格式，否则会导致节点无法使用。
 
 本工具支持通过 **PATH路径** 动态切换底层代理方案：
 
@@ -136,7 +140,6 @@
    ```url
    /proxyip=proxyip.cmliussss.net
    /?proxyip=proxyip.cmliussss.net
-   /proxyip.cmliussss.net (仅限于域名开头为'proxyip.'的域名)
    ```
 
 - 指定 `SOCKS5` 案例
@@ -193,6 +196,7 @@
 - [eooce](https://github.com/eooce/Cloudflare-proxy)
 - [Sukka](https://ip.skk.moe/)
 - [zhangtaile](https://github.com/cmliu/edgetunnel/pull/999)
+- [1345695](https://github.com/1345695/edcloudwasm)
 
 ---
 
