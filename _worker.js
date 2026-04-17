@@ -39,7 +39,7 @@ export default {
 		} else if (管理员密码 && !访问路径.startsWith('admin/') && 访问路径 !== 'login' && request.method === 'POST') {// gRPC/XHTTP代理
 			await 反代参数获取(url);
 			const referer = request.headers.get('Referer') || '';
-			const 命中XHTTP特征 = referer.includes('x_padding', 14) || referer.includes('x_padding=');
+			const 命中XHTTP特征 = referer.includes('x_padding=') || referer.includes('?x_padding') || referer.includes('&x_padding');
 			if (!命中XHTTP特征 && contentType.startsWith('application/grpc')) {
 				log(`[gRPC] 命中请求: ${url.pathname}${url.search}`);
 				return await 处理gRPC请求(request, userID);
