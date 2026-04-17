@@ -81,7 +81,21 @@ export default {
 						return new Response(读取日志内容, { status: 200, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
 					} else if (区分大小写访问路径 === 'admin/getCloudflareUsage') {// 查询请求量
 						try {
-							const Usage_JSON = await getCloudflareUsage(url.searchParams.get('Email'), url.searchParams.get('GlobalAPIKey'), url.searchParams.get('AccountID'), url.searchParams.get('APIToken'));
+							// 优先从 POST body 读取凭据（避免敏感信息暴露在 URL / 服务器日志中）
+							// 兼容旧版 GET query 参数作为降级方案
+							let Email, GlobalAPIKey, AccountID, APIToken;
+							if (request.method === 'POST') {
+								try {
+									const body = await request.json();
+									Email = body.Email; GlobalAPIKey = body.GlobalAPIKey;
+									AccountID = body.AccountID; APIToken = body.APIToken;
+								} catch (_) { }
+							}
+							Email = Email ?? url.searchParams.get('Email');
+							GlobalAPIKey = GlobalAPIKey ?? url.searchParams.get('GlobalAPIKey');
+							AccountID = AccountID ?? url.searchParams.get('AccountID');
+							APIToken = APIToken ?? url.searchParams.get('APIToken');
+							const Usage_JSON = await getCloudflareUsage(Email, GlobalAPIKey, AccountID, APIToken);
 							return new Response(JSON.stringify(Usage_JSON, null, 2), { status: 200, headers: { 'Content-Type': 'application/json' } });
 						} catch (err) {
 							const errorResponse = { msg: '查询请求量失败，失败原因：' + err.message, error: err.message };
