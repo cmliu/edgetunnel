@@ -82,20 +82,29 @@ export default {
 					} else if (区分大小写访问路径 === 'admin/getCloudflareUsage') {// 查询请求量
 						try {
 							// 优先从 POST body 读取凭据（避免敏感信息暴露在 URL / 服务器日志中）
-							// 兼容旧版 GET query 参数作为降级方案
+							// 兼容旧版 GET query 参数作为降级方案（已废弃，未来版本将移除）
 							let Email, GlobalAPIKey, AccountID, APIToken;
-							if (request.method === 'POST') {
+							let usingDeprecatedQueryParams = false;
+							if (request.method === 'POST' && (request.headers.get('content-type') || '').includes('application/json')) {
 								try {
 									const body = await request.json();
-									Email = body.Email; GlobalAPIKey = body.GlobalAPIKey;
-									AccountID = body.AccountID; APIToken = body.APIToken;
+									// 统一转换为字符串，防止 GraphQL String! 类型校验失败
+									Email = body.Email != null ? String(body.Email) : undefined;
+									GlobalAPIKey = body.GlobalAPIKey != null ? String(body.GlobalAPIKey) : undefined;
+									AccountID = body.AccountID != null ? String(body.AccountID) : undefined;
+									APIToken = body.APIToken != null ? String(body.APIToken) : undefined;
 								} catch (_) { }
 							}
-							Email = Email ?? url.searchParams.get('Email');
-							GlobalAPIKey = GlobalAPIKey ?? url.searchParams.get('GlobalAPIKey');
-							AccountID = AccountID ?? url.searchParams.get('AccountID');
-							APIToken = APIToken ?? url.searchParams.get('APIToken');
+							// 降级到 query 参数（已废弃）
+							if (!Email && !GlobalAPIKey && !AccountID && !APIToken) {
+								Email = url.searchParams.get('Email') ?? undefined;
+								GlobalAPIKey = url.searchParams.get('GlobalAPIKey') ?? undefined;
+								AccountID = url.searchParams.get('AccountID') ?? undefined;
+								APIToken = url.searchParams.get('APIToken') ?? undefined;
+								if (Email || GlobalAPIKey || AccountID || APIToken) usingDeprecatedQueryParams = true;
+							}
 							const Usage_JSON = await getCloudflareUsage(Email, GlobalAPIKey, AccountID, APIToken);
+							if (usingDeprecatedQueryParams) Usage_JSON._warning = 'Passing credentials via URL query parameters is deprecated and will be removed in a future version. Please switch to POST with a JSON body.';
 							return new Response(JSON.stringify(Usage_JSON, null, 2), { status: 200, headers: { 'Content-Type': 'application/json' } });
 						} catch (err) {
 							const errorResponse = { msg: '查询请求量失败，失败原因：' + err.message, error: err.message };
