@@ -1,0 +1,38 @@
+# Demo 目录
+demo/
+tmp/
+
+# 依赖包
+node_modules/
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# 构建产物
+dist/
+build/
+*.wasm
+
+# Cloudflare Workers
+.wrangler/
+wrangler-install.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# 环境配置
+.env
+.env.local
+.env.*.local
+
+# 日志文件
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+log/
