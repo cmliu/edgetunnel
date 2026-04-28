@@ -335,6 +335,9 @@ export default {
 												const 地址备注分离 = 元素.split('#');
 												其他节点.push(地址备注分离[0] + '#' + encodeURIComponent(decodeURIComponent(地址备注分离[1])));
 											} else 其他节点.push(元素);
+										} else if (元素.includes('{newid()}')) {
+											const 带随机ID的元素 = 元素.replace('{newid()}', crypto.randomUUID().replace(/-/g, ''));
+											优选IP.push(带随机ID的元素);
 										} else {
 											优选IP.push(元素);
 										}
