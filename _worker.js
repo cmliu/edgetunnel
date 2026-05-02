@@ -1,4 +1,4 @@
-﻿const Version = '2026-04-17 01:57:56';
+const Version = '2026-04-17 01:57:56';
 /*In our project workflow, we first*/ import //the necessary modules, 
 /*then*/ { connect }//to the central server, 
 /*and all data flows*/ from//this single source.
@@ -352,24 +352,18 @@ export default {
 								完整优选IP = 完整优选IP.concat(优选生成器IP数组);
 								其他节点LINK += 优选生成器其他节点;
 							}
+							完整优选IP = await 自动补全优选地址地区(完整优选IP);
 							const ECHLINK参数 = config_JSON.ECH ? `&ech=${encodeURIComponent((config_JSON.ECHConfig.SNI ? config_JSON.ECHConfig.SNI + '+' : '') + config_JSON.ECHConfig.DNS)}` : '';
 							const isLoonOrSurge = ua.includes('loon') || ua.includes('surge');
 							const { type: 传输协议, 路径字段名, 域名字段名 } = 获取传输协议配置(config_JSON);
 							订阅内容 = 其他节点LINK + 完整优选IP.map(原始地址 => {
-								// 统一正则: 匹配 域名/IPv4/IPv6地址 + 可选端口 + 可选备注
-								// 示例: 
-								//   - 域名: hj.xmm1993.top:2096#备注 或 example.com
-								//   - IPv4: 166.0.188.128:443#Los Angeles 或 166.0.188.128
-								//   - IPv6: [2606:4700::]:443#CMCC 或 [2606:4700::]
-								const regex = /^(\[[\da-fA-F:]+\]|[\d.]+|[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?)*)(?::(\d+))?(?:#(.+))?$/;
-								const match = 原始地址.match(regex);
-
 								let 节点地址, 节点端口 = "443", 节点备注;
+								const 条目 = 解析优选地址条目(原始地址);
 
-								if (match) {
-									节点地址 = match[1];  // IP地址或域名(可能带方括号)
-									节点端口 = match[2] ? match[2] : (协议类型 === 'ss' && !config_JSON.SS.TLS) ? '80' : '443';  // 端口,TLS默认443 noTLS默认80
-									节点备注 = match[3] || 节点地址;  // 备注,默认为地址本身
+								if (条目) {
+									节点地址 = 条目.地址;  // IP地址或域名(可能带方括号)
+									节点端口 = 条目.端口 ? 条目.端口 : (协议类型 === 'ss' && !config_JSON.SS.TLS) ? '80' : '443';  // 端口,TLS默认443 noTLS默认80
+									节点备注 = 条目.备注 || 节点地址;  // 备注,默认为地址本身
 								} else {
 									// 不规范的格式，跳过处理返回null
 									console.warn(`[订阅内容] 不规范的IP格式已忽略: ${原始地址}`);
@@ -3806,7 +3800,9 @@ async function 生成随机IP(request, count = 16, 指定端口 = -1, TLS = true
 	};
 	const asn = request.cf.asn, isp = ISP配置[asn];
 	const cidr_url = isp ? `https://raw.githubusercontent.com/cmliu/cmliu/main/CF-CIDR/${isp.file}.txt` : 'https://raw.githubusercontent.com/cmliu/cmliu/main/CF-CIDR.txt';
-	const cfname = isp?.name || 'CF官方优选';
+	// 自动获取国家代码 (例如 JP, KR)，如果获取不到则使用默认名称
+	const countryCode = request.cf.country || 'CF'; 
+	const cfname = `${countryCode}-${isp?.name || 'CF官方优选'}`;
 	const cfport = TLS ? [443, 2053, 2083, 2087, 2096, 8443] : [80, 8080, 8880, 2052, 2082, 2086, 2095];
 	let cidrList = [];
 	try { const res = await fetch(cidr_url); cidrList = res.ok ? await 整理成数组(await res.text()) : ['104.16.0.0/13'] } catch { cidrList = ['104.16.0.0/13'] }
@@ -3829,6 +3825,87 @@ async function 生成随机IP(request, count = 16, 指定端口 = -1, TLS = true
 		return `${ip}:${目标端口}#${cfname}${index + 1}`;
 	});
 	return [randomIPs, randomIPs.join('\n')];
+}
+
+function 解析优选地址条目(原始地址) {
+	const regex = /^(\[[\da-fA-F:]+\]|[\d.]+|[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?)*)(?::(\d+))?(?:#(.+))?$/;
+	const match = 原始地址?.match(regex);
+	if (!match) return null;
+	return {
+		地址: match[1],
+		端口: match[2] || '',
+		备注: match[3] || '',
+	};
+}
+
+function 是否已有地区前缀(备注 = '') {
+	const 清理备注 = 备注.trim();
+	if (!清理备注) return false;
+	if (/^[A-Z]{2}(?:(?=\s)|(?=-)|(?=_)|(?=\d)|$)/.test(清理备注)) return true;
+	if (/^[\u{1F1E6}-\u{1F1FF}]{2}/u.test(清理备注)) return true;
+	return false;
+}
+
+function 是否可查询地区的公网地址(地址 = '') {
+	const 纯地址 = 地址.replace(/^\[|\]$/g, '');
+	if (!纯地址) return false;
+	if (/^\d+\.\d+\.\d+\.\d+$/.test(纯地址)) {
+		if (/^(10|127)\./.test(纯地址)) return false;
+		if (/^192\.168\./.test(纯地址)) return false;
+		if (/^172\.(1[6-9]|2\d|3[0-1])\./.test(纯地址)) return false;
+		if (/^169\.254\./.test(纯地址)) return false;
+		return true;
+	}
+	if (纯地址.includes(':')) {
+		const lower = 纯地址.toLowerCase();
+		if (lower === '::1' || lower.startsWith('fc') || lower.startsWith('fd') || lower.startsWith('fe80:')) return false;
+		return true;
+	}
+	return false;
+}
+
+async function 查询地址地区代码(地址, 超时时间 = 1500) {
+	const 纯地址 = 地址.replace(/^\[|\]$/g, '');
+	if (!是否可查询地区的公网地址(纯地址)) return null;
+	const controller = new AbortController();
+	const timeoutId = setTimeout(() => controller.abort(), 超时时间);
+	try {
+		const response = await fetch(`https://ipwho.is/${encodeURIComponent(纯地址)}`, { signal: controller.signal });
+		if (!response.ok) return null;
+		const data = await response.json();
+		const countryCode = data?.country_code;
+		return typeof countryCode === 'string' && /^[A-Z]{2}$/.test(countryCode) ? countryCode : null;
+	} catch {
+		return null;
+	} finally {
+		clearTimeout(timeoutId);
+	}
+}
+
+async function 自动补全优选地址地区(优选地址列表 = []) {
+	const 待查询地址 = [...new Set(
+		优选地址列表
+			.map(解析优选地址条目)
+			.filter(条目 => 条目 && !是否已有地区前缀(条目.备注) && 是否可查询地区的公网地址(条目.地址))
+			.map(条目 => 条目.地址.replace(/^\[|\]$/g, ''))
+	)];
+	if (!待查询地址.length) return 优选地址列表;
+
+	const 地区映射 = new Map();
+	await Promise.allSettled(待查询地址.map(async (地址) => {
+		const 地区代码 = await 查询地址地区代码(地址);
+		if (地区代码) 地区映射.set(地址, 地区代码);
+	}));
+
+	return 优选地址列表.map(原始地址 => {
+		const 条目 = 解析优选地址条目(原始地址);
+		if (!条目 || 是否已有地区前缀(条目.备注)) return 原始地址;
+		const 纯地址 = 条目.地址.replace(/^\[|\]$/g, '');
+		const 地区代码 = 地区映射.get(纯地址);
+		if (!地区代码) return 原始地址;
+		const 新备注 = 条目.备注 ? `${地区代码} ${条目.备注}` : 地区代码;
+		return `${条目.地址}${条目.端口 ? ':' + 条目.端口 : ''}#${新备注}`;
+	});
 }
 
 async function 整理成数组(内容) {
