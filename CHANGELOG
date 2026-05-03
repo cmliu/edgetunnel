@@ -1,0 +1,47 @@
+## [2.1.20260503011925] - 2026-05-03 01:19:25
+
+### Change
+
+- 适配 **Sing-box** 关于 ECH 自定义 **EchConfig 解析域名** 功能。
+- **自定义订阅** 适配 通配符优选域名。
+
+### Delete
+
+- 删除 **Clash** 关于 ECH 的 **EchConfig DNS服务** 备用DoH。
+
+## [2.1.20260417015756] - 2026-04-17 01:57:56
+
+### Debug
+
+- 同步上游项目更新，修复 **HTTPS 代理** 已知问题。[参考链接](https://t.me/Enkelte_notif/824)
+- 修复已知问题 [#1117](https://github.com/cmliu/edgetunnel/issues/1117) [#1119](https://github.com/cmliu/edgetunnel/issues/1119) [#1120](https://github.com/cmliu/edgetunnel/issues/1120)
+
+## [2.1.20260416044724] - 2026-04-16 04:47:24
+
+### New
+
+- Trojan 协议现已支持通过 UDP Over TCP 方式进行 DNS 查询。
+- 反向代理模式中新增 **HTTPS 代理** 功能支持。[参考链接](https://github.com/ToiCF/CF-Workers-HTTPS)
+
+## [2.1.20260413174651] - 2026-04-13 17:46:51
+
+### Change
+
+- 优化WebSocket数据传输逻辑，支持BYOB模式以提高性能和灵活性。
+
+## [2.1.20260410060317] - 2026-04-10 06:03:17
+
+### New
+
+- 新增 Shadowsocks 协议 **AEAD 加密传输**，为非 TLS 传输模式提供内容加密。
+
+## [2.1.0]
+
+### New
+- VLESS/Trojan 协议现已支持 XHTTP 和 gRPC 传输方式。
+
+## [2.0.0]
+
+### New
+
+- 项目架构已完全重写，新增前端 Web 页面。[前端源码](https://github.com/EDT-Pages/EDT-Pages.github.io)
