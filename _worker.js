@@ -41,7 +41,7 @@ let userIDLow;
 let userIDTime = "";
 let proxyIPPool = [];
 let path = '/?ed=2560';
-let 动态UUID = userID;
+let 动态UUID = 6f4f888e-1f62-4fdc-b7d3-b622715a78df;
 let link = [];
 let banHosts = [atob('c3BlZWQuY2xvdWRmbGFyZS5jb20=')];
 let SCV = 'false';
