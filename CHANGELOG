@@ -1,3 +1,11 @@
+## [2.1.20260506175102] - 2026-05-06 17:51:02
+
+### New
+
+- 反代模式 中新增 **TURN 协议** 代理的功能。[开源引用](https://github.com/ToiCF/CF-Workers-TURN)
+- 反代模式 中新增 **SSTP(SoftEther) 协议** 代理的功能。[开源引用](https://github.com/ToiCF/CF-Workers-SoftEther)
+- 自定义订阅 中新增添加 **链式代理** 节点的功能。
+
 ## [2.1.20260503011925] - 2026-05-03 01:19:25
 
 ### Change
@@ -21,7 +29,7 @@
 ### New
 
 - Trojan 协议现已支持通过 UDP Over TCP 方式进行 DNS 查询。
-- 反向代理模式中新增 **HTTPS 代理** 功能支持。[参考链接](https://github.com/ToiCF/CF-Workers-HTTPS)
+- 反向代理模式中新增 **HTTPS 代理** 功能。[开源引用](https://github.com/ToiCF/CF-Workers-HTTPS)
 
 ## [2.1.20260413174651] - 2026-04-13 17:46:51
 

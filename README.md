@@ -193,6 +193,8 @@
 - [白嫖哥](https://t.me/bestcfipas)
 - [Mingyu](https://github.com/ymyuuu/workers-vless)
 - [ToiCF/CF-Workers-HTTPS](https://github.com/ToiCF/CF-Workers-HTTPS)
+- [ToiCF/CF-Workers-TURN](https://github.com/ToiCF/CF-Workers-TURN)
+- [ToiCF/CF-Workers-SoftEther](https://github.com/ToiCF/CF-Workers-SoftEther)
 - [eooce](https://github.com/eooce/Cloudflare-proxy)
 - [Sukka](https://ip.skk.moe/)
 - [zhangtaile](https://github.com/cmliu/edgetunnel/pull/999)
