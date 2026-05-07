@@ -1,4 +1,4 @@
-﻿const Version = '2026-05-06 17:51:02';
+﻿const Version = '2026-05-08 04:15:13';
 /*In our project workflow, we first*/ import //the necessary modules, 
 /*then*/ { connect }//to the central server, 
 /*and all data flows*/ from//this single source.
@@ -5210,7 +5210,7 @@ async function 解析地址端口(proxyIP, 目标域名 = 'dash.cloudflare.com',
 				const parts = str.split(']:');
 				地址 = parts[0] + ']';
 				端口 = parseInt(parts[1], 10) || 端口;
-			} else if (str.includes(':') && !str.startsWith('[')) {
+			} else if ((str.match(/:/g) || []).length === 1 && !str.startsWith('[')) {
 				const colonIndex = str.lastIndexOf(':');
 				地址 = str.slice(0, colonIndex);
 				端口 = parseInt(str.slice(colonIndex + 1), 10) || 端口;
@@ -5218,72 +5218,62 @@ async function 解析地址端口(proxyIP, 目标域名 = 'dash.cloudflare.com',
 			return [地址, 端口];
 		}
 
+		function 解析TXT反代记录(txtData) {
+			return txtData.flatMap(data => {
+				if (data.startsWith('"') && data.endsWith('"')) data = data.slice(1, -1);
+				return data.replace(/\\010/g, ',').replace(/\n/g, ',').split(',').map(s => s.trim()).filter(Boolean);
+			}).map(prefix => 解析地址端口字符串(prefix));
+		}
+
 		const 反代IP数组 = await 整理成数组(proxyIP);
 		let 所有反代数组 = [];
+		const ipv4Regex = /^(25[0-5]|2[0-4]\d|[01]?\d\d?)\.(25[0-5]|2[0-4]\d|[01]?\d\d?)\.(25[0-5]|2[0-4]\d|[01]?\d\d?)\.(25[0-5]|2[0-4]\d|[01]?\d\d?)$/;
+		const ipv6Regex = /^\[?(?:[a-fA-F0-9]{0,4}:){1,7}[a-fA-F0-9]{0,4}\]?$/;
 
 		// 遍历数组中的每个IP元素进行处理
 		for (const singleProxyIP of 反代IP数组) {
-			if (singleProxyIP.includes('.william')) {
-				try {
-					let txtRecords = await DoH查询(singleProxyIP, 'TXT');
-					let txtData = txtRecords.filter(r => r.type === 16).map(r => /** @type {string} */(r.data));
-					if (txtData.length === 0) {
-						log(`[反代解析] 默认DoH未获取到TXT记录，切换Google DoH重试 ${singleProxyIP}`);
-						txtRecords = await DoH查询(singleProxyIP, 'TXT', 'https://dns.google/dns-query');
-						txtData = txtRecords.filter(r => r.type === 16).map(r => /** @type {string} */(r.data));
-					}
-					if (txtData.length > 0) {
-						let data = txtData[0];
-						if (data.startsWith('"') && data.endsWith('"')) data = data.slice(1, -1);
-						const prefixes = data.replace(/\\010/g, ',').replace(/\n/g, ',').split(',').map(s => s.trim()).filter(Boolean);
-						所有反代数组.push(...prefixes.map(prefix => 解析地址端口字符串(prefix)));
-					}
-				} catch (error) {
-					console.error('解析William域名失败:', error);
-				}
+			let [地址, 端口] = 解析地址端口字符串(singleProxyIP);
+
+			if (singleProxyIP.includes('.tp')) {
+				const tpMatch = singleProxyIP.match(/\.tp(\d+)/);
+				if (tpMatch) 端口 = parseInt(tpMatch[1], 10);
+			}
+
+			// 判断是否是域名（非IP地址）
+			if (ipv4Regex.test(地址) || ipv6Regex.test(地址)) {
+				log(`[反代解析] ${地址} 为IP地址，直接使用`);
+				所有反代数组.push([地址, 端口]);
+				continue;
+			}
+
+			const [txtRecords, aRecords] = await Promise.all([
+				DoH查询(地址, 'TXT'),
+				DoH查询(地址, 'A')
+			]);
+
+			const txtData = txtRecords.filter(r => r.type === 16).map(r => (r.data));
+			const txtAddresses = 解析TXT反代记录(txtData);
+			if (txtAddresses.length > 0) {
+				log(`[反代解析] ${地址} 使用TXT记录，共${txtAddresses.length}个结果`);
+				所有反代数组.push(...txtAddresses);
+				continue;
+			}
+
+			const ipv4List = aRecords.filter(r => r.type === 1).map(r => r.data);
+			if (ipv4List.length > 0) {
+				log(`[反代解析] ${地址} 未获取到TXT记录，使用A记录，共${ipv4List.length}个结果`);
+				所有反代数组.push(...ipv4List.map(ip => [ip, 端口]));
+				continue;
+			}
+
+			const aaaaRecords = await DoH查询(地址, 'AAAA');
+			const ipv6List = aaaaRecords.filter(r => r.type === 28).map(r => `[${r.data}]`);
+			if (ipv6List.length > 0) {
+				log(`[反代解析] ${地址} 未获取到TXT和A记录，使用AAAA记录，共${ipv6List.length}个结果`);
+				所有反代数组.push(...ipv6List.map(ip => [ip, 端口]));
 			} else {
-				let [地址, 端口] = 解析地址端口字符串(singleProxyIP);
-
-				if (singleProxyIP.includes('.tp')) {
-					const tpMatch = singleProxyIP.match(/\.tp(\d+)/);
-					if (tpMatch) 端口 = parseInt(tpMatch[1], 10);
-				}
-
-				// 判断是否是域名（非IP地址）
-				const ipv4Regex = /^(25[0-5]|2[0-4]\d|[01]?\d\d?)\.(25[0-5]|2[0-4]\d|[01]?\d\d?)\.(25[0-5]|2[0-4]\d|[01]?\d\d?)\.(25[0-5]|2[0-4]\d|[01]?\d\d?)$/;
-				const ipv6Regex = /^\[?([a-fA-F0-9:]+)\]?$/;
-
-				if (!ipv4Regex.test(地址) && !ipv6Regex.test(地址)) {
-					// 并行查询 A 和 AAAA 记录
-					let [aRecords, aaaaRecords] = await Promise.all([
-						DoH查询(地址, 'A'),
-						DoH查询(地址, 'AAAA')
-					]);
-
-					let ipv4List = aRecords.filter(r => r.type === 1).map(r => r.data);
-					let ipv6List = aaaaRecords.filter(r => r.type === 28).map(r => `[${r.data}]`);
-					let ipAddresses = [...ipv4List, ...ipv6List];
-
-					// 默认DoH无结果时，切换Google DoH重试
-					if (ipAddresses.length === 0) {
-						log(`[反代解析] 默认DoH未获取到解析结果，切换Google DoH重试 ${地址}`);
-						[aRecords, aaaaRecords] = await Promise.all([
-							DoH查询(地址, 'A', 'https://dns.google/dns-query'),
-							DoH查询(地址, 'AAAA', 'https://dns.google/dns-query')
-						]);
-						ipv4List = aRecords.filter(r => r.type === 1).map(r => r.data);
-						ipv6List = aaaaRecords.filter(r => r.type === 28).map(r => `[${r.data}]`);
-						ipAddresses = [...ipv4List, ...ipv6List];
-					}
-
-					if (ipAddresses.length > 0) {
-						所有反代数组.push(...ipAddresses.map(ip => [ip, 端口]));
-					} else {
-						所有反代数组.push([地址, 端口]);
-					}
-				} else {
-					所有反代数组.push([地址, 端口]);
-				}
+				log(`[反代解析] ${地址} 未获取到TXT、A和AAAA记录，保留原域名`);
+				所有反代数组.push([地址, 端口]);
 			}
 		}
 		const 排序后数组 = 所有反代数组.sort((a, b) => a[0].localeCompare(b[0]));
