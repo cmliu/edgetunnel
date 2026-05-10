@@ -1,4 +1,4 @@
-﻿const Version = '2026-05-08 19:07:28';
+﻿const Version = '2026-05-11 04:17:05';
 /*In our project workflow, we first*/ import //the necessary modules, 
 /*then*/ { connect }//to the central server, 
 /*and all data flows*/ from//this single source.
@@ -70,7 +70,7 @@ export default {
 						const formData = await request.text();
 						const params = new URLSearchParams(formData);
 						const 输入密码 = params.get('password');
-						if (输入密码 === 管理员密码) {
+						if (输入密码 === (typeof 管理员密码 === 'string' ? 管理员密码.replace(/[\r\n]/g, '') : 管理员密码)) {
 							// 密码正确，设置cookie并返回成功标记
 							const 响应 = new Response(JSON.stringify({ success: true }), { status: 200, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
 							响应.headers.set('Set-Cookie', `auth=${await MD5MD5(UA + 加密秘钥 + 管理员密码)}; Path=/; Max-Age=86400; HttpOnly; Secure; SameSite=Strict`);
@@ -290,24 +290,18 @@ export default {
 						if (作为优选订阅生成器) ctx.waitUntil(请求日志记录(env, request, 访问IP, 'Get_Best_SUB', config_JSON, false));
 						else ctx.waitUntil(请求日志记录(env, request, 访问IP, 'Get_SUB', config_JSON));
 						const ua = UA.toLowerCase();
-						const expire = 4102329600;//2099-12-31 到期时间
-						const now = Date.now();
-						const today = new Date(now);
-						today.setHours(0, 0, 0, 0);
-						const UD = Math.floor(((now - today.getTime()) / 86400000) * 24 * 1099511627776 / 2);
-						let pagesSum = UD, workersSum = UD, total = 24 * 1099511627776;
-						if (config_JSON.CF.Usage.success) {
-							pagesSum = config_JSON.CF.Usage.pages;
-							workersSum = config_JSON.CF.Usage.workers;
-							total = Number.isFinite(config_JSON.CF.Usage.max) ? (config_JSON.CF.Usage.max / 1000) * 1024 : 1024 * 100;
-						}
 						const responseHeaders = {
 							"content-type": "text/plain; charset=utf-8",
 							"Profile-Update-Interval": config_JSON.优选订阅生成.SUBUpdateTime,
 							"Profile-web-page-url": url.protocol + '//' + url.host + '/admin',
-							"Subscription-Userinfo": `upload=${pagesSum}; download=${workersSum}; total=${total}; expire=${expire}`,
 							"Cache-Control": "no-store",
 						};
+						if (config_JSON.CF.Usage.success) {
+							const pagesSum = config_JSON.CF.Usage.pages;
+							const workersSum = config_JSON.CF.Usage.workers;
+							const total = Number.isFinite(config_JSON.CF.Usage.max) ? (config_JSON.CF.Usage.max / 1000) * 1024 : 1024 * 100;
+							responseHeaders["Subscription-Userinfo"] = `upload=${pagesSum}; download=${workersSum}; total=${total}; expire=4102329600`; // 2099-12-31 到期时间
+						}
 						const isSubConverterRequest = url.searchParams.has('b64') || url.searchParams.has('base64') || request.headers.get('subconverter-request') || request.headers.get('subconverter-version') || ua.includes('subconverter') || ua.includes(('CF-Workers-SUB').toLowerCase()) || 作为优选订阅生成器;
 						const 订阅类型 = isSubConverterRequest
 							? 'mixed'
