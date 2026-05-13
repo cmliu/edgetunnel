@@ -17,12 +17,12 @@ jobs:
     steps:
       # Step 1: run a standard checkout action
       - name: Checkout target repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v6
 
       # Step 2: run the sync action
       - name: Sync upstream changes
         id: sync
-        uses: aormsby/Fork-Sync-With-Upstream-action@v3.4
+        uses: aormsby/fork-sync-with-upstream-action@v3.4.3
         with:
           upstream_sync_repo: cmliu/edgetunnel
           upstream_sync_branch: main
