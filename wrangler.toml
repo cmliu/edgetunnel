@@ -5,4 +5,4 @@ keep_vars = true
 
 #[[kv_namespaces]]
 #binding = "pages-github"			#KV绑定名默认不可修改
-#id = ""				#KV数据库id
+#id = "d529042a06314516af8ec117f6e2f3da"				#KV数据库id
