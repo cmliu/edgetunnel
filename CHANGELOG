@@ -1,3 +1,21 @@
+## [2.1.20260515185129] - 2026-05-15 18:51:29
+
+### Change
+
+- 优化 **Shadowsocks 订阅**：关闭 TLS 时会自动将优选端口重写为 noTLS 端口。（但是该功能不适用于反代IP）
+- 优化 **GO2SOCKS5** 变量：从覆盖模式改为追加模式。[PR #1202](https://github.com/cmliu/edgetunnel/pull/1202)
+
+## [2.1.20260513042803] - 2026-05-13 04:28:03
+
+### Change
+
+- 优化 **VLESS** 热路径：UUID 预解码为 16 字节直接比较，首包解析改为偏移和 `subarray()` 少拷贝处理。[开源引用](https://github.com/ToiCF/GrainTCP)
+- 优化 **WS Early Data**：增加 8KB 上限保护，并避免普通 WebSocket 子协议被误当作 early data 注入首包。[开源引用](https://github.com/ToiCF/GrainTCP)
+- 优化 **WS/XHTTP/gRPC** 上行链路：新增有界队列、小包合并和 256KB 背压保护，减少高频小包写入次数并防止队列无限增长。[开源引用](https://github.com/ToiCF/GrainTCP)
+- 优化 下行 **Grain** 发送流程：小包使用 microtask 和短静默窗口聚合，大包在 BYOB 路径中先刷新聚合器后直接发送，减少复制和 WebSocket frame 数量。[开源引用](https://github.com/ToiCF/GrainTCP)
+- 优化 TCP 建连流程：直连和 proxyip 反代候选启用 4 路并发拨号抢首个成功连接，SOCKS/HTTP/HTTPS/TURN/SSTP 代理链路保持原握手逻辑。[开源引用](https://github.com/ToiCF/GrainTCP)
+- 优化 WebSocket 握手和 WS 主链路传输：`allowHalfOpen` 增加异常回退，101 响应清空 `Sec-WebSocket-Extensions`，WS 主链路改用显式顺序队列处理。[开源引用](https://github.com/ToiCF/GrainTCP)
+
 ## [2.1.20260511041705] - 2026-05-11 04:17:05
 
 ### Change
