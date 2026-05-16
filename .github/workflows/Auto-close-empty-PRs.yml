@@ -1,0 +1,61 @@
+name: Auto-close empty PRs
+
+permissions:
+  issues: write
+  pull-requests: write
+
+on:
+  pull_request_target:
+    # 只在新建、重新打开、草稿转正式时检查 PR 说明
+    types:
+      - opened
+      - reopened
+      - ready_for_review
+
+jobs:
+  check-pr:
+    name: Close PRs with empty or short descriptions
+    runs-on: ubuntu-latest
+    # 草稿 PR 先不处理，等作者准备好再检查
+    if: ${{ !github.event.pull_request.draft }}
+
+    steps:
+      - name: Close PR when description is empty or too short
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+
+            // 去掉空白和 HTML 注释，避免“看起来写了，实际上没写内容”
+            const description = (pr.body || '')
+              .replace(/<!--[\s\S]*?-->/g, ' ')
+              .replace(/\s+/g, ' ')
+              .trim();
+
+            const descriptionLength = Array.from(description).length;
+            core.info(`Description length: ${descriptionLength}`);
+
+            // 说明超过 8 个字符，就视为已经写了基本内容
+            if (descriptionLength > 8) {
+              core.info('Description is long enough. No action needed.');
+              return;
+            }
+
+            // 说明为空或太短，先留言提醒，再自动关闭 PR
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: pr.number,
+              body: [
+                '🤖 这个 PR 因为说明为空，或说明过短，已被自动关闭。',
+                '',
+                '请补充这次改了什么、为什么要改，再重新提交 PR。',
+              ].join('\n'),
+            });
+
+            await github.rest.pulls.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pr.number,
+              state: 'closed',
+            });
