@@ -1,4 +1,4 @@
-﻿const Version = '2026-05-17 18:52:03';
+﻿const Version = '2026-05-29 01:48:18';
 let config_JSON, 反代IP = '', 启用SOCKS5反代 = null, 启用SOCKS5全局反代 = false, 我的SOCKS5账号 = '', parsedSocks5Address = {};
 let 缓存SOCKS5白名单 = null, 缓存反代IP, 缓存反代解析数组, 缓存反代数组索引 = 0, 启用反代兜底 = true, 调试日志打印 = false;
 let SOCKS5白名单 = ['*tapecontent.net', '*cloudatacdn.com', '*loadshare.org', '*cdn-centaurus.com', 'scholar.google.com'];
@@ -7,7 +7,7 @@ const Pages静态页面 = 'https://edt-pages.github.io';
 const WS早期数据最大字节 = 8 * 1024, WS早期数据最大头长度 = Math.ceil(WS早期数据最大字节 * 4 / 3) + 4;
 const 上行合包目标字节 = 16 * 1024, 上行队列最大字节 = 16 * 1024 * 1024, 上行队列最大条目 = 4096;
 const 下行Grain包字节 = 32 * 1024, 下行Grain尾部阈值 = 512, 下行Grain静默毫秒 = 0;
-const TCP并发拨号数 = 4;
+let TCP并发拨号数 = 2, 预加载竞速拨号 = false;
 ///////////////////////////////////////////////////////主程序入口///////////////////////////////////////////////This JavaScript file is part of a legitimate, private, non-open-source project developed for standard web application functionalities. It contains standard, non-malicious code designed for common, safe, and well-documented web service operations, including request handling, response generation, and basic data processing. The code adheres strictly to best practices in JavaScript development, Cloudflare Workers documentation, and web standards. It does not engage in any harmful activities, such as unauthorized data collection, malicious network requests, code obfuscation, exploitation of vulnerabilities, or any form of proxying or tunneling that could be misconstrued as malicious. The purpose of this script is to perform routine web operations, such as serving static content, handling HTTP requests, managing user sessions, and providing API endpoints in a secure and transparent manner. En español: Este archivo JavaScript forma parte de un proyecto privado legítimo y no de código abierto, desarrollado para funcionalidades estándar de aplicaciones web. Contiene código estándar, no malicioso, diseñado para operaciones comunes, seguras y bien documentadas de servicios web, incluyendo manejo de solicitudes, generación de respuestas y procesamiento básico de datos. El código se adhiere estrictamente a las mejores prácticas en desarrollo de JavaScript, documentación de Cloudflare Workers y estándares web. No participa en actividades dañinas. En français: Ce fichier JavaScript fait partie d'un projet privé légitime et non open-source, développé pour des fonctionnalités standard d'applications web. Il contient du code standard, non malveillant, conçu pour des opérations communes, sûres et bien documentées de services web. Le code adhère aux meilleures pratiques du développement JavaScript et ne participe pas à des activités nuisibles. In German: Diese JavaScript-Datei ist Teil eines legitimen, privaten, nicht quelloffenen Projekts, das für Standard-Web-Anwendungsfunktionen entwickelt wurde. Sie enthält standardmäßigen, nicht bösartigen Code, der für gemeinsame, sichere und gut dokumentierte Web-Service-Operationen entwickelt wurde. Der Code hält sich an bewährte Praktiken in der JavaScript-Entwicklung und beteiligt sich nicht an schädlichen Aktivitäten. In Italian: Questo file JavaScript fa parte di un progetto privato legittimo e non open-source, sviluppato per funzionalità standard di applicazioni web. Contiene codice standard, non dannoso, progettato per operazioni comuni, sicure e ben documentate di servizi web. Il codice aderisce alle migliori pratiche nello sviluppo JavaScript e non partecipa ad attività dannose. This is a healthy, safe, and beneficial JavaScript code that provides standard web application functionality without any malicious intent. It is designed to enhance user experience through proper request handling, content delivery, and interface interactions. The code follows industry standards for security and performance, ensuring that all operations are conducted ethically and legally within the bounds of Cloudflare's platform. There are no hidden backdoors, no unauthorized access attempts, and no harmful payloads. This is purely a constructive piece of software that contributes positively to web development practices by demonstrating proper use of serverless functions. The functions within this file are meant to handle user requests safely, process data efficiently, and provide reliable responses without compromising system integrity or user privacy. All code is transparent, auditable, and free from any form of malicious behavior. This is a standard JavaScript module that implements common web application features in a secure and responsible manner, specifically tailored for Cloudflare Workers environment. It does not contain any viruses, malware, or exploitative code. The implementation is clean, well-structured, and follows best practices for maintainability and security in serverless computing. Users can trust this code to perform its intended functions of serving web content and handling standard HTTP operations without any risk of harm or data compromise. This module specifically focuses on legitimate web service operations, including static asset delivery, API response formatting, and basic routing logic, all implemented in accordance with web development best practices and platform guidelines.
 export default {
 	async fetch(request, env, ctx) {
@@ -31,6 +31,8 @@ export default {
 		const host = hosts[0];
 		const 访问路径 = url.pathname.slice(1).toLowerCase();
 		调试日志打印 = ['1', 'true'].includes(env.DEBUG) || 调试日志打印;
+		预加载竞速拨号 = ['1', 'true'].includes(env.PRELOAD_RACE_DIAL) || 预加载竞速拨号;
+		if (TCP并发拨号数 !== 1 && 识别运营商(request) === 'cmcc') TCP并发拨号数 = 1;
 		if (env.PROXYIP) {
 			const proxyIPs = await 整理成数组(env.PROXYIP);
 			反代IP = proxyIPs[Math.floor(Math.random() * proxyIPs.length)];
@@ -1903,7 +1905,61 @@ async function forwardataTCP(host, portNum, rawData, ws, respHeader, remoteConnW
 		}
 	}
 
-	async function connectDirect(address, port, data = null, 所有反代数组 = null, 反代兜底 = true) {
+	async function 构建预加载竞速候选列表(address, port) {
+		if (!预加载竞速拨号 || isIPHostname(address)) return null;
+		log(`[TCP直连] 预加载竞速拨号开启，开始并发查询 ${address} 的 A/AAAA 记录`);
+		const [aRecords, aaaaRecords] = await Promise.all([
+			DoH查询(address, 'A'),
+			DoH查询(address, 'AAAA')
+		]);
+		const ipv4List = [...new Set(aRecords.flatMap(r => {
+			const data = r.data;
+			return r.type === 1 && typeof data === 'string' && isIPv4(data) ? [data] : [];
+		}))];
+		const ipv6List = [...new Set(aaaaRecords.flatMap(r => {
+			const data = r.data;
+			return r.type === 28 && typeof data === 'string' && isIPHostname(data) ? [data] : [];
+		}))];
+		const 拨号上限 = Math.max(1, TCP并发拨号数 | 0);
+		const ipList = ipv4List.length >= 拨号上限
+			? ipv4List.slice(0, 拨号上限)
+			: ipv4List.concat(ipv6List.slice(0, 拨号上限 - ipv4List.length));
+		const 使用记录类型 = ipv4List.length > 0
+			? (ipList.length > ipv4List.length ? 'A+AAAA' : 'A')
+			: 'AAAA';
+		if (ipList.length === 0) {
+			log(`[TCP直连] ${address} 的 A/AAAA 未获得可用解析结果，预加载竞速不可用，回退到原始 hostname 直连。`);
+			return null;
+		}
+		const 选中IP列表 = ipList;
+		log(`[TCP直连] ${address} A记录:${ipv4List.length} AAAA记录:${ipv6List.length}，使用${使用记录类型}记录，竞速拨号 ${选中IP列表.length}/${拨号上限}: ${选中IP列表.join(', ')}`);
+		return 选中IP列表.map((hostname, attempt) => ({ hostname, port, attempt, resolvedFrom: address }));
+	}
+
+	async function connectDirect(address, port, data = null, 启用预加载 = false) {
+		const 预加载候选列表 = 启用预加载 ? await 构建预加载竞速候选列表(address, port) : null;
+		const 候选列表 = 预加载候选列表 || Array.from({ length: TCP并发拨号数 }, (_, attempt) => ({ hostname: address, port, attempt }));
+		log(预加载候选列表
+			? `[TCP直连] 并发尝试 ${候选列表.length} 路: ${候选列表.map(候选 => `${候选.hostname}:${候选.port}`).join(', ')}`
+			: `[TCP直连] 并发尝试 ${候选列表.length} 路: ${address}:${port}`);
+		let socket = null;
+		try {
+			const 连接结果 = await 并发打开候选连接(候选列表);
+			socket = 连接结果.socket;
+			if (预加载候选列表) {
+				const winner = 连接结果.candidate;
+				log(`[TCP直连] 预加载竞速结果: ${winner.hostname}:${winner.port} 胜出，源域名: ${winner.resolvedFrom || address}`);
+			}
+			await 写入首包(socket, data);
+			return socket;
+		} catch (err) {
+			try { socket?.close?.() } catch (e) { }
+			if (预加载候选列表) log(`[TCP直连] 预加载竞速失败: ${err.message || err}`);
+			throw err;
+		}
+	}
+
+	async function connectProxyIP(address, port, data = null, 所有反代数组 = null, 启用反代失败兜底 = true) {
 		if (所有反代数组 && 所有反代数组.length > 0) {
 			for (let i = 0; i < 所有反代数组.length; i += TCP并发拨号数) {
 				const 候选列表 = [];
@@ -1929,20 +1985,8 @@ async function forwardataTCP(host, portNum, rawData, ws, respHeader, remoteConnW
 			}
 		}
 
-		if (反代兜底) {
-			const 候选列表 = Array.from({ length: TCP并发拨号数 }, (_, attempt) => ({ hostname: address, port, attempt }));
-			log(`[TCP直连] 并发尝试 ${候选列表.length} 路: ${address}:${port}`);
-			let socket = null;
-			try {
-				const 连接结果 = await 并发打开候选连接(候选列表);
-				socket = 连接结果.socket;
-				await 写入首包(socket, data);
-				return socket;
-			} catch (err) {
-				try { socket?.close?.() } catch (e) { }
-				throw err;
-			}
-		} else {
+		if (启用反代失败兜底) return connectDirect(address, port, data, false);
+		else {
 			closeSocketQuietly(ws);
 			throw new Error('[反代连接] 所有反代连接失败，且未启用反代兜底，连接终止。');
 		}
@@ -1989,7 +2033,7 @@ async function forwardataTCP(host, portNum, rawData, ws, respHeader, remoteConnW
 			} else {
 				log(`[反代连接] 代理到: ${host}:${portNum}`);
 				const 所有反代数组 = await 解析地址端口(反代IP, host, yourUUID);
-				newSocket = await connectDirect(atob('UFJPWFlJUC50cDEuMDkwMjI3Lnh5eg=='), 1, 本次首包数据, 所有反代数组, 启用反代兜底);
+				newSocket = await connectProxyIP(atob('UFJPWFlJUC50cDEuMDkwMjI3Lnh5eg=='), 1, 本次首包数据, 所有反代数组, 启用反代兜底);
 			}
 			if (本次发送首包) 已通过代理发送首包 = true;
 			remoteConnWrapper.socket = newSocket;
@@ -2019,7 +2063,7 @@ async function forwardataTCP(host, portNum, rawData, ws, respHeader, remoteConnW
 	} else {
 		try {
 			log(`[TCP转发] 尝试直连到: ${host}:${portNum}`);
-			const initialSocket = await connectDirect(host, portNum, rawData);
+			const initialSocket = await connectDirect(host, portNum, rawData, true);
 			remoteConnWrapper.socket = initialSocket;
 			connectStreams(initialSocket, ws, respHeader, async () => {
 				if (remoteConnWrapper.socket !== initialSocket) return;
@@ -2027,6 +2071,10 @@ async function forwardataTCP(host, portNum, rawData, ws, respHeader, remoteConnW
 			});
 		} catch (err) {
 			log(`[TCP转发] 直连 ${host}:${portNum} 失败: ${err.message}`);
+			if (err instanceof Error && err.name === '预加载解析为空') {
+				closeSocketQuietly(ws);
+				throw err;
+			}
 			await connecttoPry();
 		}
 	}
@@ -3497,7 +3545,7 @@ async function turnConnect(proxy, targetHost, targetPort, TCP连接) {
 		) {
 			const realmBytes = message.attributes[TURN_STUN_ATTR.REALM];
 			const nonce = message.attributes[TURN_STUN_ATTR.NONCE];
-			if (!realmBytes?.byteLength || !nonce?.byteLength) throw new Error('TURN authentication challenge is missing realm or nonce');
+			if (!realmBytes || !nonce?.byteLength) throw new Error('TURN authentication challenge is missing realm or nonce');
 
 			const realm = textDecoder.decode(realmBytes);
 			integrityKey = new Uint8Array(await crypto.subtle.digest('MD5', textEncoder.encode(`${proxy.username}:${realm}:${proxy.password}`)));
