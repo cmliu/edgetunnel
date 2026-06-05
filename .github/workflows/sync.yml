@@ -5,8 +5,8 @@ permissions:
 
 on:
   schedule:
-    - cron: "0 0 * * *" # 每天凌晨自动去检查作者有没有更新
-  workflow_dispatch: # 支持你随时进网页手动点按钮更新
+    - cron: "0 0 * * *"
+  workflow_dispatch: # 支持你手动点按钮强行混淆
 
 jobs:
   sync_and_obfuscate:
@@ -18,7 +18,7 @@ jobs:
       - name: Checkout target repo
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # 完整历史
+          fetch-depth: 0 
           token: ${{ secrets.MY_PERSONAL_TOKEN }}
 
       - name: Sync upstream changes
@@ -31,27 +31,24 @@ jobs:
           target_repo_token: ${{ secrets.MY_PERSONAL_TOKEN }}
           test_mode: false
 
-      # 检查有没有新代码拉下来。如果没有，下面三步会自动跳过，省时省力
       - name: Set up Node.js
-        if: steps.sync.outputs.has_new_commits == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
       - name: Install JavaScript Obfuscator
-        if: steps.sync.outputs.has_new_commits == 'true'
         run: npm install -g javascript-obfuscator
 
+      # 💥 强行混淆：去掉了 if 限制，只要运行就必须搅碎代码
       - name: Obfuscate Code
-        if: steps.sync.outputs.has_new_commits == 'true'
         run: |
           javascript-obfuscator _worker.js --output _worker.js --compact true --simplify true --target node --control-flow-flattening 0 --string-array true --string-array-encoding 'hex'
 
+      # 💥 强行推送：不管代码有没有变，都强制覆盖提交，震醒 Cloudflare
       - name: Commit Obfuscated Code
-        if: steps.sync.outputs.has_new_commits == 'true'
         run: |
           git config --global user.name "GitHub Actions"
           git config --global user.email "actions@github.com"
           git add _worker.js
-          git commit -m "🤖 检测到上游更新：自动拉取并完成独立高强度混淆"
+          git diff-index --quiet HEAD || git commit -m "🤖 独立高强度混淆覆盖更新"
           git push https://${{ secrets.MY_PERSONAL_TOKEN }}@github.com/${{ github.repository }}.git main --force
