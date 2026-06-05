@@ -6,7 +6,7 @@ permissions:
 on:
   schedule:
     - cron: "0 0 * * *"
-  workflow_dispatch: # 支持手动强行混淆
+  workflow_dispatch:
 
 jobs:
   sync_and_obfuscate:
@@ -18,7 +18,7 @@ jobs:
       - name: Checkout target repo
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 
+          fetch-depth: 0
           token: ${{ secrets.MY_PERSONAL_TOKEN }}
 
       - name: Sync upstream changes
@@ -39,9 +39,13 @@ jobs:
       - name: Install JavaScript Obfuscator
         run: npm install -g javascript-obfuscator
 
-      # 🟢 修正参数：把原本不支持的 'hex' 一键修正为合法的 'base64' 
       - name: Obfuscate Code
-        run: |
-          javascript-obfuscator _worker.js --output _worker.js --compact true --simplify true --target node --control-flow-flattening 0 --string-array true --string-array-encoding 'base64'
+        run: javascript-obfuscator _worker.js --output _worker.js --compact true --simplify true --target node --control-flow-flattening 0 --string-array true --string-array-encoding 'base64'
 
-      - name: Commit
+      - name: Commit Obfuscated Code
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+          git add _worker.js
+          git diff-index --quiet HEAD || git commit -m "🤖 独立高强度混淆覆盖更新"
+          git push https://${{ secrets.MY_PERSONAL_TOKEN }}@github.com/${{ github.repository }}.git main --force
