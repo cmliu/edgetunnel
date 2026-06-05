@@ -5,8 +5,8 @@ permissions:
 
 on:
   schedule:
-    - cron: "0 0 * * *" # 每天凌晨自动追新并混淆
-  workflow_dispatch: # 支持你随时进网页手动点按钮更新
+    - cron: "0 0 * * *" # 每天凌晨自动去检查作者有没有更新
+  workflow_dispatch: # 支持你随时进网页手动点按钮测试
 
 jobs:
   sync_and_obfuscate:
@@ -15,13 +15,13 @@ jobs:
     if: ${{ github.event.repository.fork }}
 
     steps:
-      # 第一步：把拉取你当前的个人仓库代码到 GitHub 服务器上
+      # 1. 拉取你当前的个人仓库代码
       - name: Checkout target repo
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # 获取完整历史，防止提交冲突
+          fetch-depth: 0
 
-      # 第二步：自动去捞 CMLiu 大佬的最热、最满血新代码
+      # 2. 自动检查并拉取 CMLiu 大佬的仓库是否有更新
       - name: Sync upstream changes
         id: sync
         uses: aormsby/fork-sync-with-upstream-action@v3.4.3
@@ -32,26 +32,36 @@ jobs:
           target_repo_token: ${{ secrets.GITHUB_TOKEN }}
           test_mode: false
 
-      # 第三步：配置 Node.js 环境（这是在 GitHub 虚拟电脑上安装跑混淆器所必须的底座）
+      # 3. 【核心判定】：如果没有新代码拉下来，直接在这里完美结束，不触发混淆
+      - name: Check for new changes
+        id: check_changes
+        run: |
+          git diff-index --quiet HEAD || echo "has_changes=true" >> $GITHUB_OUTPUT
+
+      # 4. 如果有新代码（满足上面的判定），才开始安装 Node 基础环境
       - name: Set up Node.js
+        if: steps.sync.outputs.has_new_commits == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
-      # 第四步：全自动给 GitHub 虚拟电脑安装全球最强的前端混淆工具
+      # 5. 如果有新代码，才安装高强度混淆工具
       - name: Install JavaScript Obfuscator
+        if: steps.sync.outputs.has_new_commits == 'true'
         run: npm install -g javascript-obfuscator
 
-      # 第五步：硬核时刻！用我们测出来的“433M 战神不限速参数”自动给代码套壳搅碎
+      # 6. 如果有新代码，才对最新版的明文进行“战神不限速参数”搅碎混淆
       - name: Obfuscate Code
+        if: steps.sync.outputs.has_new_commits == 'true'
         run: |
           javascript-obfuscator _worker.js --output _worker.js --compact true --simplify true --target node --control-flow-flattening 0 --string-array true --string-array-encoding 'hex'
 
-      # 第六步：把混淆加密后彻底变成乱码的天书代码，自动提交覆盖回你的 GitHub
+      # 7. 把混淆完的天书乱码提交覆盖回你的 GitHub 仓库
       - name: Commit Obfuscated Code
+        if: steps.sync.outputs.has_new_commits == 'true'
         run: |
           git config --global user.name "GitHub Actions"
           git config --global user.email "actions@github.com"
           git add _worker.js
-          git diff-index --quiet HEAD || git commit -m "🤖 自动同步最新源码并完成独立高强度混淆"
+          git commit -m "🤖 检测到上游更新：自动拉取并完成独立高强度混淆"
           git push origin main
