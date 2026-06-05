@@ -15,11 +15,12 @@ jobs:
     if: ${{ github.event.repository.fork }}
 
     steps:
+      # 【第一步：改动在这里！】拉取完整的历史记录，彻底解决 shallow update 报错
       - name: Checkout target repo
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
-          token: ${{ secrets.MY_PERSONAL_TOKEN }} # 使用你的超级特权特许进入
+          fetch-depth: 0 # 0 代表完整抓取历史，专门用来破除浅层克隆限制
+          token: ${{ secrets.MY_PERSONAL_TOKEN }} 
 
       - name: Sync upstream changes
         id: sync
@@ -28,7 +29,7 @@ jobs:
           upstream_sync_repo: cmliu/edgetunnel
           upstream_sync_branch: main
           target_sync_branch: main
-          target_repo_token: ${{ secrets.MY_PERSONAL_TOKEN }} # 强行冲破同步保护
+          target_repo_token: ${{ secrets.MY_PERSONAL_TOKEN }} 
           test_mode: false
 
       - name: Set up Node.js
@@ -50,5 +51,5 @@ jobs:
           git add _worker.js
           git diff-index --quiet HEAD || git commit -m "🤖 自动同步最新源码并完成独立高强度混淆"
           
-          # 用特权 Token 组合成超级 URL，强行突破权限壁垒直接往里砸
+          # 历史记录完整了，带着超级 Token 物理超度一切规则限制
           git push https://${{ secrets.MY_PERSONAL_TOKEN }}@github.com/${{ github.repository }}.git main --force
