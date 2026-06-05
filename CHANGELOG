@@ -1,3 +1,9 @@
+## [2.1.20260601154939] - 2026-06-01 15:49:39
+
+### Change
+
+- 适配 **Xray-core v26.2.6**：TLS 已移除 `allowInsecure` 配置项，Base64 订阅不再输出 **跳过证书验证** 功能；Clash 与 Sing-box 订阅不受影响。[Release](https://github.com/XTLS/Xray-core/releases/tag/v26.2.6)
+
 ## [2.1.20260529014818] - 2026-05-29 01:48:18
 
 ### Change
