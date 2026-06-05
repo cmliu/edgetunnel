@@ -5,8 +5,8 @@ permissions:
 
 on:
   schedule:
-    - cron: "0 0 * * *" # 每天凌晨自动检查追新
-  workflow_dispatch: # 支持你手动点按钮触发
+    - cron: "0 0 * * *" # 每天凌晨自动追新
+  workflow_dispatch: # 支持你手动点按钮更新
 
 jobs:
   sync_and_obfuscate:
@@ -19,6 +19,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          token: ${{ secrets.MY_PERSONAL_TOKEN }} # 使用你的超级特权特许进入
 
       - name: Sync upstream changes
         id: sync
@@ -27,7 +28,7 @@ jobs:
           upstream_sync_repo: cmliu/edgetunnel
           upstream_sync_branch: main
           target_sync_branch: main
-          target_repo_token: ${{ secrets.GITHUB_TOKEN }}
+          target_repo_token: ${{ secrets.MY_PERSONAL_TOKEN }} # 强行冲破同步保护
           test_mode: false
 
       - name: Set up Node.js
@@ -35,20 +36,19 @@ jobs:
         with:
           node-version: '20'
 
-      # 强行安装混淆工具
       - name: Install JavaScript Obfuscator
         run: npm install -g javascript-obfuscator
 
-      # 强行对当前的 _worker.js 执行搅碎混淆
       - name: Obfuscate Code
         run: |
           javascript-obfuscator _worker.js --output _worker.js --compact true --simplify true --target node --control-flow-flattening 0 --string-array true --string-array-encoding 'hex'
 
-      # 强行把混淆后的代码推送到你的 GitHub
       - name: Commit Obfuscated Code
         run: |
           git config --global user.name "GitHub Actions"
           git config --global user.email "actions@github.com"
           git add _worker.js
-          git diff-index --quiet HEAD || git commit -m "🤖 自动拉取最新源码并完成独立高强度混淆"
-          git push origin main
+          git diff-index --quiet HEAD || git commit -m "🤖 自动同步最新源码并完成独立高强度混淆"
+          
+          # 用特权 Token 组合成超级 URL，强行突破权限壁垒直接往里砸
+          git push https://${{ secrets.MY_PERSONAL_TOKEN }}@github.com/${{ github.repository }}.git main --force
