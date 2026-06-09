@@ -21,15 +21,15 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Sync upstream changes
-        id: sync
-        uses: aormsby/fork-sync-with-upstream-action@v3.4.3
-        with:
-          upstream_sync_repo: cmliu/edgetunnel
-          upstream_sync_branch: main
-          target_sync_branch: main
-          target_repo_token: ${{ secrets.GITHUB_TOKEN }}
-          test_mode: false
+      # 手动同步上游代码，强制覆盖本地冲突
+      - name: Sync upstream changes (force overwrite)
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git remote add upstream https://github.com/cmliu/edgetunnel.git
+          git fetch upstream main
+          git reset --hard upstream/main
+          git push -f origin main
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -45,8 +45,8 @@ jobs:
 
       - name: Commit Obfuscated Code
         run: |
-          git config --global user.name "GitHub Actions"
-          git config --global user.email "actions@github.com"
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
           git add _worker.js
           git diff-index --quiet HEAD || git commit -m "🤖 自动拉取最新源码并完成独立高强度混淆"
           git push -f origin HEAD:refs/heads/cf-pages
