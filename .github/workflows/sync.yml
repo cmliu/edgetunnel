@@ -15,21 +15,16 @@ jobs:
     if: ${{ github.event.repository.fork }}
 
     steps:
-      - name: Checkout target repo
+      - name: Checkout cf-pages branch
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          ref: cf-pages
+          fetch-depth: 1
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      # 手动同步上游代码，强制覆盖本地冲突
-      - name: Sync upstream changes (force overwrite)
+      - name: Download _worker.js from upstream
         run: |
-          git config user.name "GitHub Actions"
-          git config user.email "actions@github.com"
-          git remote add upstream https://github.com/cmliu/edgetunnel.git
-          git fetch upstream main
-          git reset --hard upstream/main
-          git push -f origin main
+          curl -L -o _worker.js https://raw.githubusercontent.com/cmliu/edgetunnel/main/_worker.js
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -41,7 +36,7 @@ jobs:
 
       - name: Obfuscate Code
         run: |
-          javascript-obfuscator _worker.js --output _worker.js --compact true --simplify true --target node --control-flow-flattening 0 --string-array true --string-array-encoding 'hex'
+          javascript-obfuscator _worker.js --output _worker.js --compact true --simplify true --target node --control-flow-flattening 0 --string-array true --string-array-encoding 'base64'
 
       - name: Commit Obfuscated Code
         run: |
@@ -49,4 +44,4 @@ jobs:
           git config user.email "actions@github.com"
           git add _worker.js
           git diff-index --quiet HEAD || git commit -m "🤖 自动拉取最新源码并完成独立高强度混淆"
-          git push -f origin HEAD:refs/heads/cf-pages
+          git push -f origin cf-pages
