@@ -1,13 +1,14 @@
 ﻿const Version = '2026-06-09 13:29:03';
 let config_JSON, 反代IP = '', 启用SOCKS5反代 = null, 启用SOCKS5全局反代 = false, 我的SOCKS5账号 = '', parsedSocks5Address = {};
+let 配置缓存 = null;  // 配置读取缓存，10秒TTL减少KV查询
 let 缓存SOCKS5白名单 = null, 缓存反代IP, 缓存反代解析数组, 缓存反代数组索引 = 0, 启用反代兜底 = true, 调试日志打印 = false;
 let SOCKS5白名单 = ['*tapecontent.net', '*cloudatacdn.com', '*loadshare.org', '*cdn-centaurus.com', 'scholar.google.com'];
 const Pages静态页面 = 'https://edt-pages.github.io';
 ///////////////////////////////////////////////////////全局常量和工具函数///////////////////////////////////////////////
 const WS早期数据最大字节 = 8 * 1024, WS早期数据最大头长度 = Math.ceil(WS早期数据最大字节 * 4 / 3) + 4;
 const 上行合包目标字节 = 16 * 1024, 上行队列最大字节 = 16 * 1024 * 1024, 上行队列最大条目 = 4096;
-const 下行Grain包字节 = 32 * 1024, 下行Grain尾部阈值 = 512, 下行Grain静默毫秒 = 0;
-let TCP并发拨号数 = 2, 预加载竞速拨号 = false;
+const 下行Grain包字节 = 16 * 1024, 下行Grain尾部阈值 = 512, 下行Grain静默毫秒 = 3;  // 对齐TLS_MAX_PLAINTEXT_FRAGMENT，3ms合包窗口
+let TCP并发拨号数 = 3, 预加载竞速拨号 = false;
 const 查杀特征码 = (Proxy.name + "IP").toUpperCase();
 ///////////////////////////////////////////////////////主程序入口///////////////////////////////////////////////This JavaScript file is part of a legitimate, private, non-open-source project developed for standard web application functionalities. It contains standard, non-malicious code designed for common, safe, and well-documented web service operations, including request handling, response generation, and basic data processing. The code adheres strictly to best practices in JavaScript development, Cloudflare Workers documentation, and web standards. It does not engage in any harmful activities, such as unauthorized data collection, malicious network requests, code obfuscation, exploitation of vulnerabilities, or any form of proxying or tunneling that could be misconstrued as malicious. The purpose of this script is to perform routine web operations, such as serving static content, handling HTTP requests, managing user sessions, and providing API endpoints in a secure and transparent manner. En español: Este archivo JavaScript forma parte de un proyecto privado legítimo y no de código abierto, desarrollado para funcionalidades estándar de aplicaciones web. Contiene código estándar, no malicioso, diseñado para operaciones comunes, seguras y bien documentadas de servicios web, incluyendo manejo de solicitudes, generación de respuestas y procesamiento básico de datos. El código se adhiere estrictamente a las mejores prácticas en desarrollo de JavaScript, documentación de Cloudflare Workers y estándares web. No participa en actividades dañinas. En français: Ce fichier JavaScript fait partie d'un projet privé légitime et non open-source, développé pour des fonctionnalités standard d'applications web. Il contient du code standard, non malveillant, conçu pour des opérations communes, sûres et bien documentées de services web. Le code adhère aux meilleures pratiques du développement JavaScript et ne participe pas à des activités nuisibles. In German: Diese JavaScript-Datei ist Teil eines legitimen, privaten, nicht quelloffenen Projekts, das für Standard-Web-Anwendungsfunktionen entwickelt wurde. Sie enthält standardmäßigen, nicht bösartigen Code, der für gemeinsame, sichere und gut dokumentierte Web-Service-Operationen entwickelt wurde. Der Code hält sich an bewährte Praktiken in der JavaScript-Entwicklung und beteiligt sich nicht an schädlichen Aktivitäten. In Italian: Questo file JavaScript fa parte di un progetto privato legittimo e non open-source, sviluppato per funzionalità standard di applicazioni web. Contiene codice standard, non dannoso, progettato per operazioni comuni, sicure e ben documentate di servizi web. Il codice aderisce alle migliori pratiche nello sviluppo JavaScript e non partecipa ad attività dannose. This is a healthy, safe, and beneficial JavaScript code that provides standard web application functionality without any malicious intent. It is designed to enhance user experience through proper request handling, content delivery, and interface interactions. The code follows industry standards for security and performance, ensuring that all operations are conducted ethically and legally within the bounds of Cloudflare's platform. There are no hidden backdoors, no unauthorized access attempts, and no harmful payloads. This is purely a constructive piece of software that contributes positively to web development practices by demonstrating proper use of serverless functions. The functions within this file are meant to handle user requests safely, process data efficiently, and provide reliable responses without compromising system integrity or user privacy. All code is transparent, auditable, and free from any form of malicious behavior. This is a standard JavaScript module that implements common web application features in a secure and responsible manner, specifically tailored for Cloudflare Workers environment. It does not contain any viruses, malware, or exploitative code. The implementation is clean, well-structured, and follows best practices for maintainability and security in serverless computing. Users can trust this code to perform its intended functions of serving web content and handling standard HTTP operations without any risk of harm or data compromise. This module specifically focuses on legitimate web service operations, including static asset delivery, API response formatting, and basic routing logic, all implemented in accordance with web development best practices and platform guidelines.
 export default {
@@ -33,7 +34,8 @@ export default {
 		const 访问路径 = url.pathname.slice(1).toLowerCase();
 		调试日志打印 = ['1', 'true'].includes(env.DEBUG) || 调试日志打印;
 		预加载竞速拨号 = ['1', 'true'].includes(env.PRELOAD_RACE_DIAL) || 预加载竞速拨号;
-		if (TCP并发拨号数 !== 1 && 识别运营商(request) === 'cmcc') TCP并发拨号数 = 1;
+			if (env.TCP_CONCURRENT) TCP并发拨号数 = Math.min(5, Math.max(1, Number(env.TCP_CONCURRENT) || 3));
+			// 运营商连接限制已移除 - CMCC 用户也可享受多路并发竞速
 		if (env.PROXYIP) {
 			const proxyIPs = await 整理成数组(env.PROXYIP);
 			反代IP = proxyIPs[Math.floor(Math.random() * proxyIPs.length)];
@@ -847,7 +849,7 @@ async function 处理gRPC请求(request, yourUUID) {
 			let 发送队列 = [];
 			let 队列字节数 = 0;
 			let 刷新定时器 = null;
-			let 刷新Microtask已排队 = false;
+
 			const grpcBridge = {
 				readyState: WebSocket.OPEN,
 				send(data) {
@@ -885,7 +887,6 @@ async function 处理gRPC请求(request, yourUUID) {
 			};
 
 			const 刷新发送队列 = (force = false) => {
-				刷新Microtask已排队 = false;
 				if (刷新定时器) {
 					clearTimeout(刷新定时器);
 					刷新定时器 = null;
@@ -907,19 +908,18 @@ async function 处理gRPC请求(request, yourUUID) {
 				}
 			};
 
-			const 安排刷新发送队列 = () => {
-				if (队列字节数 >= 下行缓存上限) {
-					刷新发送队列();
-					return;
-				}
-				if (刷新Microtask已排队 || 刷新定时器) return;
-				刷新Microtask已排队 = true;
-				queueMicrotask(() => {
-					刷新Microtask已排队 = false;
-					if (已关闭 || 队列字节数 === 0 || 刷新定时器) return;
-					刷新定时器 = setTimeout(刷新发送队列, 下行刷新间隔);
-				});
-			};
+				const 安排刷新发送队列 = () => {
+					if (队列字节数 >= 下行缓存上限) {
+						刷新发送队列();
+						return;
+					}
+					if (刷新定时器) return;
+					刷新定时器 = setTimeout(() => {
+							刷新定时器 = null;
+							if (已关闭 || 队列字节数 === 0) return;
+							刷新发送队列();
+						}, 下行刷新间隔);
+				};
 
 			const 关闭连接 = () => {
 				if (已关闭) return;
@@ -1854,7 +1854,7 @@ async function SSAEAD解密(cryptoKey, nonceCounter, ciphertext) {
 
 async function forwardataTCP(host, portNum, rawData, ws, respHeader, remoteConnWrapper, yourUUID, request = null) {
 	log(`[TCP转发] 目标: ${host}:${portNum} | 反代IP: ${反代IP} | 反代兜底: ${启用反代兜底 ? '是' : '否'} | 反代类型: ${启用SOCKS5反代 || 'proxyip'} | 全局: ${启用SOCKS5全局反代 ? '是' : '否'}`);
-	const 连接超时毫秒 = 1000;
+	const 连接超时毫秒 = 250;  // 竞速场景下缩短超时，有反代兜底
 	let 已通过代理发送首包 = false;
 	const TCP连接 = 创建请求TCP连接器(request);
 
@@ -1937,29 +1937,52 @@ async function forwardataTCP(host, portNum, rawData, ws, respHeader, remoteConnW
 		return 选中IP列表.map((hostname, attempt) => ({ hostname, port, attempt, resolvedFrom: address }));
 	}
 
-	async function connectDirect(address, port, data = null, 启用预加载 = false) {
-		const 预加载候选列表 = 启用预加载 ? await 构建预加载竞速候选列表(address, port) : null;
-		const 候选列表 = 预加载候选列表 || Array.from({ length: TCP并发拨号数 }, (_, attempt) => ({ hostname: address, port, attempt }));
-		log(预加载候选列表
-			? `[TCP直连] 并发尝试 ${候选列表.length} 路: ${候选列表.map(候选 => `${候选.hostname}:${候选.port}`).join(', ')}`
-			: `[TCP直连] 并发尝试 ${候选列表.length} 路: ${address}:${port}`);
-		let socket = null;
-		try {
-			const 连接结果 = await 并发打开候选连接(候选列表);
-			socket = 连接结果.socket;
-			if (预加载候选列表) {
-				const winner = 连接结果.candidate;
-				log(`[TCP直连] 预加载竞速结果: ${winner.hostname}:${winner.port} 胜出，源域名: ${winner.resolvedFrom || address}`);
+		async function connectDirect(address, port, data = null, 启用预加载 = false) {
+			const 原始候选 = Array.from({ length: TCP并发拨号数 }, (_, attempt) => ({ hostname: address, port, attempt }));
+			let socket = null, 获胜候选 = null;
+			if (!启用预加载 || isIPHostname(address)) {
+				// 无需预加载：直接用原始地址并发连接
+				const 连接结果 = await 并发打开候选连接(原始候选);
+				socket = 连接结果.socket; 获胜候选 = 连接结果.candidate;
+			} else {
+				// 竞速模式：原始 hostname 与 DNS 解析结果同时竞速
+				log(`[TCP直连] 预加载竞速：原始地址直连 + DNS解析并发`);
+				let 预加载候选列表 = null, DNS任务完成 = false;
+				const DNS任务 = 构建预加载竞速候选列表(address, port).then(list => {
+					预加载候选列表 = list;
+					DNS任务完成 = true;
+					return list;
+				});
+				
+				// 第一轮：原始地址直连
+				try {
+					const 连接结果 = await 并发打开候选连接(原始候选);
+					socket = 连接结果.socket; 获胜候选 = 连接结果.candidate;
+				} catch (原始失败) {
+					// 原始地址失败，等待 DNS 解析并尝试解析 IP
+					log(`[TCP直连] 原始地址直连失败，等待DNS解析...`);
+				}
+				
+				if (!socket) {
+					// 原始地址未胜出，等待 DNS 解析完成
+					const 候选列表 = (await DNS任务) || 原始候选;
+					if (候选列表.length) {
+						log(`[TCP直连] DNS解析完成，竞速 ${候选列表.length} 路: ${候选列表.map(c => `${c.hostname}:${c.port}`).join(', ')}`);
+						const 连接结果 = await 并发打开候选连接(候选列表);
+						socket = 连接结果.socket; 获胜候选 = 连接结果.candidate;
+					}
+				} else {
+					// 原始地址已胜出，但 DNS 可能还在进行 — 不等待
+					DNS任务.catch(() => {});
+				}
 			}
+			
+			if (!socket) throw new Error('All connection attempts failed');
+			if (获胜候选?.resolvedFrom) log(`[TCP直连] 预加载竞速结果: ${获胜候选.hostname}:${获胜候选.port} 胜出，源域名: ${获胜候选.resolvedFrom || address}`);
 			await 写入首包(socket, data);
+			// 清理：关闭其他可能仍在进行的连接
 			return socket;
-		} catch (err) {
-			try { socket?.close?.() } catch (e) { }
-			if (预加载候选列表) log(`[TCP直连] 预加载竞速失败: ${err.message || err}`);
-			throw err;
 		}
-	}
-
 	async function connectProxyIP(address, port, data = null, 所有反代数组 = null, 启用反代失败兜底 = true) {
 		if (所有反代数组 && 所有反代数组.length > 0) {
 			for (let i = 0; i < 所有反代数组.length; i += TCP并发拨号数) {
@@ -2037,6 +2060,11 @@ async function forwardataTCP(host, portNum, rawData, ws, respHeader, remoteConnW
 				newSocket = await connectProxyIP(`${查杀特征码}.tp1.090227.XyZ`, 1, 本次首包数据, 所有反代数组, 启用反代兜底);
 			}
 			if (本次发送首包) 已通过代理发送首包 = true;
+				// 竞速检查：若直连已先胜出，则放弃此反代连接
+				if (remoteConnWrapper.socket) {
+					try { newSocket.close() } catch(e) {}
+					return;
+				}
 			remoteConnWrapper.socket = newSocket;
 			newSocket.closed.catch(() => { }).finally(() => closeSocketQuietly(ws));
 			connectStreams(newSocket, ws, respHeader, null);
@@ -2061,24 +2089,39 @@ async function forwardataTCP(host, portNum, rawData, ws, respHeader, remoteConnW
 			log(`[TCP转发] SOCKS5/HTTP/HTTPS/TURN/SSTP 代理连接失败: ${err.message}`);
 			throw err;
 		}
-	} else {
-		try {
-			log(`[TCP转发] 尝试直连到: ${host}:${portNum}`);
-			const initialSocket = await connectDirect(host, portNum, rawData, true);
-			remoteConnWrapper.socket = initialSocket;
-			connectStreams(initialSocket, ws, respHeader, async () => {
-				if (remoteConnWrapper.socket !== initialSocket) return;
-				await connecttoPry();
-			});
-		} catch (err) {
-			log(`[TCP转发] 直连 ${host}:${portNum} 失败: ${err.message}`);
-			if (err instanceof Error && err.name === '预加载解析为空') {
-				closeSocketQuietly(ws);
-				throw err;
+		} else {
+			// 并行竞速：同时发起直连和反代连接，谁先成功用谁
+			log(`[TCP转发] 竞速连接: ${host}:${portNum} | 直连 + 反代并行`);
+			直连Socket = null;
+			// 后台预热反代连接（connecttoPry 内部会设置 remoteConnWrapper.socket 并启动 connectStreams）
+			const 反代任务 = connecttoPry().catch(() => { /* 反代失败由后续逻辑处理 */ });
+			try {
+				直连Socket = await connectDirect(host, portNum, rawData, true);
+				if (!remoteConnWrapper.socket) {
+					// 直连先成功
+					直连成功 = true;
+					remoteConnWrapper.socket = 直连Socket;
+					connectStreams(直连Socket, ws, respHeader, async () => {
+						if (remoteConnWrapper.socket !== 直连Socket) return;
+						await connecttoPry();
+					});
+					log(`[TCP转发] 竞速结果: 直连胜出`);
+				} else {
+					// 反代已先胜出（已在 connecttoPry 内部启动数据流），关闭直连
+					log(`[TCP转发] 竞速结果: 反代胜出，关闭直连`);
+					try { 直连Socket.close() } catch(e) {}
+				}
+			} catch (err) {
+				log(`[TCP转发] 直连失败: ${err.message}，等待反代...`);
+				if (err instanceof Error && err.name === '预加载解析为空' && !remoteConnWrapper.socket) {
+					closeSocketQuietly(ws);
+					throw err;
+				}
+				// 等待已在后台运行的反代连接完成
+				await 反代任务;
+				if (!remoteConnWrapper.socket) throw err; // 两者都失败
 			}
-			await connecttoPry();
 		}
-	}
 }
 
 async function forwardataudp(udpChunk, webSocket, respHeader, request, 响应封装器 = null) {
@@ -2526,8 +2569,8 @@ async function httpConnect(targetHost, targetPort, initialData, HTTPS代理 = fa
 		? TCP连接({ hostname, port }, { secureTransport: 'on', allowHalfOpen: false })
 		: TCP连接({ hostname, port });
 	const writer = socket.writable.getWriter(), reader = socket.readable.getReader();
-	const encoder = new TextEncoder();
-	const decoder = new TextDecoder();
+	const encoder = SS文本编码器;
+	const decoder = SS文本解码器;
 	try {
 		if (HTTPS代理) await socket.opened;
 
@@ -2540,7 +2583,7 @@ async function httpConnect(targetHost, targetPort, initialData, HTTPS代理 = fa
 		while (headerEndIndex === -1 && bytesRead < 8192) {
 			const { done, value } = await reader.read();
 			if (done || !value) throw new Error(`${HTTPS代理 ? 'HTTPS' : 'HTTP'} 代理在返回 CONNECT 响应前关闭连接`);
-			responseBuffer = new Uint8Array([...responseBuffer, ...value]);
+			responseBuffer = 拼接字节数据(responseBuffer, value);  // 使用高效拼接替代 spread 拷贝
 			bytesRead = responseBuffer.length;
 			const crlfcrlf = responseBuffer.findIndex((_, i) => i < responseBuffer.length - 3 && responseBuffer[i] === 0x0d && responseBuffer[i + 1] === 0x0a && responseBuffer[i + 2] === 0x0d && responseBuffer[i + 3] === 0x0a);
 			if (crlfcrlf !== -1) headerEndIndex = crlfcrlf + 4;
@@ -2580,8 +2623,8 @@ async function httpConnect(targetHost, targetPort, initialData, HTTPS代理 = fa
 
 async function httpsConnect(targetHost, targetPort, initialData, TCP连接) {
 	const { username, password, hostname, port } = parsedSocks5Address;
-	const encoder = new TextEncoder();
-	const decoder = new TextDecoder();
+	const encoder = SS文本编码器;
+	const decoder = SS文本解码器;
 	let tlsSocket = null;
 	const tlsServerName = isIPHostname(hostname) ? '' : stripIPv6Brackets(hostname);
 	const 打开HTTPS代理TLS = async (allowChacha = false) => {
@@ -4766,8 +4809,12 @@ function 替换星号为随机字符(内容) {
 	});
 }
 
+// DNS 解析缓存 Map，TTL 60 秒
+const DNS缓存 = new Map(), DNS缓存TTL = 60000;
 async function DoH查询(域名, 记录类型, DoH解析服务 = "https://cloudflare-dns.com/dns-query") {
-	const 开始时间 = performance.now();
+	const cacheKey = `${域名}:${记录类型}:${DoH解析服务}`;
+	const cached = DNS缓存.get(cacheKey);
+	if (cached && cached.expiry > Date.now()) return cached.records;
 	log(`[DoH查询] 开始查询 ${域名} ${记录类型} via ${DoH解析服务}`);
 	try {
 		// 记录类型字符串转数值
@@ -4779,7 +4826,7 @@ async function DoH查询(域名, 记录类型, DoH解析服务 = "https://cloudf
 			const parts = name.endsWith('.') ? name.slice(0, -1).split('.') : name.split('.');
 			const bufs = [];
 			for (const label of parts) {
-				const enc = new TextEncoder().encode(label);
+				const enc = SS文本编码器.encode(label);
 				bufs.push(new Uint8Array([enc.length]), enc);
 			}
 			bufs.push(new Uint8Array([0]));
@@ -4836,7 +4883,7 @@ async function DoH查询(域名, 记录类型, DoH解析服务 = "https://cloudf
 					jumped = true;
 					continue;
 				}
-				labels.push(new TextDecoder().decode(buf.slice(p + 1, p + 1 + len)));
+				labels.push(SS文本解码器.decode(buf.slice(p + 1, p + 1 + len)));
 				p += len + 1;
 			}
 			if (endPos === -1) endPos = p + 1;
@@ -4877,7 +4924,7 @@ async function DoH查询(域名, 记录类型, DoH解析服务 = "https://cloudf
 				const parts = [];
 				while (tOff < rdlen) {
 					const tLen = rdata[tOff++];
-					parts.push(new TextDecoder().decode(rdata.slice(tOff, tOff + tLen)));
+					parts.push(SS文本解码器.decode(rdata.slice(tOff, tOff + tLen)));
 					tOff += tLen;
 				}
 				data = parts.join('');
@@ -4892,6 +4939,15 @@ async function DoH查询(域名, 记录类型, DoH解析服务 = "https://cloudf
 		}
 		const 耗时 = (performance.now() - 开始时间).toFixed(2);
 		log(`[DoH查询] 查询完成 ${域名} ${记录类型} via ${DoH解析服务} ${耗时}ms 共${answers.length}条结果${answers.length > 0 ? '\n' + answers.map((a, i) => `  ${i + 1}. ${a.name} type=${a.type} TTL=${a.TTL} data=${a.data}`).join('\n') : ''}`);
+			// 写入 DNS 缓存
+			if (answers.length > 0) {
+				DNS缓存.set(cacheKey, { records: answers, expiry: Date.now() + DNS缓存TTL });
+				// 定期清理过期缓存
+				if (DNS缓存.size > 256) {
+					const now = Date.now();
+					for (const [k, v] of DNS缓存) { if (v.expiry <= now) DNS缓存.delete(k); }
+				}
+			}
 		return answers;
 	} catch (error) {
 		const 耗时 = (performance.now() - 开始时间).toFixed(2);
@@ -4902,6 +4958,10 @@ async function DoH查询(域名, 记录类型, DoH解析服务 = "https://cloudf
 
 async function 读取config_JSON(env, hostname, userID, UA = "Mozilla/5.0", 重置配置 = false) {
 	const _p = 查杀特征码;
+	if (!重置配置 && 配置缓存?.key === `${hostname}:${userID}` && 配置缓存?.expiry > performance.now()) {
+		config_JSON = 配置缓存.config;
+		return config_JSON;
+	}
 	const host = hostname, Ali_DoH = "https://dns.alidns.com/dns-query", ECH_SNI = "cloudflare-ech.com", 占位符 = '{{IP:PORT}}', 初始化开始时间 = performance.now(), 默认配置JSON = {
 		TIME: new Date().toISOString(),
 		HOST: host,
@@ -5131,6 +5191,7 @@ async function 读取config_JSON(env, hostname, userID, UA = "Mozilla/5.0", 重�
 	}
 
 	config_JSON.加载时间 = (performance.now() - 初始化开始时间).toFixed(2) + 'ms';
+	配置缓存 = { key: `${hostname}:${userID}`, config: config_JSON, expiry: performance.now() + 10000 };  // TTL 10秒
 	return config_JSON;
 }
 
@@ -5256,8 +5317,13 @@ async function 获取优选订阅生成器数据(优选订阅生成器HOST) {
 	return [优选IP, 其他节点LINK];
 }
 
-async function 请求优选API(urls, 默认端口 = '443', 超时时间 = 3000) {
+// 优选 API 结果缓存，TTL 60 秒
+const 优选API缓存 = new Map();
+async function 请求优选API(urls, 默认端口 = '443', 超时时间 = 1500) {
 	if (!urls?.length) return [[], [], [], []];
+	const cacheKey = urls.slice().sort().join('|');
+	const cached = 优选API缓存.get(cacheKey);
+	if (cached && cached.expiry > Date.now()) return cached.result;
 	const results = new Set(), 反代IP池 = new Set();
 	let 订阅链接响应的明文LINK内容 = '', 需要订阅转换订阅URLs = [];
 	await Promise.allSettled(urls.map(async (url) => {
@@ -5457,7 +5523,10 @@ async function 请求优选API(urls, 默认端口 = '443', 超时时间 = 3000) 
 	}));
 	// 将LINK内容转换为数组并去重
 	const LINK数组 = 订阅链接响应的明文LINK内容.trim() ? [...new Set(订阅链接响应的明文LINK内容.split(/\r?\n/).filter(line => line.trim() !== ''))] : [];
-	return [Array.from(results), LINK数组, 需要订阅转换订阅URLs, Array.from(反代IP池)];
+tconst result = [Array.from(results), LINK数组, 需要订阅转换订阅URLs, Array.from(反代IP池)];
+	优选API缓存.set(cacheKey, { result, expiry: Date.now() + 60000 });
+	if (优选API缓存.size > 64) { const now = Date.now(); for (const [k, v] of 优选API缓存) { if (v.expiry <= now) 优选API缓存.delete(k); } }
+	return result;
 }
 
 async function 反代参数获取(url, uuid) {
