@@ -2078,9 +2078,7 @@ async function forwardataTCP(host, portNum, rawData, ws, respHeader, remoteConnW
 				await connecttoPry();
 			}
 		}
-			}
-		}
-}
+	}
 
 async function forwardataudp(udpChunk, webSocket, respHeader, request, 响应封装器 = null) {
 	const 请求数据 = 数据转Uint8Array(udpChunk);
