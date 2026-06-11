@@ -5523,7 +5523,7 @@ async function 请求优选API(urls, 默认端口 = '443', 超时时间 = 1500) 
 	}));
 	// 将LINK内容转换为数组并去重
 	const LINK数组 = 订阅链接响应的明文LINK内容.trim() ? [...new Set(订阅链接响应的明文LINK内容.split(/\r?\n/).filter(line => line.trim() !== ''))] : [];
-tconst result = [Array.from(results), LINK数组, 需要订阅转换订阅URLs, Array.from(反代IP池)];
+const result = [Array.from(results), LINK数组, 需要订阅转换订阅URLs, Array.from(反代IP池)];
 	优选API缓存.set(cacheKey, { result, expiry: Date.now() + 60000 });
 	if (优选API缓存.size > 64) { const now = Date.now(); for (const [k, v] of 优选API缓存) { if (v.expiry <= now) 优选API缓存.delete(k); } }
 	return result;
