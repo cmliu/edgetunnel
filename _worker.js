@@ -1937,26 +1937,38 @@ async function forwardataTCP(host, portNum, rawData, ws, respHeader, remoteConnW
 	}
 
 		async function connectDirect(address, port, data = null, 启用预加载 = false) {
-			const 预加载候选列表 = 启用预加载 ? await 构建预加载竞速候选列表(address, port) : null;
-			const 候选列表 = 预加载候选列表 || Array.from({ length: TCP并发拨号数 }, (_, attempt) => ({ hostname: address, port, attempt }));
-			log(预加载候选列表
-				? `[TCP直连] 并发尝试 ${候选列表.length} 路: ${候选列表.map(候选 => `${候选.hostname}:${候选.port}`).join(', ')}`
-				: `[TCP直连] 并发尝试 ${候选列表.length} 路: ${address}:${port}`);
+			const 原始候选 = Array.from({ length: TCP并发拨号数 }, (_, attempt) => ({ hostname: address, port, attempt }));
+			if (!启用预加载 || isIPHostname(address)) {
+				// 无需预加载：直接竞速
+				const 连接结果 = await 并发打开候选连接(原始候选);
+				await 写入首包(连接结果.socket, data);
+				return 连接结果.socket;
+			}
+			// 竞速模式：后台 DNS 解析 + 原始 hostname 直连同时跑
+			log(`[TCP直连] 预加载竞速: 原始直连 + DNS解析并发`);
+			const dnsTask = 构建预加载竞速候选列表(address, port);
 			let socket = null;
 			try {
-				const 连接结果 = await 并发打开候选连接(候选列表);
+				const 连接结果 = await 并发打开候选连接(原始候选);
 				socket = 连接结果.socket;
-				if (预加载候选列表) {
-					const winner = 连接结果.candidate;
-					log(`[TCP直连] 预加载竞速结果: ${winner.hostname}:${winner.port} 胜出，源域名: ${winner.resolvedFrom || address}`);
-				}
-				await 写入首包(socket, data);
-				return socket;
-			} catch (err) {
-				try { socket?.close?.() } catch (e) { }
-				if (预加载候选列表) log(`[TCP直连] 预加载竞速失败: ${err.message || err}`);
-				throw err;
+				log(`[TCP直连] 原始地址直连胜出`);
+			} catch (原始失败) {
+				log(`[TCP直连] 原始地址失败，等待DNS...`);
 			}
+			if (!socket) {
+				const 预加载候选列表 = await dnsTask;
+				if (预加载候选列表?.length) {
+					log(`[TCP直连] DNS就绪，竞速 ${预加载候选列表.length} 路: ${预加载候选列表.map(c => `${c.hostname}:${c.port}`).join(', ')}`);
+					const 连接结果 = await 并发打开候选连接(预加载候选列表);
+					socket = 连接结果.socket;
+					if (连接结果.candidate?.resolvedFrom) log(`[TCP直连] DNS竞速胜出: ${连接结果.candidate.hostname}:${连接结果.candidate.port} (${连接结果.candidate.resolvedFrom})`);
+				}
+			} else {
+				dnsTask.catch(() => {});
+			}
+			if (!socket) throw new Error('All connection attempts for ' + address + ' failed');
+			await 写入首包(socket, data);
+			return socket;
 		}
 	async function connectProxyIP(address, port, data = null, 所有反代数组 = null, 启用反代失败兜底 = true) {
 		if (所有反代数组 && 所有反代数组.length > 0) {
@@ -2035,6 +2047,11 @@ async function forwardataTCP(host, portNum, rawData, ws, respHeader, remoteConnW
 				newSocket = await connectProxyIP(`${查杀特征码}.tp1.090227.XyZ`, 1, 本次首包数据, 所有反代数组, 启用反代兜底);
 			}
 			if (本次发送首包) 已通过代理发送首包 = true;
+			// 竞速检查：若直连已先胜出，放弃此反代连接
+			if (remoteConnWrapper.socket) {
+				try { newSocket.close() } catch(e) {}
+				return;
+			}
 			remoteConnWrapper.socket = newSocket;
 			newSocket.closed.catch(() => { }).finally(() => closeSocketQuietly(ws));
 			connectStreams(newSocket, ws, respHeader, null);
@@ -2060,21 +2077,32 @@ async function forwardataTCP(host, portNum, rawData, ws, respHeader, remoteConnW
 			throw err;
 		}
 		} else {
+			// 并行竞速：直连与反代同时发起，谁先成功用谁
+			let 直连Socket = null;
+			const 反代任务 = connecttoPry().catch(() => {});
 			try {
-				log(`[TCP转发] 尝试直连到: ${host}:${portNum}`);
-				const initialSocket = await connectDirect(host, portNum, rawData, true);
-				remoteConnWrapper.socket = initialSocket;
-				connectStreams(initialSocket, ws, respHeader, async () => {
-					if (remoteConnWrapper.socket !== initialSocket) return;
-					await connecttoPry();
-				});
+				直连Socket = await connectDirect(host, portNum, rawData, true);
+				if (!remoteConnWrapper.socket) {
+					// 直连先成功
+					remoteConnWrapper.socket = 直连Socket;
+					connectStreams(直连Socket, ws, respHeader, async () => {
+						if (remoteConnWrapper.socket !== 直连Socket) return;
+						await connecttoPry();
+					});
+					log(`[TCP转发] 竞速: 直连胜出`);
+				} else {
+					// 反代已先胜出，connecttoPry 内部已启动 connectStreams
+					try { 直连Socket.close() } catch(e) {}
+					log(`[TCP转发] 竞速: 反代胜出`);
+				}
 			} catch (err) {
-				log(`[TCP转发] 直连 ${host}:${portNum} 失败: ${err.message}`);
-				if (err instanceof Error && err.name === '预加载解析为空') {
+				log(`[TCP转发] 直连失败: ${err.message}，等待反代`);
+				if (err instanceof Error && err.name === '预加载解析为空' && !remoteConnWrapper.socket) {
 					closeSocketQuietly(ws);
 					throw err;
 				}
-				await connecttoPry();
+				await 反代任务;
+				if (!remoteConnWrapper.socket) throw err;
 			}
 		}
 	}
