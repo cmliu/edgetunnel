@@ -5276,7 +5276,7 @@ async function 获取优选订阅生成器数据(优选订阅生成器HOST) {
 
 // 优选 API 结果缓存，TTL 60 秒
 const 优选API缓存 = new Map();
-async function 请求优选API(urls, 默认端口 = '443', 超时时间 = 1500) {
+async function 请求优选API(urls, 默认端口 = '443', 超时时间 = 3000) {
 	if (!urls?.length) return [[], [], [], []];
 	const cacheKey = urls.slice().sort().join('|');
 	const cached = 优选API缓存.get(cacheKey);
