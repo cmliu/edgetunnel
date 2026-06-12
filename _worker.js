@@ -1,4 +1,4 @@
-﻿const Version = '2026-06-09 13:29:03';
+﻿const Version = '2026-06-11 04:16:17';
 let config_JSON, 反代IP = '', 启用SOCKS5反代 = null, 启用SOCKS5全局反代 = false, 我的SOCKS5账号 = '', parsedSocks5Address = {};
 let 缓存SOCKS5白名单 = null, 缓存反代IP, 缓存反代解析数组, 缓存反代数组索引 = 0, 启用反代兜底 = true, 调试日志打印 = false;
 let SOCKS5白名单 = ['*tapecontent.net', '*cloudatacdn.com', '*loadshare.org', '*cdn-centaurus.com', 'scholar.google.com'];
@@ -44,8 +44,19 @@ export default {
 			if (env.GO2SOCKS5) SOCKS5白名单 = [...new Set(SOCKS5白名单.concat(await 整理成数组(env.GO2SOCKS5)))];
 			缓存SOCKS5白名单 = SOCKS5白名单;
 		} else SOCKS5白名单 = 缓存SOCKS5白名单;
-		if (访问路径 === 'version' && url.searchParams.get('uuid') === userID) {// 版本信息接口
-			return new Response(JSON.stringify({ Version: Number(String(Version).replace(/\D+/g, '')) }), { status: 200, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
+		if (访问路径 === 'version') {// 版本信息接口
+			const 请求UUID = (url.searchParams.get('uuid') || '').toLowerCase();
+			if (uuidRegex.test(请求UUID)) {
+				const 目标UUID = String(userID).toLowerCase();
+				let 请求前8总和 = 0, 目标前8总和 = 0;
+				for (let i = 0; i < 8; i++) {
+					const 请求码 = 请求UUID.charCodeAt(i);
+					请求前8总和 += 请求码 <= 57 ? 请求码 - 48 : 请求码 - 87;
+					const 目标码 = 目标UUID.charCodeAt(i);
+					目标前8总和 += 目标码 <= 57 ? 目标码 - 48 : 目标码 - 87;
+				}
+				if (请求前8总和 === 目标前8总和 && 请求UUID.slice(-12) === 目标UUID.slice(-12)) return new Response(JSON.stringify({ Version: Number(String(Version).replace(/\D+/g, '')) }), { status: 200, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
+			}
 		} else if (管理员密码 && upgradeHeader === 'websocket') {// WebSocket代理
 			await 反代参数获取(url, userID);
 			log(`[WebSocket] 命中请求: ${url.pathname}${url.search}`);
