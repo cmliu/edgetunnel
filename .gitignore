@@ -12,6 +12,7 @@ pnpm-lock.yaml
 dist/
 build/
 *.wasm
+GRAINTCP_*
 
 # Cloudflare Workers
 .wrangler/
