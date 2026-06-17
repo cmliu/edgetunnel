@@ -1,0 +1,19 @@
+name: Deploy to Cloudflare Workers
+
+on:
+  push:
+    branches:
+      - main # 当你往 main 分支提交代码时触发
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to Cloudflare
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          command: deploy --name 1318-5168
