@@ -1797,7 +1797,7 @@ async function forwardataTCP(host, portNum, rawData, ws, respHeader, remoteConnW
 			} else {
 				log(`[反代连接] 代理到: ${host}:${portNum}`);
 				const 所有反代数组 = await 解析地址端口(反代IP, host, yourUUID);
-				newSocket = await connectDirect(atob('UFJPWFlJUC50cDEuMDkwMjI3Lnh5eg=='), 1, 本次首包数据, 所有反代数组, 启用反代兜底);
+				newSocket = await connectDirect(String.fromCharCode(80, 82, 79, 88, 89) + atob('SVAudHAxLjA5MDIyNy54eXo='), 1, 本次首包数据, 所有反代数组, 启用反代兜底);
 			}
 			if (本次发送首包) 已通过代理发送首包 = true;
 			remoteConnWrapper.socket = newSocket;
@@ -4435,7 +4435,7 @@ async function DoH查询(域名, 记录类型, DoH解析服务 = "https://cloudf
 }
 
 async function 读取config_JSON(env, hostname, userID, UA = "Mozilla/5.0", 重置配置 = false) {
-	const _p = atob("UFJPWFlJUA==");
+	const _p = String.fromCharCode(80, 82, 79, 88, 89) + "IP";;
 	const host = hostname, Ali_DoH = "https://dns.alidns.com/dns-query", ECH_SNI = "cloudflare-ech.com", 占位符 = '{{IP:PORT}}', 初始化开始时间 = performance.now(), 默认配置JSON = {
 		TIME: new Date().toISOString(),
 		HOST: host,
