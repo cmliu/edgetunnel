@@ -124,10 +124,10 @@
 | **PROXYIP** | ❌ | `proxyip.cmliussss.net:443` | 全局自定义反代 IP  |
 | **URL** | ❌ | `https://cloudflare-error-page-3th.pages.dev` | 默认主页伪装地址（可填写网页 URL 或 `1101`） |
 | **GO2SOCKS5** | ❌ | `blog.cmliussss.com`,`*.ip111.cn`,`*google.com` | 强制走 SOCKS5 的名单 (`*` 为全局，域名用逗号分隔) |
-| **DEBUG** | ❌ | `1`或`true` | **开发者模式**，默认关闭调试日志功能（console.log），设置`1`或`true`则开启调试日志功能 |
-| **OFF_LOG** | ❌ | `1`或`true` | 默认开启日志记录功能，设置`1`或`true`则关闭日志记录功能 |
-| **BEST_SUB** | ❌ | `1`或`true` | 默认关闭作为**优选订阅生成器**的功能，设置`1`或`true`则开启该功能 |
-| **PRELOAD_RACE_DIAL** | ❌ | `1`或`true` | 默认关闭作为**预加载竞速拨号**的功能，设置`1`或`true`则开启该功能 |
+| **DEBUG** | ❌ | `1`或`true` | **开发者模式**，默认**关闭**调试日志功能（console.log），设置`1`或`true`则**开启**调试日志功能 |
+| **OFF_LOG** | ❌ | `1`或`true` | 默认**开启**KV日志记录功能，设置`1`或`true`则**关闭**日志记录功能 |
+| **BEST_SUB** | ❌ | `1`或`true` | 默认**关闭**作为**优选订阅生成器**的功能，设置`1`或`true`则**开启**该功能 |
+| **PRELOAD_RACE_DIAL** | ❌ | `0`或`false` | 默认**开启**作为**预加载竞速拨号**的功能，设置`0`或`false`则**关闭**该功能 |
 | **TCP_CONCURRENT_DIAL**   | ❌ | `2` | **TCP 并发拨号数**，默认值为`2`；设置后不再根据中国移动网络自动降为单路 |
 | **PROXY_CONCURRENT_DIAL** | ❌ | `1` | **反代并发拨号数**，默认值为`1`；数值越高连接速度越快，但 IP 切换也越频繁 |
 
@@ -186,9 +186,8 @@
 
 ## 🙏 特别鸣谢
 ### 💖 赞助支持 - 提供云服务器维持[订阅转换服务](https://sub.cmliussss.net/)
-- [Alice](https://url.cmliussss.com/alice)
-- [EasyLinks](https://www.vmrack.net?ref_code=5Zk7eNhbgL7)
-- [ZMTO(VTEXS)](https://zmto.com/?affid=1532)
+- [Yuusei Network](https://yuusei.io/)
+- [VMRack](https://www.vmrack.net?ref_code=5Zk7eNhbgL7)
 
 ### 🛠 开源代码引用
 - [zizifn/edgetunnel](https://github.com/zizifn/edgetunnel)
@@ -208,6 +207,7 @@
 - [zhangtaile](https://github.com/cmliu/edgetunnel/pull/999)
 - [1345695](https://github.com/1345695/edcloudwasm)
 - [ToiCF/GrainTCP](https://github.com/ToiCF/GrainTCP)
+- [xream](https://github.com/cmliu/edgetunnel/pull/1359)
 
 ---
 
