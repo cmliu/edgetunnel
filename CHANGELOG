@@ -1,3 +1,9 @@
+## [2.1.20260729235734] - 2026-07-29 23:57:34
+
+### Change
+
+- 修正 **PRELOAD_RACE_DIAL** 环境变量逻辑：默认值由 `true` 改为 `false`（默认**关闭**预加载竞速拨号），设置 `1` 或 `true` 则**开启**；同步修正 README 中该变量的说明。[提交](https://github.com/cmliu/edgetunnel/commit/aea8b85688ef6066116af551cfd5e6fd2ce77567)
+
 ## [2.1.20260724150359] - 2026-07-24 15:03:59
 
 ### Change
