@@ -1,3 +1,21 @@
+## [2.1.20260729235734] - 2026-07-29 23:57:34
+
+### Change
+
+- 修正 **PRELOAD_RACE_DIAL** 环境变量逻辑：默认值由 `true` 改为 `false`（默认**关闭**预加载竞速拨号），设置 `1` 或 `true` 则**开启**；同步修正 README 中该变量的说明。[提交](https://github.com/cmliu/edgetunnel/commit/aea8b85688ef6066116af551cfd5e6fd2ce77567)
+
+## [2.1.20260724150359] - 2026-07-24 15:03:59
+
+### Change
+
+- 同步 **GrainTCP** 最新传输优化：上行 Grain 合包目标由 `16KB` 调整为 `20KB`，并复用统一的收纳/合包核心；连续小块会在 drain 阶段机会性合并，减少高频 `writer.write()` 调用。[上游提交](https://github.com/ToiCF/GrainTCP/commit/1d22628f4d1413989f521f1d41591b0c72e658eb)
+- 优化下行 **GrainTCP** 聚合：保留 `32KB` 聚合上限，使用 `tail × 12` 低水位和最多 `4` 轮、每轮 `1ms` 的增长观察；flush 可连续发送多个聚合包，接近上限时及时发送，降低小包 WebSocket frame 数量。[上游提交](https://github.com/ToiCF/GrainTCP/commit/1d22628f4d1413989f521f1d41591b0c72e658eb)
+- 优化下行数据包处理：大块数据在 Grain 为空时直接发送，小块数据在 BYOB/default reader 路径中先脱离可复用读取缓冲；聚合结果复制后再发送，避免 scratch buffer 复用造成数据覆盖。[上游提交](https://github.com/ToiCF/GrainTCP/commit/1d22628f4d1413989f521f1d41591b0c72e658eb)
+- 基于上游传输模型增强 TCP 连接管理：加入 connection generation、socket identity 和旧下行 drain 屏障；重拨期间上行数据继续收纳并等待新 writer，旧 reader、定时器或连接的异步收尾不会污染新连接。[上游思路](https://github.com/ToiCF/GrainTCP/commit/1d22628f4d1413989f521f1d41591b0c72e658eb)
+- 基于上游 Grain 发送模型统一直发、分段发送、定时 flush 的串行发送链，并持久化异步发送错误；响应头仅在首次真实发送时消费，避免重拨或失效连接提前消耗协议响应头。[上游思路](https://github.com/ToiCF/GrainTCP/commit/1d22628f4d1413989f521f1d41591b0c72e658eb)
+- 保持现有多协议兼容性：WS 上行采用非等待入队以降低消息处理阻塞，XHTTP/gRPC 继续等待远端写入完成；本地保留 `16MiB / 4096` 条目的上传高水位保护，避免 Worker 队列无界增长。[上游变更](https://github.com/ToiCF/GrainTCP/commit/1d22628f4d1413989f521f1d41591b0c72e658eb)
+- 优化 仅在 **反代模式** 下启用本地测速响应，使用 **SOCKS5/HTTP/HTTPS/TURN/SSTP** 代理时改为正常转发测速请求。
+
 ## [2.1.20260722191426] - 2026-07-22 19:14:26
 
 ### Change
