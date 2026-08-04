@@ -1,6 +1,7 @@
 # Demo 目录
 demo/
 tmp/
+.workbuddy/
 
 # 依赖包
 node_modules/
