@@ -1,4 +1,4 @@
-const Version = '2026-07-29 23:57:34';
+﻿const Version = '2026-08-09 23:10:57';
 let config_JSON, 缓存SOCKS5白名单 = null, 调试日志打印 = false;
 let SOCKS5白名单 = ['*tapecontent.net', '*cloudatacdn.com', '*loadshare.org', '*cdn-centaurus.com', 'scholar.google.com'];
 const Pages静态页面 = 'https://edt-pages.github.io';
@@ -552,36 +552,75 @@ async function 处理XHTTP请求(request, yourUUID, 反代上下文 = {}) {
 		return new Response('UDP is not supported', { status: 400 });
 	}
 
-	const remoteConnWrapper = { socket: null, connectingPromise: null, retryConnect: null, downlinkDrain: Promise.resolve() };
-	let 当前写入Socket = null;
-	let 远端写入器 = null;
-	const 失效远端连接 = () => 失效TCP连接世代(remoteConnWrapper);
 	const responseHeaders = new Headers({
 		'Content-Type': 'application/octet-stream',
 		'X-Accel-Buffering': 'no',
 		'Cache-Control': 'no-store'
 	});
 
-	const 释放远端写入器 = () => {
-		if (远端写入器) {
-			try { 远端写入器.releaseLock() } catch (e) { }
-			远端写入器 = null;
-		}
-		当前写入Socket = null;
+	// UDP 分支：拆到独立函数（保留原逻辑）
+	if (首包.isUDP) return 处理XHTTPUDP请求(首包, reader, request, 反代上下文, responseHeaders);
+
+	// ================= TCP 分支：pipe 对接 =================
+	try { reader.releaseLock() } catch (e) { }
+
+	const remoteConnWrapper = { socket: null, connectingPromise: null, retryConnect: null, downlinkDrain: Promise.resolve() };
+	const abortController = new AbortController();
+	let 已清理 = false;
+	const 清理 = (reason) => {
+		if (已清理) return;
+		已清理 = true;
+		try { abortController.abort(reason) } catch (e) { }
+		失效TCP连接世代(remoteConnWrapper); // 关闭 socket + 世代 +1
 	};
 
-	const 获取远端写入器 = () => {
-		const socket = remoteConnWrapper.socket;
-		if (!socket) return null;
-		if (socket !== 当前写入Socket) {
-			释放远端写入器();
-			当前写入Socket = socket;
-			远端写入器 = socket.writable.getWriter();
-		}
-		return 远端写入器;
-	};
+	// ⚠️ 关键：ws 参数必须传占位对象（新版 forwardataTCP 2370 行会访问 ws.readyState，传 null 会 TypeError 崩掉）
+	// closeSocketQuietly 对占位对象安全（无 close 方法 → TypeError 被内部 catch 吞掉）
+	const 占位WS = { readyState: WebSocket.OPEN };
 
-	let XHTTP上行写入队列 = null;
+	let socket;
+	try {
+		socket = await forwardataTCP(首包.hostname, 首包.port, 首包.rawData, 占位WS, 首包.respHeader, remoteConnWrapper, yourUUID, request, 反代上下文, 首包.协议 === 'trojan', 首包.原始数据, true);
+	} catch (err) {
+		log(`[XHTTP-Pipe] 连接失败: ${err?.message || err}`);
+		清理(err);
+		return new Response('bad gateway', { status: 502 });
+	}
+	if (!socket) {
+		清理(new Error('socket is null'));
+		return new Response('bad gateway', { status: 502 });
+	}
+
+	// 上行：请求体直接 pipe 进 socket（首包残余数据已由 forwardataTCP 写入）
+	const 上行Promise = (async () => {
+		await request.body.pipeTo(socket.writable, { signal: abortController.signal });
+	})();
+
+	// 下行：优先使用 IdentityTransformStream（若运行时不支持则回退到 TransformStream）
+	const 响应流 = typeof IdentityTransformStream !== 'undefined'
+		? new IdentityTransformStream()
+		: new TransformStream();
+	const 下行Promise = (async () => {
+		const writer = 响应流.writable.getWriter();
+		try {
+			if (有效数据长度(首包.respHeader) > 0) await writer.write(首包.respHeader);
+		} catch (error) {
+			try { await writer.abort(error) } catch (e) { }
+			throw error;
+		} finally {
+			try { writer.releaseLock() } catch (e) { }
+		}
+		await socket.readable.pipeTo(响应流.writable, { signal: abortController.signal });
+	})();
+
+	void 上行Promise.catch(清理);
+	void 下行Promise.then(() => 清理(), 清理);
+	void Promise.allSettled([上行Promise, 下行Promise]);
+
+	return new Response(响应流.readable, { status: 200, headers: responseHeaders });
+}
+
+function 处理XHTTPUDP请求(首包, reader, request, 反代上下文, responseHeaders) {
 	const 木马UDP上下文 = { 缓存: new Uint8Array(0), 反代地址: 反代上下文.木马反代地址 };
 	return new Response(new ReadableStream({
 		async start(controller) {
@@ -612,81 +651,41 @@ async function 处理XHTTP请求(request, yourUUID, 反代上下文 = {}) {
 					try { controller.close() } catch (e) { }
 				}
 			};
-
-			const 上行写入队列 = XHTTP上行写入队列 = 创建上行写入队列({
-				获取写入器: 获取远端写入器,
-				获取连接任务: () => remoteConnWrapper.connectingPromise,
-				释放写入器: 释放远端写入器,
-				重试连接: async () => {
-					if (typeof remoteConnWrapper.retryConnect !== 'function') throw new Error('retry unavailable');
-					await remoteConnWrapper.retryConnect();
-				},
-				关闭连接: () => {
-					失效远端连接();
-					closeSocketQuietly(xhttpBridge);
-				},
-				名称: 'XHTTP上行'
-			});
-
-			const 写入远端 = async (payload, allowRetry = true) => {
-				return 上行写入队列.写入并等待(payload, allowRetry);
-			};
-
 			let 转发失败 = false;
 			try {
-				if (首包.isUDP) {
-					if (首包.协议 === 'trojan') {
-						木马UDP上下文.目标主机 = 首包.hostname;
-						木马UDP上下文.目标端口 = 首包.port;
-						if (木马UDP上下文.反代地址) await 转发木马UDP数据(首包.原始数据, xhttpBridge, 木马UDP上下文, request);
-					}
-					if (!(首包.协议 === 'trojan' && 木马UDP上下文.反代地址) && 首包.rawData?.byteLength) {
-						if (首包.协议 === 'trojan') await 转发木马UDP数据(首包.rawData, xhttpBridge, 木马UDP上下文, request);
-						else await forwardataudp(首包.rawData, xhttpBridge, udpRespHeader, request);
-						udpRespHeader = null;
-					}
-				} else {
-					await forwardataTCP(首包.hostname, 首包.port, 首包.rawData, xhttpBridge, 首包.respHeader, remoteConnWrapper, yourUUID, request, 反代上下文, 首包.协议 === 'trojan', 首包.原始数据);
+				if (首包.协议 === 'trojan') {
+					木马UDP上下文.目标主机 = 首包.hostname;
+					木马UDP上下文.目标端口 = 首包.port;
+					if (木马UDP上下文.反代地址) await 转发木马UDP数据(首包.原始数据, xhttpBridge, 木马UDP上下文, request);
 				}
-
+				if (!(首包.协议 === 'trojan' && 木马UDP上下文.反代地址) && 首包.rawData?.byteLength) {
+					if (首包.协议 === 'trojan') await 转发木马UDP数据(首包.rawData, xhttpBridge, 木马UDP上下文, request);
+					else await forwardataudp(首包.rawData, xhttpBridge, udpRespHeader, request);
+					udpRespHeader = null;
+				}
 				while (true) {
 					const { done, value } = await reader.read();
 					if (done) break;
 					if (!value || value.byteLength === 0) continue;
-					if (首包.isUDP) {
-						if (首包.协议 === 'trojan') await 转发木马UDP数据(value, xhttpBridge, 木马UDP上下文, request);
-						else await forwardataudp(value, xhttpBridge, udpRespHeader, request);
-						udpRespHeader = null;
-					} else {
-						if (!(await 写入远端(value))) throw new Error('Remote socket is not ready');
-					}
-				}
-
-				if (!首包.isUDP) {
-					await 上行写入队列.等待空();
-					const writer = 获取远端写入器();
-					if (writer) {
-						try { await writer.close() } catch (e) { }
-					}
+					if (首包.协议 === 'trojan') await 转发木马UDP数据(value, xhttpBridge, 木马UDP上下文, request);
+					else await forwardataudp(value, xhttpBridge, udpRespHeader, request);
+					udpRespHeader = null;
 				}
 			} catch (err) {
 				转发失败 = true;
 				log(`[XHTTP转发] 处理失败: ${err?.message || err}`);
 				closeSocketQuietly(xhttpBridge);
 			} finally {
-				const 保持木马UDP反代下行 = !转发失败 && 首包.isUDP && 首包.协议 === 'trojan' && 木马UDP上下文.反代地址 && 木马UDP上下文.反代Socket;
-				上行写入队列.清空();
-				if (转发失败) 失效远端连接();
-				释放远端写入器();
-				if (!保持木马UDP反代下行) try { 木马UDP上下文.反代Socket?.close() } catch (e) { }
-				try { reader.releaseLock() } catch (e) { }
+			const 保持木马UDP反代下行 = !转发失败 && 首包.协议 === 'trojan' && 木马UDP上下文.反代地址 && 木马UDP上下文.反代Socket;
+			if (!保持木马UDP反代下行) {
+				try { 木马UDP上下文.反代Socket?.close() } catch (e) { }
+				closeSocketQuietly(xhttpBridge);
+			}
+			try { reader.releaseLock() } catch (e) { }
 			}
 		},
 		cancel() {
-			XHTTP上行写入队列?.清空();
-			失效远端连接();
 			try { 木马UDP上下文.反代Socket?.close() } catch (e) { }
-			释放远端写入器();
 			try { reader.releaseLock() } catch (e) { }
 		}
 	}), { status: 200, headers: responseHeaders });
@@ -2079,7 +2078,7 @@ async function SSAEAD解密(cryptoKey, nonceCounter, ciphertext) {
 	return new Uint8Array(pt);
 }
 
-async function forwardataTCP(host, portNum, rawData, ws, respHeader, remoteConnWrapper, yourUUID, request = null, 反代上下文 = {}, 允许木马反代 = false, 木马反代首包数据 = null) {
+async function forwardataTCP(host, portNum, rawData, ws, respHeader, remoteConnWrapper, yourUUID, request = null, 反代上下文 = {}, 允许木马反代 = false, 木马反代首包数据 = null, 仅建立连接 = false) {
 	const ctx反代IP = 反代上下文.反代IP || '';
 	const ctx代理类型 = 反代上下文.代理类型 !== undefined ? 反代上下文.代理类型 : null;
 	const ctx代理全局 = 反代上下文.代理全局 !== undefined ? 反代上下文.代理全局 : false;
@@ -2116,6 +2115,7 @@ async function forwardataTCP(host, portNum, rawData, ws, respHeader, remoteConnW
 			throw new Error('connection superseded or client closed');
 		}
 		remoteConnWrapper.socket = socket;
+		if (仅建立连接) return socket;
 		connectStreams(socket, ws, 取出响应头, retryFunc, 连接仍有效, remoteConnWrapper).catch(err => {
 			if (!连接仍有效()) return;
 			log(`[TCP下行] 处理失败: ${err?.message || err}`);
@@ -2345,6 +2345,7 @@ async function forwardataTCP(host, portNum, rawData, ws, respHeader, remoteConnW
 		log(`[TCP转发] 启用 SOCKS5/HTTP/HTTPS/TURN/SSTP 全局代理`);
 		try {
 			await connecttoPry();
+			if (仅建立连接) return remoteConnWrapper.socket;
 		} catch (err) {
 			log(`[TCP转发] SOCKS5/HTTP/HTTPS/TURN/SSTP 代理连接失败: ${err.message}`);
 			throw err;
@@ -2360,6 +2361,7 @@ async function forwardataTCP(host, portNum, rawData, ws, respHeader, remoteConnW
 				if (remoteConnWrapper.generation !== 直连世代 || remoteConnWrapper.socket !== initialSocket) return;
 				await connecttoPry();
 			});
+			if (仅建立连接) return initialSocket;
 		} catch (err) {
 			log(`[TCP转发] 直连 ${host}:${portNum} 失败: ${err.message}`);
 			if (remoteConnWrapper.generation !== 直连世代) throw err;
@@ -2369,6 +2371,7 @@ async function forwardataTCP(host, portNum, rawData, ws, respHeader, remoteConnW
 			}
 			if (ws.readyState !== WebSocket.OPEN) throw err;
 			await connecttoPry();
+			if (仅建立连接) return remoteConnWrapper.socket;
 		}
 	}
 }
@@ -5994,7 +5997,7 @@ async function 反代参数获取(url, uuid, 默认反代IP = '', 默认反代�
 	const 链式代理路径匹配 = pathname.match(/\/video\/(.+)$/i);
 	if (链式代理路径匹配) {
 		try {
-			const 链式代理明文 = base64SecretDecode(链式代理路径匹配[1], uuid);
+			const 链式代理明文 = base64SecretDecode(链式代理路径匹配[1].replace(/\/+$/, ''), uuid);
 			const { type, ...链式代理地址 } = JSON.parse(链式代理明文);
 			if (!type || !反代协议默认端口[String(type).toLowerCase()]) throw new Error('链式代理类型无效');
 			if (!链式代理地址.hostname || !链式代理地址.port) throw new Error('链式代理地址缺少 hostname 或 port');
@@ -6054,7 +6057,7 @@ async function 反代参数获取(url, uuid, 默认反代IP = '', 默认反代�
 	const 木马路径匹配 = /\/trojan=([^?#\s]+)/i.exec(pathname);
 	if (木马路径匹配) {
 		try {
-			反代上下文.木马反代地址 = 解析木马反代地址(木马路径匹配[1]);
+			反代上下文.木马反代地址 = 解析木马反代地址(木马路径匹配[1].replace(/\/+$/, ''));
 		} catch (err) {
 			console.error('解析木马反代地址失败:', err.message);
 			反代上下文.木马反代地址 = null;
