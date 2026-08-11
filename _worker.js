@@ -503,8 +503,11 @@ export default {
           const dest = new URL(request.url).searchParams.get('dest');
           // 获取地址dest的内容
           const text = await (await fetch(dest)).text();
-          // 解析所有div标签的属性data-snippet-clipboard-copy-content，结果为纯文本，每行一个，处理&amp;
-          const divText = text.replace(/<div[^>]*?data-snippet-clipboard-copy-content="([^"]+?)"/g, '\n$1\n').replace(/&amp;/g, '&');
+          // 解析并提取所有div标签的属性data-snippet-clipboard-copy-content，结果为纯文本，每行一个，处理&amp;
+          const divText = [...text.matchAll(/<div[^>]*?data-snippet-clipboard-copy-content="([^"]*)"/g)]
+            .map(m => m[1])
+            .join('\n')
+            .replace(/&amp;/g, '&');
           return new Response(divText, { status: 200, headers: { 'Content-Type': 'text/plain; charset=UTF-8' } });
         }
 			} else if (!envUUID) return fetch(Pages静态页面 + '/noKV').then(r => { const headers = new Headers(r.headers); headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate'); headers.set('Pragma', 'no-cache'); headers.set('Expires', '0'); return new Response(r.body, { status: 404, statusText: r.statusText, headers }) });
