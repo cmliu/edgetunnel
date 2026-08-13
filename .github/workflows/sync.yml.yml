@@ -1,0 +1,92 @@
+name: Sync Upstream
+
+on:
+  # 每天 UTC 0 点（北京时间早上 8 点）自动跑一次
+  schedule:
+    - cron: '0 0 * * *'
+  # 允许在 Actions 页面手动点一下触发
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    # 避免同步到自己仓库的循环触发
+    if: github.repository == '1zads/edgetunnel'
+
+    steps:
+      - name: Checkout fork repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+          ref: main
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Add upstream & fetch
+        run: |
+          # 上游仓库（cmliu/edgetunnel）
+          git remote add upstream https://github.com/cmliu/edgetunnel.git
+          git fetch upstream main --tags
+
+      - name: Sync main (merge upstream)
+        id: sync
+        run: |
+          set +e
+          git checkout main
+          # 优先快进；不能快进就普通 merge
+          if git merge upstream/main --ff-only; then
+            echo "merge_type=fast-forward" >> $GITHUB_OUTPUT
+          else
+            echo "⚠️ 无法快进，执行普通 merge"
+            git merge upstream/main --no-edit
+            echo "merge_type=merge-commit" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Push to fork
+        run: git push origin main --tags
+
+      - name: Notify on failure (open issue)
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = '🚨 Upstream sync failed - manual resolve needed';
+            const body  = [
+              '自动同步上游 `cmliu/edgetunnel:main` 失败，通常是产生了冲突。',
+              '',
+              '请手动处理：',
+              '```bash',
+              'git remote add upstream https://github.com/cmliu/edgetunnel.git',
+              'git fetch upstream',
+              'git checkout main',
+              'git merge upstream/main',
+              '# 解决冲突后',
+              'git push origin main',
+              '```',
+              '',
+              '查看 [Actions 日志](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) 获取详细错误。'
+            ].join('\n');
+            // 避免重复开 issue：先查是否已存在
+            const existing = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo:  context.repo.repo,
+              state: 'open',
+              labels: 'sync-failed'
+            });
+            if (existing.data.length === 0) {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo:  context.repo.repo,
+                title,
+                body,
+                labels: ['sync-failed']
+              });
+            }
