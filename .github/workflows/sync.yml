@@ -1,9 +1,9 @@
 name: Sync Upstream
 
 on:
-  # 每天 UTC 0 点（北京时间早上 8 点）自动跑一次
+  # 每 6 小时跑一次（UTC 0/6/12/18 点 → 北京时间 8/14/20/2 点）
   schedule:
-    - cron: '0 0 * * *'
+    - cron: '0 */6 * * *'
   # 允许在 Actions 页面手动点一下触发
   workflow_dispatch:
 
