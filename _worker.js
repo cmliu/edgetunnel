@@ -397,6 +397,10 @@ export default {
 								完整优选IP = 完整优选IP.concat(优选生成器IP数组);
 								其他节点LINK += 优选生成器其他节点;
 							}
+							// 优选 IP 健康检查：并发探测可达性，剔除失效 IP（结果缓存 30 分钟；env.IP_HEALTH_CHECK='0' 可关闭）
+							if (env.IP_HEALTH_CHECK !== '0' && env.IP_HEALTH_CHECK !== 'false' && 完整优选IP.length > 0) {
+								完整优选IP = await 优选IP健康筛选(env, 完整优选IP, 30);
+							}
 							const ECHLINK参数 = config_JSON.ECH ? `&ech=${encodeURIComponent((config_JSON.ECHConfig.SNI ? config_JSON.ECHConfig.SNI + '+' : '') + config_JSON.ECHConfig.DNS)}` : '';
 							const isLoonOrSurge = ua.includes('loon') || ua.includes('surge');
 							const { type: 传输协议, 路径字段名, 域名字段名 } = 获取传输协议配置(config_JSON);
@@ -5401,6 +5405,38 @@ async function MD5MD5(文本) {
 	const 第二次十六进制 = 第二次哈希数组.map(字节 => 字节.toString(16).padStart(2, '0')).join('');
 
 	return 第二次十六进制.toLowerCase();
+}
+
+// 优选 IP 健康检查：并发探测 IP:80 可达性，剔除失效 IP；结果按 TTL 缓存于 KV。
+// 说明：Worker 无法以指定 IP 出站，故以 80 端口 HTTP 连通性近似（CF 任播 IP 的 80/443 通常同生共死）
+async function 优选IP健康筛选(env, IP列表, 缓存分钟 = 30) {
+	const 缓存键 = '优选健康IP';
+	try {
+		const 缓存 = await env.KV?.get(缓存键);
+		if (缓存) return JSON.parse(缓存);
+	} catch (_) {}
+	const 待探测 = [];
+	const 保留条目 = []; // 无法探测的条目（如 sub:// 指令、异常格式）原样保留，不参与筛选
+	for (const 原始地址 of IP列表) {
+		const 备注位置 = 原始地址.indexOf('#');
+		const 地址部分 = (备注位置 > -1 ? 原始地址.slice(0, 备注位置) : 原始地址).trim();
+		if (/^(\[[\da-fA-F:]+\]|[\d.]+|[a-zA-Z0-9][\w.-]*)(?::\d+)?$/.test(地址部分)) 待探测.push(原始地址);
+		else 保留条目.push(原始地址);
+	}
+	const 探测结果 = await Promise.allSettled(待探测.map(async (原始地址) => {
+		const 备注位置 = 原始地址.indexOf('#');
+		const 地址部分 = (备注位置 > -1 ? 原始地址.slice(0, 备注位置) : 原始地址).trim();
+		const 主机 = 地址部分.replace(/:\d+$/, '');
+		try {
+			// redirect: manual 避免跟随 301 跳转后因 TLS 证书校验失败误判；任何 HTTP 响应（含 4xx/5xx）均视为可达
+			await fetch(`http://${主机}:80/`, { redirect: 'manual', signal: AbortSignal.timeout(4000) });
+			return { 原始地址, 可达: true };
+		} catch (_) { return { 原始地址, 可达: false }; }
+	}));
+	const 可达列表 = 探测结果.filter(r => r.status === 'fulfilled' && r.value.可达).map(r => r.value.原始地址);
+	const 最终列表 = [...可达列表, ...保留条目];
+	if (最终列表.length > 0) await env.KV?.put(缓存键, JSON.stringify(最终列表), { expirationTtl: 缓存分钟 * 60 });
+	return 最终列表.length > 0 ? 最终列表 : IP列表; // 全部失效时回退原列表，避免订阅为空
 }
 
 function 随机路径(完整节点路径 = "/") {
