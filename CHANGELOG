@@ -1,3 +1,29 @@
+## [2.1.20260811144522] - 2026-08-11 14:45:22
+
+### Change
+
+- 优化 **XHTTP** 上行传输：新增数据合包机制，小块数据合并后再统一发送，减少小包频繁写入，降低资源开销，大文件上传更流畅。
+
+## [2.1.20260810030901] - 2026-08-10 03:09:01
+
+### ADD
+
+- 新增 **XHTTP obfs padding** 接收端支持：识别 `xPaddingObfsMode`（tokenish / queryInHeader）混淆头。
+
+## [2.1.20260809231057] - 2026-08-09 23:10:57
+
+### Debug
+
+- 修复 **XHTTP链式代理** 参数解析：路径末尾多余的 `/` 会导致反代配置失效，现已兼容末尾斜杠。
+
+## [2.1.20260809201158] - 2026-08-09 20:11:58
+
+### Change
+
+- 优化 **XHTTP** 传输链路：TCP 数据改由 `request.body.pipeTo(socket.writable)` 与 `socket.readable.pipeTo(IdentityTransformStream)` 双向直通，不再经过 ReadableStream + 上行写入队列 + BYOB/Grain 逐块搬运，显著降低 CPU 占用。
+- 优化 **XHTTP** 连接管理：`forwardataTCP` 新增"仅建立连接"模式，建连并写入首包后直接返回 socket 交由 pipe 直通，同时保留直连失败后自动切换反代的兜底逻辑（gRPC/WS 调用方不受影响）。
+- 优化 **XHTTP UDP** 处理：UDP 分支独立拆出为专用处理函数，保留 Trojan UDP 反代与 DNS 转发逻辑。
+
 ## [2.1.20260729235734] - 2026-07-29 23:57:34
 
 ### Change
