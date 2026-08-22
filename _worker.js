@@ -816,7 +816,7 @@ function 开始TCP连接世代(remoteConnWrapper) {
 }
 
 async function 读取叉HTTP首包(reader, token) {
-	const decoder = VLESS文本解码器;
+	const decoder = 魏烈思文本解码器;
 
 	const 尝试解析魏烈思首包 = (data) => {
 		const length = data.byteLength;
@@ -1334,7 +1334,7 @@ async function 处理WS请求(request, yourUUID, url, 反代上下文 = {}) {
 		while (WS本地测速请求缓存.byteLength) {
 			const headerEnd = 查找HTTP请求头结尾(WS本地测速请求缓存);
 			if (headerEnd === -1) return;
-			const headerText = VLESS文本解码器.decode(WS本地测速请求缓存.subarray(0, headerEnd));
+			const headerText = 魏烈思文本解码器.decode(WS本地测速请求缓存.subarray(0, headerEnd));
 			const contentLengthMatch = headerText.match(/(?:^|\r\n)content-length\s*:\s*(\d+)/i);
 			const contentLength = contentLengthMatch ? Number(contentLengthMatch[1]) : 0;
 			const requestLength = headerEnd + contentLength;
@@ -1922,7 +1922,7 @@ function 解析木马请求(buffer, passwordPlainText) {
 }
 
 const UUID字节缓存 = new Map();
-const VLESS文本解码器 = new TextDecoder();
+const 魏烈思文本解码器 = new TextDecoder();
 
 function 读取十六进制半字节(code) {
 	if (code >= 48 && code <= 57) return code - 48;
@@ -1991,7 +1991,7 @@ function 解析魏烈思请求(chunk, token) {
 			addrLen = data[addrValIdx];
 			addrValIdx += 1;
 			if (length < addrValIdx + addrLen) return { hasError: true, message: 'Invalid domain data' };
-			hostname = VLESS文本解码器.decode(data.subarray(addrValIdx, addrValIdx + addrLen));
+			hostname = 魏烈思文本解码器.decode(data.subarray(addrValIdx, addrValIdx + addrLen));
 			break;
 		case 3:
 			addrLen = 16;
