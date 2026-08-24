@@ -1,0 +1,21 @@
+name: Sync Upstream
+
+on:
+  schedule:
+    # 每天 UTC 时间 0:00（北京时间 8:00）自动检测上游更新
+    - cron: '0 0 * * *'
+  workflow_dispatch: # 支持手动点击触发
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout target repo
+        uses: actions/checkout@v4
+
+      - name: Sync Upstream
+        uses: a2251399/sync-upstream-repo@v1.3.0
+        with:
+          upstream_repo: "原作者账号/原项目名" # 替换为原作者的 GitHub 路径（例如：lobehub/lobe-chat）
+          upstream_branch: "main"           # 替换为上游的主分支名（通常为 main 或 master）
+          global_token: ${{ secrets.GITHUB_TOKEN }}
