@@ -1,4 +1,4 @@
-﻿const Version = '2026-08-11 14:45:22';
+const Version = '2026-08-11 14:45:22';
 let config_JSON, 缓存SOCKS5白名单 = null, 调试日志打印 = false;
 let SOCKS5白名单 = ['*tapecontent.net', '*cloudatacdn.com', '*loadshare.org', '*cdn-centaurus.com', 'scholar.google.com'];
 const Pages静态页面 = 'https://edt-pages.github.io';
@@ -26,7 +26,7 @@ export default {
 		const url = new URL(请求URL文本);
 		const UA = request.headers.get('User-Agent') || 'null';
 		const upgradeHeader = (request.headers.get('Upgrade') || '').toLowerCase(), contentType = (request.headers.get('content-type') || '').toLowerCase();
-		const 管理员密码 = env.ADMIN || env.admin || env.PASSWORD || env.password || env.pswd || env.TOKEN || env.KEY || env.UUID || env.uuid;
+		const 管理员密码 = env.ADMIN || env.admin || env.PASSWORD || env.password || env.pswd || env.TOKEN || env.KEY;
 		const 加密秘钥 = env.KEY || '勿动此默认密钥，有需求请自行通过添加变量KEY进行修改';
 		const userIDMD5 = await MD5MD5(管理员密码 + 加密秘钥);
 		const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/;
@@ -90,7 +90,7 @@ export default {
 				} else if (访问路径 === 'login') {//处理登录页面和登录请求
 					const cookies = request.headers.get('Cookie') || '';
 					const authCookie = cookies.split(';').find(c => c.trim().startsWith('auth='))?.split('=')[1];
-					if (authCookie == await MD5MD5(UA + 加密秘钥 + 管理员密码)) return new Response('重定向中...', { status: 302, headers: { 'Location': '/admin' } });
+					if (authCookie === await MD5MD5(UA + 加密秘钥 + 管理员密码 + '|' + 访问IP)) return new Response('重定向中...', { status: 302, headers: { 'Location': '/admin' } });
 					if (request.method === 'POST') {
 						const formData = await request.text();
 						const params = new URLSearchParams(formData);
@@ -98,7 +98,7 @@ export default {
 						if (输入密码 === (typeof 管理员密码 === 'string' ? 管理员密码.replace(/[\r\n]/g, '') : 管理员密码)) {
 							// 密码正确，设置cookie并返回成功标记
 							const 响应 = new Response(JSON.stringify({ success: true }), { status: 200, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
-							响应.headers.set('Set-Cookie', `auth=${await MD5MD5(UA + 加密秘钥 + 管理员密码)}; Path=/; Max-Age=86400; HttpOnly; Secure; SameSite=Lax`);
+							响应.headers.set('Set-Cookie', `auth=${await MD5MD5(UA + 加密秘钥 + 管理员密码 + '|' + 访问IP)}; Path=/; Max-Age=86400; HttpOnly; Secure; SameSite=Lax`);
 							return 响应;
 						}
 					}
@@ -107,7 +107,7 @@ export default {
 					const cookies = request.headers.get('Cookie') || '';
 					const authCookie = cookies.split(';').find(c => c.trim().startsWith('auth='))?.split('=')[1];
 					// 没有cookie或cookie错误，跳转到/login页面
-					if (!authCookie || authCookie !== await MD5MD5(UA + 加密秘钥 + 管理员密码)) return new Response('重定向中...', { status: 302, headers: { 'Location': '/login' } });
+					if (!authCookie || authCookie !== await MD5MD5(UA + 加密秘钥 + 管理员密码 + '|' + 访问IP)) return new Response('重定向中...', { status: 302, headers: { 'Location': '/login' } });
 					if (访问路径 === 'admin/log.json') {// 读取日志内容
 						const 读取日志内容 = await env.KV.get('log.json') || '[]';
 						return new Response(读取日志内容, { status: 200, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
@@ -204,7 +204,7 @@ export default {
 						return new Response(JSON.stringify(检测代理响应, null, 2), { status: 200, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
 					}
 
-					config_JSON = await 读取config_JSON(env, host, userID, UA);
+					let config_JSON = await 读取config_JSON(env, host, userID, UA);
 
 					if (访问路径 === 'admin/init') {// 重置配置为默认值
 						try {
@@ -301,7 +301,7 @@ export default {
 					响应.headers.set('Set-Cookie', 'auth=; Path=/; Max-Age=0; HttpOnly');
 					return 响应;
 				} else if (访问路径 === 'sub') {//处理订阅请求
-					const 订阅TOKEN = await MD5MD5(host + userID), 作为优选订阅生成器 = ['1', 'true'].includes(env.BEST_SUB) && url.searchParams.get('host') === 'example.com' && url.searchParams.get('uuid') === '00000000-0000-4000-8000-000000000000' && UA.toLowerCase().includes('tunnel (https://github.com/' + 特征码字典[1] + '/edge');
+					const 订阅TOKEN = await MD5MD5(host + userID), 作为优选订阅生成器 = ['1', 'true'].includes(env.BEST_SUB) && !!env.BEST_SUB_KEY && url.searchParams.get('bestkey') === env.BEST_SUB_KEY && url.searchParams.get('host') === 'example.com' && url.searchParams.get('uuid') === '00000000-0000-4000-8000-000000000000' && UA.toLowerCase().includes('tunnel (https://github.com/' + 特征码字典[1] + '/edge');
 					const 请求TOKEN = url.searchParams.get('token');
 					const 用户客户端请求订阅 = 请求TOKEN === 订阅TOKEN;
 					const 当前日序号 = Math.floor(Date.now() / 86400000);
@@ -312,7 +312,7 @@ export default {
 					]);
 					const 订阅转换后端请求订阅 = 请求TOKEN === 今日订阅转换后端专属TOKEN || 请求TOKEN === 昨日订阅转换后端专属TOKEN;
 					if (用户客户端请求订阅 || 订阅转换后端请求订阅 || 作为优选订阅生成器) {
-						config_JSON = await 读取config_JSON(env, host, userID, UA);
+						let config_JSON = await 读取config_JSON(env, host, userID, UA);
 						if (作为优选订阅生成器) ctx.waitUntil(请求日志记录(env, request, 访问IP, 'Get_Best_SUB', config_JSON, false));
 						else ctx.waitUntil(请求日志记录(env, request, 访问IP, 'Get_SUB', config_JSON));
 						const ua = UA.toLowerCase();
@@ -496,7 +496,7 @@ export default {
 				} else if (访问路径 === 'locations') {//反代locations列表
 					const cookies = request.headers.get('Cookie') || '';
 					const authCookie = cookies.split(';').find(c => c.trim().startsWith('auth='))?.split('=')[1];
-					if (authCookie && authCookie == await MD5MD5(UA + 加密秘钥 + 管理员密码)) return fetch(new Request('https://speed.cloudflare.com/locations', { headers: { 'Referer': 'https://speed.cloudflare.com/' } }));
+					if (authCookie && authCookie === await MD5MD5(UA + 加密秘钥 + 管理员密码 + '|' + 访问IP)) return fetch(new Request('https://speed.cloudflare.com/locations', { headers: { 'Referer': 'https://speed.cloudflare.com/' } }));
 				} else if (访问路径 === 'robots.txt') return new Response('User-agent: *\nDisallow: /', { status: 200, headers: { 'Content-Type': 'text/plain; charset=UTF-8' } });
 			} else if (!envUUID) return fetch(Pages静态页面 + '/noKV').then(r => { const headers = new Headers(r.headers); headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate'); headers.set('Pragma', 'no-cache'); headers.set('Expires', '0'); return new Response(r.body, { status: 404, statusText: r.statusText, headers }) });
 		}
@@ -816,7 +816,7 @@ function 开始TCP连接世代(remoteConnWrapper) {
 }
 
 async function 读取叉HTTP首包(reader, token) {
-	const decoder = 魏烈思文本解码器;
+	const decoder = VLESS文本解码器;
 
 	const 尝试解析魏烈思首包 = (data) => {
 		const length = data.byteLength;
@@ -1292,6 +1292,7 @@ async function 处理WS请求(request, yourUUID, url, 反代上下文 = {}) {
 	const [clientSock, serverSock] = Object.values(WS套接字对);
 	try { (/** @type {any} */ (serverSock)).accept({ allowHalfOpen: true }) }
 	catch (_) { serverSock.accept() }
+		let 空闲断开计时器 = setTimeout(() => { try { serverSock.close() } catch (e) { } }, 60000);
 	serverSock.binaryType = 'arraybuffer';
 	let remoteConnWrapper = { socket: null, connectingPromise: null, retryConnect: null, downlinkDrain: Promise.resolve() };
 	const 失效远端连接 = () => 失效TCP连接世代(remoteConnWrapper);
@@ -1304,7 +1305,7 @@ async function 处理WS请求(request, yourUUID, url, 反代上下文 = {}) {
 	let WS显式传输链 = Promise.resolve();
 	let WS显式传输停止接收 = false, WS显式传输失败 = false, WS显式传输收尾已入队 = false;
 	let WS显式队列字节 = 0, WS显式队列条目 = 0;
-	let 判断协议类型 = null, 当前写入Socket = null, 远端写入器 = null;
+	let 判断协议类型 = null, 当前写入Socket = null, 远端写入器 = null, 远端已建链 = false;
 	let ss上下文 = null, ss初始化任务 = null;
 	let WS本地测速模式 = false, WS本地测速回包Socket = null;
 	let WS本地测速请求缓存 = new Uint8Array(0);
@@ -1334,7 +1335,7 @@ async function 处理WS请求(request, yourUUID, url, 反代上下文 = {}) {
 		while (WS本地测速请求缓存.byteLength) {
 			const headerEnd = 查找HTTP请求头结尾(WS本地测速请求缓存);
 			if (headerEnd === -1) return;
-			const headerText = 魏烈思文本解码器.decode(WS本地测速请求缓存.subarray(0, headerEnd));
+			const headerText = VLESS文本解码器.decode(WS本地测速请求缓存.subarray(0, headerEnd));
 			const contentLengthMatch = headerText.match(/(?:^|\r\n)content-length\s*:\s*(\d+)/i);
 			const contentLength = contentLengthMatch ? Number(contentLengthMatch[1]) : 0;
 			const requestLength = headerEnd + contentLength;
@@ -1588,7 +1589,8 @@ async function 处理WS请求(request, yourUUID, url, 反代上下文 = {}) {
 			}
 			if (已写入) continue;
 			if (上下文.首包已建立 && 上下文.目标主机 && 上下文.目标端口 > 0) {
-				await forwardataTCP(上下文.目标主机, 上下文.目标端口, 明文块, 上下文.回包Socket, null, remoteConnWrapper, yourUUID, request, 反代上下文);
+				远端已建链 = true;
+			await forwardataTCP(上下文.目标主机, 上下文.目标端口, 明文块, 上下文.回包Socket, null, remoteConnWrapper, yourUUID, request, 反代上下文);
 				continue;
 			}
 			const 明文数据 = 数据转Uint8Array(明文块);
@@ -1647,6 +1649,7 @@ async function 处理WS请求(request, yourUUID, url, 反代上下文 = {}) {
 			return;
 		}
 		if (await 写入远端(chunk)) return;
+			if (远端已建链) return;
 
 		if (判断协议类型 === null) {
 			if (url.searchParams.get('enc')) 判断协议类型 = 'ss';
@@ -1664,6 +1667,7 @@ async function 处理WS请求(request, yourUUID, url, 反代上下文 = {}) {
 			return;
 		}
 		if (await 写入远端(chunk)) return;
+			if (远端已建链) return;
 		if (判断协议类型 === '木马') {
 			const 解析结果 = 解析木马请求(chunk, yourUUID);
 			if (解析结果?.hasError) throw new Error(解析结果.message || 'Invalid trojan request');
@@ -1680,6 +1684,7 @@ async function 处理WS请求(request, yourUUID, url, 反代上下文 = {}) {
 				if (有效数据长度(rawClientData) > 0) return 转发木马UDP数据(rawClientData, serverSock, 木马UDP上下文, request);
 				return;
 			}
+			远端已建链 = true;
 			await forwardataTCP(hostname, port, rawClientData, serverSock, null, remoteConnWrapper, yourUUID, request, 反代上下文, true, 当前块字节 || 数据转Uint8Array(chunk));
 		} else {
 			判断是否是木马 = false;
@@ -1702,6 +1707,7 @@ async function 处理WS请求(request, yourUUID, url, 反代上下文 = {}) {
 				if (判断是否是木马) return 转发木马UDP数据(rawData, serverSock, 木马UDP上下文, request);
 				return forwardataudp(rawData, serverSock, respHeader, request);
 			}
+			远端已建链 = true;
 			await forwardataTCP(hostname, port, rawData, serverSock, respHeader, remoteConnWrapper, yourUUID, request, 反代上下文);
 		}
 	};
@@ -1763,9 +1769,12 @@ async function 处理WS请求(request, yourUUID, url, 反代上下文 = {}) {
 	};
 
 	serverSock.addEventListener('message', (event) => {
+			clearTimeout(空闲断开计时器);
+			空闲断开计时器 = setTimeout(() => { try { serverSock.close() } catch (e) { } }, 60000);
 		入队WS显式传输(event.data);
 	});
 	serverSock.addEventListener('close', () => {
+			clearTimeout(空闲断开计时器);
 		closeSocketQuietly(serverSock);
 		收尾WS显式传输();
 	});
@@ -1922,7 +1931,7 @@ function 解析木马请求(buffer, passwordPlainText) {
 }
 
 const UUID字节缓存 = new Map();
-const 魏烈思文本解码器 = new TextDecoder();
+const VLESS文本解码器 = new TextDecoder();
 
 function 读取十六进制半字节(code) {
 	if (code >= 48 && code <= 57) return code - 48;
@@ -1991,7 +2000,7 @@ function 解析魏烈思请求(chunk, token) {
 			addrLen = data[addrValIdx];
 			addrValIdx += 1;
 			if (length < addrValIdx + addrLen) return { hasError: true, message: 'Invalid domain data' };
-			hostname = 魏烈思文本解码器.decode(data.subarray(addrValIdx, addrValIdx + addrLen));
+			hostname = VLESS文本解码器.decode(data.subarray(addrValIdx, addrValIdx + addrLen));
 			break;
 		case 3:
 			addrLen = 16;
@@ -2680,7 +2689,7 @@ function 创建上行Grain合包流(目标字节 = 上行合包目标字节) {
 }
 
 function 创建上行写入队列({ 获取写入器, 获取连接任务 = null, 释放写入器, 重试连接, 关闭连接, 名称 = '上行队列' }) {
-	const grain = 创建Grain收纳器(上行合包目标字节);
+	const grain = 创建Grain收纳器(上行合包目标字节, true);
 	let draining = false;
 	let closed = false;
 	let idleResolvers = [];
@@ -5326,7 +5335,7 @@ function Surge订阅配置文件热补丁(content, url, config_JSON) {
 async function 请求日志记录(env, request, 访问IP, 请求类型 = "Get_SUB", config_JSON, 是否写入KV日志 = true) {
 	try {
 		const 当前时间 = new Date();
-		const 日志内容 = { TYPE: 请求类型, IP: 访问IP, ASN: `AS${request.cf.asn || '0'} ${request.cf.asOrganization || 'Unknown'}`, CC: `${request.cf.country || 'N/A'} ${request.cf.city || 'N/A'}`, URL: request.url, UA: request.headers.get('User-Agent') || 'Unknown', TIME: 当前时间.getTime() };
+		const 日志内容 = { TYPE: 请求类型, IP: 访问IP, ASN: `AS${request.cf.asn || '0'} ${request.cf.asOrganization || 'Unknown'}`, CC: `${request.cf.country || 'N/A'} ${request.cf.city || 'N/A'}`, URL: request.url.split('?')[0], UA: request.headers.get('User-Agent') || 'Unknown', TIME: 当前时间.getTime() };
 		if (config_JSON.TG.启用) {
 			try {
 				const TG_TXT = await env.KV.get('tg.json');
@@ -5340,7 +5349,7 @@ async function 请求日志记录(env, request, 访问IP, 请求类型 = "Get_SU
 						`📍 <b>位置：</b>${日志内容.CC}\n` +
 						`🏢 <b>ASN：</b>${日志内容.ASN}\n` +
 						`🔗 <b>域名：</b><code>${请求URL.host}</code>\n` +
-						`🔍 <b>路径：</b><code>${请求URL.pathname + 请求URL.search}</code>\n` +
+						`🔍 <b>路径：</b><code>${请求URL.pathname}</code>\n` +
 						`🤖 <b>UA：</b><code>${日志内容.UA}</code>\n` +
 						`📅 <b>时间：</b>${请求时间}\n` +
 						`${config_JSON.CF.Usage.success ? `📊 <b>请求用量：</b>${config_JSON.CF.Usage.total}/${config_JSON.CF.Usage.max} <b>${((config_JSON.CF.Usage.total / config_JSON.CF.Usage.max) * 100).toFixed(2)}%</b>\n` : ''}`;
@@ -5585,6 +5594,7 @@ async function DoH查询(域名, 记录类型, DoH解析服务 = "https://cloudf
 }
 
 async function 读取config_JSON(env, hostname, userID, UA = "Mozilla/5.0", 重置配置 = false) {
+	let config_JSON;
 	const _p = 特征码字典[0];
 	const host = hostname, Ali_DoH = "https://dns.alidns.com/dns-query", ECH_SNI = "cloudflare-ech.com", 占位符 = '{{IP:PORT}}', 初始化开始时间 = performance.now(), 默认配置JSON = {
 		TIME: new Date().toISOString(),
@@ -5925,7 +5935,9 @@ async function 获取优选订阅生成器数据(优选订阅生成器HOST) {
 			return [优选IP, 其他节点LINK];
 		}
 
-		const 优选订阅生成器返回订阅内容 = atob(await response.text());
+		const 优选订阅生成器原始文本 = await response.text();
+			if (优选订阅生成器原始文本.length > 4 * 1024 * 1024) return [优选IP, 其他节点LINK];
+			const 优选订阅生成器返回订阅内容 = atob(优选订阅生成器原始文本);
 		const 订阅行列表 = 优选订阅生成器返回订阅内容.includes('\r\n')
 			? 优选订阅生成器返回订阅内容.split('\r\n')
 			: 优选订阅生成器返回订阅内容.split('\n');
@@ -6000,10 +6012,12 @@ async function 请求优选API(urls, 默认端口 = '443', 超时时间 = 3000) 
 			const controller = new AbortController();
 			const timeoutId = setTimeout(() => controller.abort(), 超时时间);
 			const response = await fetch(urlWithoutHash, { signal: controller.signal });
+			if (Number(response.headers.get('content-length') || 0) > 4 * 1024 * 1024) return;
 			clearTimeout(timeoutId);
 			let text = '';
 			try {
 				const buffer = await response.arrayBuffer();
+			if (buffer.byteLength > 4 * 1024 * 1024) return;
 				const contentType = (response.headers.get('content-type') || '').toLowerCase();
 				const charset = contentType.match(/charset=([^\s;]+)/i)?.[1]?.toLowerCase() || '';
 
@@ -6036,6 +6050,7 @@ async function 请求优选API(urls, 默认端口 = '443', 超时时间 = 3000) 
 				// 如果所有编码都失败或无效，尝试 response.text()
 				if (!decodeSuccess) {
 					text = await response.text();
+			if (text.length > 4 * 1024 * 1024) return;
 				}
 
 				// 如果返回的是空或无效数据，返回
@@ -6538,6 +6553,7 @@ async function nginx() {
 }
 
 async function html1101(host, 访问IP) {
+	const 转义HTML = (s = '') => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 	const now = new Date();
 	const 格式化时间戳 = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0') + ' ' + String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0') + ':' + String(now.getSeconds()).padStart(2, '0');
 	const 随机字符串 = Array.from(crypto.getRandomValues(new Uint8Array(8))).map(b => b.toString(16).padStart(2, '0')).join('');
@@ -6548,7 +6564,7 @@ async function html1101(host, 访问IP) {
 <!--[if IE 8]>    <html class="no-js ie8 oldie" lang="en-US"> <![endif]-->
 <!--[if gt IE 8]><!--> <html class="no-js" lang="en-US"> <!--<![endif]-->
 <head>
-<title>Worker threw exception | ${host} | Cloudflare</title>
+<title>Worker threw exception | ${转义HTML(host)} | Cloudflare</title>
 <meta charset="UTF-8" />
 <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
 <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
@@ -6590,7 +6606,7 @@ async function html1101(host, 访问IP) {
                 <div class="cf-columns two">
                     <div class="cf-column">
                         <h2 data-translate="what_happened">What happened?</h2>
-                            <p>You've requested a page on a website (${host}) that is on the <a href="https://www.cloudflare.com/5xx-error-landing?utm_source=error_100x" target="_blank">Cloudflare</a> network. An unknown error occurred while rendering the page.</p>
+                            <p>You've requested a page on a website (${转义HTML(host)}) that is on the <a href="https://www.cloudflare.com/5xx-error-landing?utm_source=error_100x" target="_blank">Cloudflare</a> network. An unknown error occurred while rendering the page.</p>
                     </div>
 
                     <div class="cf-column">
@@ -6608,7 +6624,7 @@ async function html1101(host, 访问IP) {
       <span id="cf-footer-item-ip" class="cf-footer-item hidden sm:block sm:mb-1">
         Your IP:
         <button type="button" id="cf-footer-ip-reveal" class="cf-footer-ip-reveal-btn">Click to reveal</button>
-        <span class="hidden" id="cf-footer-ip">${访问IP}</span>
+        <span class="hidden" id="cf-footer-ip">${转义HTML(访问IP)}</span>
         <span class="cf-footer-separator sm:hidden">&bull;</span>
       </span>
       <span class="cf-footer-item sm:block sm:mb-1"><span>Performance &amp; security by</span> <a rel="noopener noreferrer" href="https://www.cloudflare.com/5xx-error-landing" id="brand_link" target="_blank">Cloudflare</a></span>
