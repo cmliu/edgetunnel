@@ -1,4 +1,4 @@
-﻿const Version = '2026-08-11 14:45:22';
+﻿const Version = '2026-09-04 16:24:13';
 let config_JSON, 缓存SOCKS5白名单 = null, 调试日志打印 = false;
 let SOCKS5白名单 = ['*tapecontent.net', '*cloudatacdn.com', '*loadshare.org', '*cdn-centaurus.com', 'scholar.google.com'];
 const Pages静态页面 = 'https://edt-pages.github.io';
@@ -450,7 +450,7 @@ export default {
 									return `${协议类型}://${btoa(config_JSON.SS.加密方式 + ':00000000-0000-4000-8000-000000000000')}@${节点地址}:${节点端口}?plugin=v2${encodeURIComponent('ray-plugin;mode=websocket;host=example.com;path=' + (config_JSON.随机路径 ? 随机路径(完整节点路径) : 完整节点路径) + (config_JSON.SS.TLS ? ';tls' : '')) + ECHLINK参数 + TLS分片参数}#${encodeURIComponent(节点备注)}`;
 								} else {
 									const 传输路径参数值 = 获取传输路径参数值(config_JSON, 完整节点路径, 作为优选订阅生成器);
-									return `${协议类型}://00000000-0000-4000-8000-000000000000@${节点地址}:${节点端口}?security=tls&type=${传输协议 + ECHLINK参数}&${域名字段名}=example.com&fp=${config_JSON.Fingerprint}&sni=example.com&${路径字段名}=${encodeURIComponent(传输路径参数值) + TLS分片参数}&encryption=none#${encodeURIComponent(节点备注)}`;
+									return `${协议类型}://00000000-0000-4000-8000-000000000000@${节点地址}:${节点端口}?security=tls&type=${传输协议 + ECHLINK参数}&${域名字段名}=example.com&fp=${config_JSON.Fingerprint}&sni=example.com&${路径字段名}=${encodeURIComponent(传输路径参数值) + TLS分片参数}&encryption=none&alpn=${encodeURIComponent(config_JSON.ALPN)}#${encodeURIComponent(节点备注)}`;
 								}
 							}).filter(item => item !== null).join('\n');
 						} else { // 订阅转换
@@ -764,12 +764,12 @@ function 处理叉HTTPUDP请求(首包, reader, request, 反代上下文, respon
 				log(`[叉HTTP转发] 处理失败: ${err?.message || err}`);
 				closeSocketQuietly(叉桥);
 			} finally {
-			const 保持木马UDP反代下行 = !转发失败 && 首包.协议 === 'trojan' && 木马UDP上下文.反代地址 && 木马UDP上下文.反代Socket;
-			if (!保持木马UDP反代下行) {
-				try { 木马UDP上下文.反代Socket?.close() } catch (e) { }
-				closeSocketQuietly(叉桥);
-			}
-			try { reader.releaseLock() } catch (e) { }
+				const 保持木马UDP反代下行 = !转发失败 && 首包.协议 === 'trojan' && 木马UDP上下文.反代地址 && 木马UDP上下文.反代Socket;
+				if (!保持木马UDP反代下行) {
+					try { 木马UDP上下文.反代Socket?.close() } catch (e) { }
+					closeSocketQuietly(叉桥);
+				}
+				try { reader.releaseLock() } catch (e) { }
 			}
 		},
 		cancel() {
@@ -3763,6 +3763,7 @@ class TlsClient {
 		/** @type {{ namedCurve: number, serverPublicKey: Uint8Array } | null} */
 		let serverKeyExchange = null;
 		let sawServerHelloDone = !1;
+		let clientCertRequested = !1;
 		if (await this.readHandshakeUntil(reader, (async message => {
 			switch (message.type) {
 				case HANDSHAKE_TYPE_CERTIFICATE: {
@@ -3778,7 +3779,8 @@ class TlsClient {
 				case HANDSHAKE_TYPE_SERVER_HELLO_DONE:
 					return this.recordHandshake(message.raw), sawServerHelloDone = !0, 1;
 				case HANDSHAKE_TYPE_CERTIFICATE_REQUEST:
-					throw new Error("Client certificate is not supported");
+					this.recordHandshake(message.raw), clientCertRequested = !0;
+					break;
 				default:
 					this.recordHandshake(message.raw)
 			}
@@ -3791,6 +3793,10 @@ class TlsClient {
 		if (!keyShare) throw new Error(`Missing key pair for curve: 0x${serverKeyExchangeData.namedCurve.toString(16)}`);
 		const preMasterSecret = await deriveSharedSecret(keyShare.keyPair.privateKey, serverKeyExchangeData.serverPublicKey, curveName),
 			clientKeyExchange = buildHandshakeMessage(HANDSHAKE_TYPE_CLIENT_KEY_EXCHANGE, tlsBytes(keyShare.publicKeyRaw.length, keyShare.publicKeyRaw));
+		if (clientCertRequested) {
+			const emptyCertificate = buildHandshakeMessage(HANDSHAKE_TYPE_CERTIFICATE, tlsBytes(0, 0, 0));
+			this.recordHandshake(emptyCertificate), await writer.write(buildTlsRecord(CONTENT_TYPE_HANDSHAKE, emptyCertificate))
+		}
 		this.recordHandshake(clientKeyExchange);
 		const hashName = this.cipherConfig.hash;
 		this.masterSecret = await tls12Prf(preMasterSecret, "master secret", concatBytes(this.clientRandom, this.serverRandom), 48, hashName);
@@ -3838,6 +3844,7 @@ class TlsClient {
 		if (!this.cipherConfig.chacha) [this.clientHandshakeCryptoKey, this.serverHandshakeCryptoKey] = await Promise.all([importAesGcmKey(this.clientHandshakeKey, ["encrypt"]), importAesGcmKey(this.serverHandshakeKey, ["decrypt"])]);
 		const serverFinishedKey = await hkdfExpandLabel(hashName, serverHandshakeTrafficSecret, "finished", EMPTY_BYTES, hashLen);
 		let serverFinishedReceived = !1;
+		let clientCertRequested = !1;
 		const handleHandshakeMessage = async message => {
 			switch (message.type) {
 				case HANDSHAKE_TYPE_ENCRYPTED_EXTENSIONS: {
@@ -3852,7 +3859,8 @@ class TlsClient {
 					break
 				}
 				case HANDSHAKE_TYPE_CERTIFICATE_REQUEST:
-					throw new Error("Client certificate is not supported");
+					this.recordHandshake(message.raw), clientCertRequested = !0;
+					break;
 				case HANDSHAKE_TYPE_CERTIFICATE_VERIFY:
 					this.recordHandshake(message.raw);
 					break;
@@ -3889,10 +3897,12 @@ class TlsClient {
 			serverAppTrafficSecret = await hkdfExpandLabel(hashName, masterSecret, "s ap traffic", applicationTranscriptHash, hashLen);
 		[this.clientAppKey, this.clientAppIv] = await deriveTrafficKeys(hashName, clientAppTrafficSecret, keyLen, ivLen), [this.serverAppKey, this.serverAppIv] = await deriveTrafficKeys(hashName, serverAppTrafficSecret, keyLen, ivLen);
 		if (!this.cipherConfig.chacha) [this.clientAppCryptoKey, this.serverAppCryptoKey] = await Promise.all([importAesGcmKey(this.clientAppKey, ["encrypt"]), importAesGcmKey(this.serverAppKey, ["decrypt"])]);
+		let clientFlightHandshake = EMPTY_BYTES;
+		if (clientCertRequested) clientFlightHandshake = buildHandshakeMessage(HANDSHAKE_TYPE_CERTIFICATE, tlsBytes(0, 0, 0, 0)), this.recordHandshake(clientFlightHandshake);
 		const clientFinishedKey = await hkdfExpandLabel(hashName, clientHandshakeTrafficSecret, "finished", EMPTY_BYTES, hashLen),
 			clientFinishedVerifyData = await hmac(hashName, clientFinishedKey, await digestBytes(hashName, this.transcript())),
 			clientFinishedMessage = buildHandshakeMessage(HANDSHAKE_TYPE_FINISHED, clientFinishedVerifyData);
-		this.recordHandshake(clientFinishedMessage), await writer.write(buildTlsRecord(CONTENT_TYPE_APPLICATION_DATA, await this.encryptTls13Handshake(concatBytes(clientFinishedMessage, [CONTENT_TYPE_HANDSHAKE])))), this.clientSeqNum = 0n, this.serverSeqNum = 0n
+		this.recordHandshake(clientFinishedMessage), await writer.write(buildTlsRecord(CONTENT_TYPE_APPLICATION_DATA, await this.encryptTls13Handshake(concatBytes(clientFlightHandshake, clientFinishedMessage, [CONTENT_TYPE_HANDSHAKE])))), this.clientSeqNum = 0n, this.serverSeqNum = 0n
 	}
 	async encryptTls12(plaintext, contentType) {
 		const sequenceNumber = this.clientSeqNum++,
@@ -5592,6 +5602,7 @@ async function 读取config_JSON(env, hostname, userID, UA = "Mozilla/5.0", 重�
 		HOSTS: [hostname],
 		UUID: userID,
 		PATH: "/",
+		ALPN: "",
 		协议类型: "v" + "le" + "ss",
 		传输协议: "ws",
 		gRPC模式: "gun",
@@ -5715,6 +5726,7 @@ async function 读取config_JSON(env, hostname, userID, UA = "Mozilla/5.0", 重�
 
 	if (env.PATH) config_JSON.PATH = env.PATH.startsWith('/') ? env.PATH : '/' + env.PATH;
 	else if (!config_JSON.PATH) config_JSON.PATH = '/';
+	if (!config_JSON.ALPN) config_JSON.ALPN = "";
 
 	if (!config_JSON.gRPC模式) config_JSON.gRPC模式 = 'gun';
 	if (!config_JSON.SS) config_JSON.SS = { 加密方式: "aes-128-gcm", TLS: false };

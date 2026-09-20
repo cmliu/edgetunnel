@@ -1,3 +1,13 @@
+## [2.1.20260904162413] - 2026-09-04 16:24:13
+
+### ADD
+
+- 新增 **ALPN** 字段支持：节点链接现已自动携带 ALPN 参数，适配更多客户端场景。
+
+### Debug
+
+- 修复 **HTTPS 代理**：上游服务器请求客户端证书（CertificateRequest）时握手失败的问题，现已回送空证书正常完成握手。[提交](https://github.com/cmliu/CF-Workers-CheckSocks5/commit/ae93bc28462a6df03795143a5caa85f717ba231a)
+
 ## [2.1.20260811144522] - 2026-08-11 14:45:22
 
 ### Change
