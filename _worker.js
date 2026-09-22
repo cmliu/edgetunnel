@@ -3331,7 +3331,11 @@ function 创建请求TCP连接器(request) {
 	const 请求对象 = /** @type {any} */ (request);
 	const fetcher = 请求对象?.fetcher;
 	if (!fetcher || typeof fetcher.connect !== 'function') throw new Error('request.fetcher.connect unavailable');
-	return (options, init) => init === undefined ? fetcher.connect(options) : fetcher.connect(options, init);
+	return (options, init) => {
+		// connect() 会将 hostname 与 port 直接拼接为 "host:port"，IPv6 地址必须带方括号，否则无法被正确解析
+		const target = typeof options?.hostname === 'string' ? { ...options, hostname: ensureIPv6Brackets(options.hostname) } : options;
+		return init === undefined ? fetcher.connect(target) : fetcher.connect(target, init);
+	};
 }
 ////////////////////////////////////////////TLSClient by: @Alexandre_Kojeve////////////////////////////////////////////////
 const TLS_VERSION_10 = 769, TLS_VERSION_12 = 771, TLS_VERSION_13 = 772;
@@ -4021,6 +4025,11 @@ class TlsClient {
 function stripIPv6Brackets(hostname = '') {
 	const host = String(hostname || '').trim();
 	return host.startsWith('[') && host.endsWith(']') ? host.slice(1, -1) : host;
+}
+
+function ensureIPv6Brackets(hostname = '') {
+	const host = stripIPv6Brackets(hostname);
+	return host.includes(':') ? `[${host}]` : host;
 }
 
 function isIPHostname(hostname = '') {
