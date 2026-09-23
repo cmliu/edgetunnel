@@ -1,4 +1,4 @@
-﻿const Version = '2026-09-22 20:01:17';
+const Version = '2026-09-22 20:01:17';
 let config_JSON, 缓存SOCKS5白名单 = null, 调试日志打印 = false;
 let SOCKS5白名单 = ['*tapecontent.net', '*cloudatacdn.com', '*loadshare.org', '*cdn-centaurus.com', 'scholar.google.com'];
 const Pages静态页面 = 'https://edt-pages.github.io';
