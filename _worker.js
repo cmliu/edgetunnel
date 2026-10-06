@@ -540,8 +540,6 @@ const 面板本地化脚本 = String.raw`(function () {
 		['肥羊增强型后端', 'بک‌اند پیشرفته‌ی Feiyang', 'Feiyang enhanced backend'],
 		['肥羊备用后端', 'بک‌اند پشتیبان Feiyang', 'Feiyang backup backend'],
 		['周润发后端', 'بک‌اند Chow Yun-fat', 'Chow Yun-fat backend'],
-		['负载均衡后端', 'بک‌اند توزیع بار', 'load-balancing backend'],
-		['应急备用后端', 'بک‌اند اضطراری', 'emergency backup backend'],
 		['CM自用规则', 'قوانین اختصاصی CM', 'CM custom rules'],
 		['默认版', 'نسخه‌ی پیش‌فرض', 'Default'],
 		['精简版', 'نسخه‌ی سبک', 'Lite'],
@@ -551,81 +549,67 @@ const 面板本地化脚本 = String.raw`(function () {
 		['负载均衡', 'توزیع بار', 'load balancing'],
 		['识别港美地区', 'تشخیص مناطق هنگ‌کنگ و آمریکا', 'detects HK/US regions'],
 		['有效减少', 'کاهش مؤثر ', 'effectively reduces '],
-		['情况', ' موارد', ' cases'],
+		['-1情况', '-1 موارد', '-1 cases'],
 		['细分', 'تفکیک', 'split'],
-		['识别', 'تشخیص ', 'detects '],
+		['识别Cloud', 'تشخیص Cloud', 'detects Cloud'],
 		['可用请求数统计', 'آمار تعداد درخواست‌های مجاز', 'available request statistics'],
 		['当前访问管理面板使用的域名', 'دامنه‌ای که اکنون با آن پنل مدیریت را باز کرده‌اید', 'The domain you are currently using to open the admin panel'],
-
-		// ---------- تکمیل ترجمه‌های جامانده ----------
-		['抄作业，直接使用大佬优选好的结果', 'کپی‌کردن کار دیگران؛ مستقیم از نتیجه‌ی انتخابِ افراد باتجربه استفاده کنید', 'copy the homework \u2014 directly use results already picked by experts'],
-		['抄作业', 'کپی‌کردن کار دیگران', 'copy the homework'],
-		['好的结果', 'نتیجه‌ی آماده', 'ready results'],
-		['功能', 'قابلیت', 'feature'],
+		['全分组 重度用户使用 谷歌分流', 'گروه‌بندی کامل (کاربران حرفه‌ای)، تفکیک گوگل', 'Full groups (heavy users), Google split'],
+		['分组比较完整', 'گروه‌بندی نسبتاً کامل', 'fairly complete groups'],
+		['与Github同步', 'همگام با Github', 'synced with GitHub'],
+		['无广告拦截规则', 'بدون قوانین مسدودسازی تبلیغات', 'no ad-blocking rules'],
+		['更多去广告', 'مسدودسازی بیشتر تبلیغات', 'more ad blocking'],
+		['带故障转移', 'همراه با جایگزینی خودکار هنگام خطا', 'with failover'],
+		['无自动测速', 'بدون تست سرعت خودکار', 'no auto speed test'],
+		['奈飞全量', 'نتفلیکس (کامل)', 'full Netflix'],
+		['谷歌分流', 'تفکیک مسیر گوگل', 'Google routing split'],
+		['多国家分组', 'گروه‌بندی چندکشوری', 'multi-country groups'],
+		['全分组', 'گروه‌بندی کامل', 'full groups'],
+		['抄作业，直接使用大佬优选好的结果', 'مستقیم از نتیجه‌ی انتخابِ افراد باتجربه استفاده کنید', 'copy the homework \u2014 directly use results already picked by experts'],
 		['虽然不知道你在访问什么', 'اگرچه نمی‌داند به چه چیزی دسترسی دارید', 'it cannot see what you are visiting'],
 		['但知道你在', 'اما می‌داند که شما در حال ', 'but it knows you are '],
 		['扶墙', 'عبور از فیلترینگ هستید', 'bypassing the firewall'],
 		['并且知道你连接的是哪个域名', 'و می‌داند به کدام دامنه وصل شده‌اید', 'and it knows which domain you connect to'],
-		['即可', '', ''],
-		['内核', 'هسته', 'core'],
 		['的客户端均支持', ' از ECH پشتیبانی می‌کنند', ' support ECH'],
-		['赋值', 'مقداردهی', 'assigning a value'],
 		['将进入', 'وارد ', 'will enter '],
 		['固定模式', 'حالت ثابت', 'fixed mode'],
-		['不再随', 'دیگر با ', 'no longer follows '],
 		['的变化而自动更新', ' تغییر نمی‌کند و خودکار به‌روز نمی‌شود', ' changes and no longer updates automatically'],
-		['系统将会根据算法动态生成新的', 'سیستم بر اساس الگوریتم، به‌صورت پویا یک مقدار جدید می‌سازد: ', 'The system will dynamically generate a new one by algorithm: '],
+		['系统将会根据算法动态生成新的', 'سیستم بر اساس الگوریتم، یک مقدار جدید می‌سازد: ', 'The system will dynamically generate a new one by algorithm: '],
+		['当前项目必须部署在', 'پروژه‌ی فعلی باید روی ', 'The current project must be deployed on '],
+		['当前你选择了', 'شما اکنون این‌ها را انتخاب کرده‌اید: ', 'You have currently selected '],
+		['选择统计方案', 'انتخاب روش آمار', 'Choose a statistics method'],
+		['小白模式', 'حالت مبتدی', 'Beginner mode'],
+		['高手模式', 'حالت پیشرفته', 'Expert mode'],
+		['ADMIN 或 KEY', 'ADMIN یا KEY', 'ADMIN or KEY'],
+		['XHTTP 或 gRPC', 'XHTTP یا gRPC', 'XHTTP or gRPC'],
+		['或 HOST 直接使用', 'یا HOST را مستقیماً روی ', 'or set HOST directly to '],
+		['的 TLS 传输层加密', '', ''],
+		['，在"HOST"', '، در "HOST"', ', in "HOST"'],
+		['ECH 设置 为 开启', 'تنظیم ECH روی «روشن»', 'ECH setting set to On'],
+
+		['抄作业', 'کپی‌کردن کار دیگران', 'copy the homework'],
+		['好的结果', 'نتیجه‌ی آماده', 'ready results'],
+		['内核', 'هسته', 'core'],
+		['赋值', 'مقداردهی', 'assigning a value'],
+		['不再随', 'دیگر با ', 'no longer follows '],
 		['案例', 'نمونه', 'examples'],
 		['云机场', ' سرویس‌دهنده', ' provider'],
 		['当前项目', 'پروژه‌ی فعلی', 'the current project'],
 		['你当前', 'اکنون شما', 'you currently'],
-		['域名', 'دامنه', 'domain'],
 		['频道', 'کانال', 'channel'],
-		['选择统计方案', 'انتخاب روش آمار', 'Choose a statistics method'],
-		['小白模式', 'حالت مبتدی', 'Beginner mode'],
-		['高手模式', 'حالت پیشرفته', 'Expert mode'],
 		['切换', 'تغییر', 'Switch'],
 		['作为', 'به‌عنوان', 'as'],
 		['HOST 为', 'HOST برابر', 'HOST is'],
 		['的节点', ' نود', ' node'],
-
 		['为', 'روی', 'set to'],
 		['或', 'یا', 'or'],
 		['的', '', ''],
 		['在', 'در', 'in'],
 		['项目', 'پروژه', 'project'],
 		['当前', 'فعلی', 'current'],
-		['ADMIN 或 KEY', 'ADMIN یا KEY', 'ADMIN or KEY'],
-		['或 KEY', 'یا KEY', 'or KEY'],
-		['XHTTP 或 gRPC', 'XHTTP یا gRPC', 'XHTTP or gRPC'],
-		['或 HOST 直接使用', 'یا HOST را مستقیماً روی ', 'or set HOST directly to '],
-		['的 TLS 传输层加密', '', ''],
-		['，在', '، در ', ', in '],
-		['当前项目必须部署在', 'پروژه‌ی فعلی باید روی ', 'The current project must be deployed on '],
-		['当前你选择了', 'شما اکنون این‌ها را انتخاب کرده‌اید: ', 'You have currently selected '],
-		['ECH 设置 为 开启', 'تنظیم ECH روی «روشن»', 'ECH setting set to On'],
-		// ---------- نام‌های رایج فایل‌های پیکربندی مبدل (ACL4SSR / CM) ----------
-		['全分组 重度用户使用 谷歌分流', 'گروه‌بندی کامل (برای کاربران حرفه‌ای) با تفکیک گوگل', 'Full groups (heavy users), Google split'],
-		['分组比较完整 (与Github同步)', 'گروه‌بندی نسبتاً کامل (همگام با Github)', 'fairly complete groups (synced with GitHub)'],
-		['分组比较完整', 'گروه‌بندی نسبتاً کامل', 'fairly complete groups'],
-		['与Github同步', 'همگام با Github', 'synced with GitHub'],
-		['无广告拦截规则', 'بدون قوانین مسدودسازی تبلیغات', 'no ad-blocking rules'],
-		['更多去广告', 'مسدودسازی بیشتر تبلیغات', 'more ad blocking'],
-		['去广告', 'مسدودسازی تبلیغات', 'ad blocking'],
-		['带故障转移', 'همراه با جایگزینی خودکار هنگام خطا', 'with failover'],
-		['无自动测速', 'بدون تست سرعت خودکار', 'no auto speed test'],
-		['奈飞全量', 'نتفلیکس (کامل)', 'full Netflix'],
-		['奈飞', 'نتفلیکس', 'Netflix'],
-		['谷歌分流', 'تفکیک مسیر گوگل', 'Google routing split'],
-		['重度用户使用', 'برای کاربران حرفه‌ای', 'for heavy users'],
-		['多国家分组', 'گروه‌بندی چندکشوری', 'multi-country groups'],
-		['多国家', 'چندکشوری', 'multi-country'],
-		['全分组', 'گروه‌بندی کامل', 'full groups'],
-		['完整版', 'نسخه‌ی کامل', 'Full'],
-		['增强版', 'نسخه‌ی تقویت‌شده', 'Enhanced'],
-		['个人规则', 'قوانین شخصی', 'personal rules'],
-		['本地', 'محلی', 'local'],
-		['在线', 'آنلاین', 'online'],
+		['域名', 'دامنه', 'domain'],
+		['情况', ' موارد', ' cases'],
+		['识别', 'تشخیص ', 'detects '],
 		// ---------- واژه‌های عمومی (جایگزین‌های پشتیبان) ----------
 		['订阅', ' اشتراک ', ' subscription '],
 		['节点', ' نود ', ' node '],
@@ -655,7 +639,6 @@ const 面板本地化脚本 = String.raw`(function () {
 
 	var MISSING = {};
 	window.__i18nMissing = function () { var k = Object.keys(MISSING); console.log(k.join('\n')); return k; };
-	window.__i18nMissingMap = function () { return MISSING; };
 
 	function tr(s, tag) {
 		if (lang === 'zh' || typeof s !== 'string' || !CJK.test(s)) return s;
@@ -695,38 +678,109 @@ const 面板本地化脚本 = String.raw`(function () {
 		return _tr(s, tag);
 	};
 
+	// ---------- لایه‌ی شفاف: ظاهر صفحه ترجمه می‌شود، ولی اسکریپت خود صفحه همیشه متن اصلی (چینی) را «می‌خواند» ----------
+	// دلیل: پنل برای منطق خودش (اطلاعات شبکه، PROXYIP خودکار، مقدار گزینه‌ها و ...) متن‌های DOM را می‌خواند؛
+	// اگر متن عوض شده را بخواند، منطقش به هم می‌خورد. پس خواندن‌ها (textContent / nodeValue / getAttribute / option.value ...) متن اصلی را برمی‌گردانند.
+	var RAW = {};
+	try {
+		RAW.nvGet = Object.getOwnPropertyDescriptor(Node.prototype, 'nodeValue');
+		RAW.tcGet = Object.getOwnPropertyDescriptor(Node.prototype, 'textContent');
+		RAW.dataGet = Object.getOwnPropertyDescriptor(CharacterData.prototype, 'data');
+		RAW.getAttr = Element.prototype.getAttribute;
+		RAW.itGet = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'innerText');
+		RAW.optVal = Object.getOwnPropertyDescriptor(HTMLOptionElement.prototype, 'value');
+		RAW.optText = Object.getOwnPropertyDescriptor(HTMLOptionElement.prototype, 'text');
+		RAW.selVal = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value');
+	} catch (e) { }
+	var T_ORIG = new WeakMap(), T_APPLIED = new WeakMap();
+	function rawText(n) { return RAW.nvGet.get.call(n); }
+	function origOf(n) {
+		var cur = rawText(n);
+		return (T_ORIG.has(n) && T_APPLIED.get(n) === cur) ? T_ORIG.get(n) : cur;
+	}
+	function origTextContent(node) {
+		if (node.nodeType === 3 || node.nodeType === 4) return origOf(node);
+		if (node.nodeType !== 1 && node.nodeType !== 11 && node.nodeType !== 9) return RAW.tcGet.get.call(node);
+		var out = '', w = document.createTreeWalker(node, 4, null), n;
+		while ((n = w.nextNode())) out += origOf(n);
+		return out;
+	}
+	try {
+		Object.defineProperty(Node.prototype, 'nodeValue', { configurable: true, enumerable: RAW.nvGet.enumerable, get: function () { return this.nodeType === 3 ? origOf(this) : RAW.nvGet.get.call(this); }, set: RAW.nvGet.set });
+		Object.defineProperty(CharacterData.prototype, 'data', { configurable: true, enumerable: RAW.dataGet.enumerable, get: function () { return this.nodeType === 3 ? origOf(this) : RAW.dataGet.get.call(this); }, set: RAW.dataGet.set });
+		Object.defineProperty(Node.prototype, 'textContent', { configurable: true, enumerable: RAW.tcGet.enumerable, get: function () { return origTextContent(this); }, set: RAW.tcGet.set });
+		if (RAW.itGet) Object.defineProperty(HTMLElement.prototype, 'innerText', {
+			configurable: true, enumerable: RAW.itGet.enumerable, set: RAW.itGet.set,
+			get: function () {
+				// متن‌های ترجمه‌شده را لحظه‌ای به اصل برمی‌گردانیم، innerText را می‌خوانیم و دوباره برمی‌گردانیم
+				var swapped = [], w = document.createTreeWalker(this, 4, null), n;
+				while ((n = w.nextNode())) {
+					if (T_ORIG.has(n) && T_APPLIED.get(n) === rawText(n)) swapped.push([n, rawText(n), T_ORIG.get(n)]);
+				}
+				if (!swapped.length) return RAW.itGet.get.call(this);
+				var i;
+				for (i = 0; i < swapped.length; i++) RAW.nvGet.set.call(swapped[i][0], swapped[i][2]);
+				var v = RAW.itGet.get.call(this);
+				for (i = 0; i < swapped.length; i++) RAW.nvGet.set.call(swapped[i][0], swapped[i][1]);
+				try { mo.takeRecords(); } catch (e) { }
+				return v;
+			}
+		});
+		var A_ORIG = new WeakMap();
+		Element.prototype.getAttribute = function (name) {
+			var v = RAW.getAttr.call(this, name);
+			if (v !== null && ATTRS_LC[String(name).toLowerCase()]) {
+				var rec = A_ORIG.get(this);
+				var k = String(name).toLowerCase();
+				if (rec && rec[k] && rec[k].applied === v) return rec[k].orig;
+			}
+			return v;
+		};
+		window.__edtAOrig = A_ORIG;
+		if (RAW.optVal) Object.defineProperty(HTMLOptionElement.prototype, 'value', { configurable: true, enumerable: RAW.optVal.enumerable, set: RAW.optVal.set, get: function () {
+			if (this.hasAttribute('value')) return this.getAttribute('value');
+			return String(origTextContent(this)).replace(/[ \t\n\f\r]+/g, ' ').trim();
+		} });
+		if (RAW.optText) Object.defineProperty(HTMLOptionElement.prototype, 'text', { configurable: true, enumerable: RAW.optText.enumerable, set: RAW.optText.set, get: function () {
+			return String(origTextContent(this)).replace(/[ \t\n\f\r]+/g, ' ').trim();
+		} });
+		if (RAW.selVal) Object.defineProperty(HTMLSelectElement.prototype, 'value', { configurable: true, enumerable: RAW.selVal.enumerable, set: RAW.selVal.set, get: function () {
+			var o = this.selectedOptions && this.selectedOptions[0];
+			return o ? o.value : '';
+		} });
+	} catch (e) { }
+	var ATTRS_LC = { placeholder: 1, title: 1, 'aria-label': 1, alt: 1, value: 1 };
+
 	var SKIP = 'script,style,textarea,pre,code,noscript';
 	var ATTRS = ['placeholder', 'title', 'aria-label', 'alt'];
-	var origT = new WeakMap(), appliedT = new WeakMap(), origA = new WeakMap();
+	var origT = T_ORIG, appliedT = T_APPLIED, origA = new WeakMap();
 
 	function procText(n) {
 		var p = n.parentNode;
 		if (!p || p.nodeType !== 1) return;
-		if (inZone(n)) return;
 		if (p.closest && p.closest(SKIP)) return;
-		var cur = n.nodeValue, src;
+		var cur = rawText(n), src;
 		if (origT.has(n) && appliedT.get(n) === cur) src = origT.get(n);
 		else if (CJK.test(cur)) { src = cur; origT.set(n, cur); }
 		else { origT.delete(n); appliedT.delete(n); return; }
 		var t = tr(src, p.nodeName);
 		appliedT.set(n, t);
-		if (t !== cur) n.nodeValue = t;
+		if (t !== cur) RAW.nvGet.set.call(n, t);
 	}
 
 	function procAttrs(el) {
-		if (inZone(el)) return;
 		var rec = origA.get(el);
 		var names = ATTRS;
-		var isBtn = el.nodeName === 'INPUT' && /^(button|submit|reset)$/i.test(el.getAttribute('type') || '');
+		var isBtn = el.nodeName === 'INPUT' && /^(button|submit|reset)$/i.test(RAW.getAttr.call(el, 'type') || '');
 		var list = isBtn ? names.concat(['value']) : names;
 		for (var i = 0; i < list.length; i++) {
 			var a = list[i];
 			if (!el.hasAttribute(a)) continue;
-			var cur = el.getAttribute(a), src;
+			var cur = RAW.getAttr.call(el, a), src;
 			if (rec && rec[a] && rec[a].applied === cur) src = rec[a].orig;
 			else if (CJK.test(cur)) src = cur;
 			else { if (rec && rec[a]) delete rec[a]; continue; }
-			if (!rec) { rec = {}; origA.set(el, rec); }
+			if (!rec) { rec = {}; origA.set(el, rec); window.__edtAOrig.set(el, rec); }
 			var t = tr(src, '');
 			rec[a] = { orig: src, applied: t };
 			if (t !== cur) el.setAttribute(a, t);
@@ -745,108 +799,11 @@ const 面板本地化脚本 = String.raw`(function () {
 		}
 	}
 
-	// ---------- محافظت از بخش «اطلاعات شبکه‌ی فعلی» ----------
-	// این بخش را اسکریپت خود صفحه به‌صورت پویا پر می‌کند (تست IP داخلی / خارجی / CF / گوگل).
-	// تا وقتی نتیجه‌ها نیامده، متن‌های آن دست‌نخورده می‌ماند؛ بعد از بارگذاری (یا حداکثر ۲۰ ثانیه) یک‌بار ترجمه می‌شود.
-	var zoneEl = null, zoneHold = false, zoneTimer = null;
-	function findZone() {
-		try {
-			var w = document.createTreeWalker(document.body || document.documentElement, 4, null), n, a = null, b = null;
-			while ((n = w.nextNode())) {
-				var v = n.nodeValue || '';
-				if (!a && v.indexOf('\u5f53\u524d\u7f51\u7edc\u4fe1\u606f') > -1) a = n.parentNode;
-				else if (a && !b && v.indexOf('\u83b7\u53d6\u8282\u70b9\u94fe\u63a5') > -1) { b = n.parentNode; break; }
-			}
-			if (!a) return null;
-			var el = a;
-			while (el.parentNode && el.parentNode !== document.body && el.parentNode !== document.documentElement && (!b || !el.parentNode.contains(b))) el = el.parentNode;
-			return el;
-		} catch (e) { return null; }
-	}
-	function inZone(n) { return zoneHold && zoneEl && n && zoneEl.contains(n); }
-	function releaseZone() {
-		if (!zoneHold) return;
-		zoneHold = false;
-		if (zoneTimer) { clearInterval(zoneTimer); zoneTimer = null; }
-		if (zoneEl) walk(zoneEl);
-	}
-	// بخش اطلاعات شبکه در نسخه‌ی اصلی همیشه باز است؛ اینجا هم باز نگه داشته می‌شود و دکمه‌ی بسته‌شدنش غیرفعال می‌شود.
-	var zoneToggle = null, zoneClickAllowed = false, zoneClicked = false;
-	function zoneHasData() {
-		var txt = zoneEl ? (zoneEl.textContent || '') : '';
-		return /\d{1,3}\.(?:\d{1,3}|\*+)\.(?:\d{1,3}|\*+)\.(?:\d{1,3}|\*+)/.test(txt) || /[0-9a-f]{1,4}:[0-9a-f:*]{2,}/i.test(txt);
-	}
-	function forceZoneOpen() {
-		if (!zoneEl) return;
-		try {
-			var all = zoneEl.querySelectorAll('*');
-			for (var i = 0; i < all.length; i++) {
-				var el = all[i];
-				if (el === zoneToggle || (zoneToggle && zoneToggle.contains(el))) continue;
-				if (el.tagName === 'DETAILS' && !el.open) el.open = true;
-				if (el.classList) {
-					['collapsed', 'closed', 'is-collapsed', 'is-closed', 'hidden', 'hide', 'd-none'].forEach(function (c) { if (el.classList.contains(c)) el.classList.remove(c); });
-				}
-				var cs = window.getComputedStyle(el);
-				if (cs.maxHeight === '0px') el.style.setProperty('max-height', 'none', 'important');
-				if (cs.overflow === 'hidden' && el.offsetHeight === 0 && el.scrollHeight > 0) {
-					el.style.setProperty('height', 'auto', 'important');
-					el.style.setProperty('overflow', 'visible', 'important');
-				}
-				if (cs.display === 'none' && /content|body|collaps|detail|inner|wrap|list|card|grid/i.test(String(el.className))) el.style.setProperty('display', 'block', 'important');
-			}
-		} catch (e) { }
-	}
-	function startZoneGuard() {
-		zoneEl = findZone();
-		if (!zoneEl) return;
-		zoneHold = true;
-		// اولین دکمه/عنصر کلیک‌پذیر داخل بخش = دکمه‌ی باز/بسته (ذره‌بین‌های IP بعد از آن می‌آیند)
-		zoneToggle = zoneEl.querySelector('button, [role="button"], [class*="toggle"], [class*="arrow"], [class*="collapse"]');
-		if (zoneToggle) {
-			zoneEl.addEventListener('click', function (e) {
-				if (zoneClickAllowed) return;
-				if (zoneToggle && zoneToggle.contains(e.target)) { e.stopImmediatePropagation(); e.preventDefault(); }
-			}, true);
-			zoneToggle.style.setProperty('display', 'none', 'important');
-		}
-		forceZoneOpen();
-		var t0 = Date.now(), seen = 0;
-		zoneTimer = setInterval(function () {
-			forceZoneOpen();
-			// اگر صفحه داده را فقط هنگام باز شدن بار می‌کند و هنوز چیزی نیامده، یک‌بار دکمه را به‌صورت برنامه‌ای می‌زنیم
-			if (!zoneClicked && zoneToggle && !zoneHasData() && Date.now() - t0 > 2500) {
-				zoneClicked = true; zoneClickAllowed = true;
-				try { zoneToggle.click(); } catch (e) { }
-				zoneClickAllowed = false;
-				forceZoneOpen();
-			}
-			if (zoneHasData()) { if (++seen >= 2) releaseZone(); }
-			else if (Date.now() - t0 > 20000) releaseZone();
-		}, 500);
-		// بعد از آزاد شدن ترجمه هم باز بودن بخش حفظ شود
-		var keepOpts = { attributes: true, subtree: true, attributeFilter: ['class', 'style', 'open'] };
-		var keep = new MutationObserver(function () {
-			keep.disconnect();
-			setTimeout(function () { forceZoneOpen(); keep.takeRecords(); keep.observe(zoneEl, keepOpts); }, 300);
-		});
-		keep.observe(zoneEl, keepOpts);
-	}
-
-	var ORIG_LANG = null, ORIG_DIR = null;
-	try { ORIG_LANG = document.documentElement.getAttribute('lang'); ORIG_DIR = document.documentElement.getAttribute('dir'); } catch (e) { }
 	function applyDirection() {
 		var h = document.documentElement;
 		if (!h) return;
-		// فقط در حالت فارسی lang/dir عوض می‌شود؛ در English و 中文 همان مقدار اصلی صفحه برمی‌گردد تا اسکریپت‌های خود صفحه به هم نریزند.
-		if (lang === 'fa') {
-			h.setAttribute('lang', 'fa');
-			h.setAttribute('dir', 'rtl');
-		} else {
-			if (ORIG_LANG === null) h.removeAttribute('lang'); else h.setAttribute('lang', ORIG_LANG);
-			if (ORIG_DIR === null) h.removeAttribute('dir'); else h.setAttribute('dir', ORIG_DIR);
-			if (lang === 'en' && h.getAttribute('dir') !== 'ltr') h.setAttribute('dir', 'ltr');
-		}
+		h.setAttribute('lang', lang === 'fa' ? 'fa' : lang === 'en' ? 'en' : 'zh-CN');
+		h.setAttribute('dir', lang === 'fa' ? 'rtl' : 'ltr');
 	}
 
 	function injectCss() {
@@ -905,7 +862,7 @@ const 面板本地化脚本 = String.raw`(function () {
 		};
 	});
 
-	// ---------- پنل عیب‌یابی: آدرس را با ?debug=1 باز کنید ----------
+	// ---------- پنل عیب‌یابی: آدرس را با ?debug=1 باز کنید (فقط نمایش، دخالتی در صفحه ندارد) ----------
 	try {
 		if (/[?&]debug=1/.test(location.search)) {
 			var DBG = [];
@@ -914,43 +871,35 @@ const 面板本地化脚本 = String.raw`(function () {
 				if (!b && document.body) {
 					b = document.createElement('pre');
 					b.id = 'edt-dbg';
-					b.style.cssText = 'position:fixed;top:0;left:0;right:0;max-height:35vh;overflow:auto;margin:0;padding:6px 8px;background:rgba(120,0,0,.92);color:#fff;font:11px/1.4 monospace;z-index:2147483646;white-space:pre-wrap;direction:ltr;text-align:left';
+					b.style.cssText = 'position:fixed;top:0;left:0;right:0;max-height:30vh;overflow:auto;margin:0;padding:6px 8px;background:rgba(120,0,0,.92);color:#fff;font:11px/1.4 monospace;z-index:2147483646;white-space:pre-wrap;direction:ltr;text-align:left';
 					document.body.appendChild(b);
 				}
 				if (b) {
-					var miss = [];
-					try { miss = window.__i18nMissing ? Object.keys(window.__i18nMissingMap ? window.__i18nMissingMap() : {}) : []; } catch (e) { }
-					b.textContent = DBG.slice(-25).join('\n') + (miss.length ? '\nUNTRANSLATED (' + miss.length + '): ' + miss.join(' | ') : '\nUNTRANSLATED: none');
+					var miss = Object.keys(MISSING);
+					b.textContent = DBG.slice(-20).join('\n') + (miss.length ? '\nUNTRANSLATED (' + miss.length + '): ' + miss.join(' | ') : '\nUNTRANSLATED: none');
 				}
 			};
-			var addDbg = function (t) { DBG.push(t); showDbg(); };
-			window.addEventListener('error', function (e) { addDbg('JS error: ' + e.message + ' @' + (e.filename || '').split('/').pop() + ':' + e.lineno); });
-			window.addEventListener('unhandledrejection', function (e) { addDbg('Promise rejected: ' + (e.reason && (e.reason.message || e.reason))); });
-			var _fetch = window.fetch;
-			if (_fetch) window.fetch = function (u) {
-				var url = typeof u === 'string' ? u : (u && u.url) || '';
-				return _fetch.apply(this, arguments).then(function (r) { if (!r.ok) addDbg('HTTP ' + r.status + ' ' + url); return r; }, function (err) { addDbg('fetch failed: ' + url + ' (' + (err && err.message) + ')'); throw err; });
-			};
+			window.addEventListener('error', function (e) { DBG.push('JS error: ' + e.message + ' @' + String(e.filename || '').split('/').pop() + ':' + e.lineno); });
+			window.addEventListener('unhandledrejection', function (e) { DBG.push('Promise rejected: ' + (e.reason && (e.reason.message || e.reason))); });
 			setInterval(showDbg, 1500);
 		}
 	} catch (e) { }
 
+	window.__edtTr = function (x, l) { lang = l; return tr(x, ''); };
 	applyDirection();
 	injectCss();
 
 	var mo = new MutationObserver(function (list) {
-		try {
-			for (var i = 0; i < list.length; i++) {
-				var m = list[i];
-				if (m.type === 'characterData') procText(m.target);
-				else if (m.type === 'attributes') procAttrs(m.target);
-				else for (var j = 0; j < m.addedNodes.length; j++) walk(m.addedNodes[j]);
-			}
-		} catch (e) { }
+		for (var i = 0; i < list.length; i++) {
+			var m = list[i];
+			if (m.type === 'characterData') procText(m.target);
+			else if (m.type === 'attributes') procAttrs(m.target);
+			else for (var j = 0; j < m.addedNodes.length; j++) walk(m.addedNodes[j]);
+		}
 	});
 	mo.observe(document.documentElement, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ATTRS.concat(['value']) });
 
-	function ready() { if (lang !== 'zh') startZoneGuard(); walk(document.documentElement); mountSwitch(); }
+	function ready() { walk(document.documentElement); mountSwitch(); }
 	if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', ready); else ready();
 })();`;
 function 本地化页面响应(响应) {
