@@ -1,3 +1,541 @@
+<a id="top"></a>
+
+# Changelog
+
+<p align="center">
+  <a href="#english"><b>English</b></a> &nbsp;|&nbsp;
+  <a href="#persian"><b>فارسی</b></a> &nbsp;|&nbsp;
+  <a href="#chinese"><b>简体中文</b></a>
+</p>
+
+---
+
+<a id="english"></a>
+
+# 🇬🇧 English
+
+## [2.1.20260922200117] - 2026-09-22 20:01:17
+
+### Fixed
+
+- Fixed the **aggregated subscription** (汇聚订阅): the User-Agent is now set uniformly, making request behavior more consistent.
+
+## [2.1.20260907040834] - 2026-09-07 04:08:34
+
+### Added
+
+- Added the **Expand full rule text** option to the **subscription conversion config**.
+
+## [2.1.20260904162413] - 2026-09-04 16:24:13
+
+### Added
+
+- Added support for the **ALPN** field: node links now carry the ALPN parameter automatically, fitting more client scenarios.
+
+### Fixed
+
+- Fixed **HTTPS proxy**: the handshake failed when the upstream server requested a client certificate (CertificateRequest). An empty certificate is now sent back so the handshake completes normally. [Commit](https://github.com/cmliu/CF-Workers-CheckSocks5/commit/ae93bc28462a6df03795143a5caa85f717ba231a)
+
+## [2.1.20260811144522] - 2026-08-11 14:45:22
+
+### Changed
+
+- Optimized **XHTTP** upload transport: added a data coalescing mechanism. Small chunks are merged and then sent together, reducing frequent small writes and resource overhead, so large file uploads are smoother.
+
+## [2.1.20260810030901] - 2026-08-10 03:09:01
+
+### Added
+
+- Added receiver-side support for **XHTTP obfs padding**: recognizes the `xPaddingObfsMode` (tokenish / queryInHeader) obfuscation headers.
+
+## [2.1.20260809231057] - 2026-08-09 23:10:57
+
+### Fixed
+
+- Fixed parameter parsing for **XHTTP chained proxy**: a trailing `/` at the end of the path made the reverse-proxy configuration ineffective. Trailing slashes are now handled.
+
+## [2.1.20260809201158] - 2026-08-09 20:11:58
+
+### Changed
+
+- Optimized the **XHTTP** transport path: TCP data now flows through direct bidirectional pipes, `request.body.pipeTo(socket.writable)` and `socket.readable.pipeTo(IdentityTransformStream)`, and no longer goes through ReadableStream + upload write queue + BYOB/Grain chunk-by-chunk relaying, which significantly reduces CPU usage.
+- Optimized **XHTTP** connection management: `forwardataTCP` gains a "connect only" mode. After connecting and writing the first packet it returns the socket directly for the pipe to take over, while keeping the fallback of automatically switching to a reverse proxy when the direct connection fails (gRPC/WS callers are unaffected).
+- Optimized **XHTTP UDP** handling: the UDP branch is split into a dedicated handler function, keeping the Trojan UDP reverse-proxy and DNS forwarding logic.
+
+## [2.1.20260729235734] - 2026-07-29 23:57:34
+
+### Changed
+
+- Corrected the **PRELOAD_RACE_DIAL** environment variable logic: the default changed from `true` to `false` (preload race dialing is **off** by default), and setting `1` or `true` turns it **on**. The README description of this variable was fixed accordingly. [Commit](https://github.com/cmliu/edgetunnel/commit/aea8b85688ef6066116af551cfd5e6fd2ce77567)
+
+## [2.1.20260724150359] - 2026-07-24 15:03:59
+
+### Changed
+
+- Synced the latest **GrainTCP** transport optimizations: the upload Grain coalescing target was raised from `16KB` to `20KB`, reusing the unified collect/coalesce core. Consecutive small chunks are opportunistically merged during the drain phase, reducing high-frequency `writer.write()` calls. [Upstream commit](https://github.com/ToiCF/GrainTCP/commit/1d22628f4d1413989f521f1d41591b0c72e658eb)
+- Optimized downstream **GrainTCP** aggregation: keeps the `32KB` aggregation cap, uses a `tail × 12` low watermark and up to `4` rounds of growth observation at `1ms` each. A flush can send several aggregated packets in a row and sends promptly when near the cap, reducing the number of small-packet WebSocket frames. [Upstream commit](https://github.com/ToiCF/GrainTCP/commit/1d22628f4d1413989f521f1d41591b0c72e658eb)
+- Optimized downstream packet handling: large chunks are sent directly when the Grain is empty, and small chunks are detached from the reusable read buffer first on the BYOB/default reader path. Aggregated results are copied before sending, preventing data overwrite caused by scratch buffer reuse. [Upstream commit](https://github.com/ToiCF/GrainTCP/commit/1d22628f4d1413989f521f1d41591b0c72e658eb)
+- Strengthened TCP connection management based on the upstream transport model: added connection generation, socket identity and an old-downstream drain barrier. During redialing, upload data keeps being collected and waits for the new writer, and the asynchronous cleanup of an old reader, timer or connection can no longer pollute the new connection. [Upstream idea](https://github.com/ToiCF/GrainTCP/commit/1d22628f4d1413989f521f1d41591b0c72e658eb)
+- Based on the upstream Grain send model, unified direct send, segmented send and timed flush into one serial send chain, and persisted asynchronous send errors. The response header is consumed only on the first real send, so redialing or a dead connection cannot consume the protocol response header early. [Upstream idea](https://github.com/ToiCF/GrainTCP/commit/1d22628f4d1413989f521f1d41591b0c72e658eb)
+- Kept the existing multi-protocol compatibility: WS upload uses non-waiting enqueue to reduce message-handling blocking, while XHTTP/gRPC keep waiting for the remote write to complete. A local upload high-water protection of `16MiB / 4096` entries is kept to prevent unbounded Worker queue growth. [Upstream change](https://github.com/ToiCF/GrainTCP/commit/1d22628f4d1413989f521f1d41591b0c72e658eb)
+- Optimized: the local speed-test response is now enabled only in **reverse-proxy mode**. When using **SOCKS5/HTTP/HTTPS/TURN/SSTP** proxies, speed-test requests are forwarded normally.
+
+## [2.1.20260722191426] - 2026-07-22 19:14:26
+
+### Changed
+
+- Added support for the `http://cp.cloudflare.com/generate_204` real-connection test address.
+
+## [2.1.20260711190235] - 2026-07-11 19:02:35
+
+### Added
+
+- Added the **TCP_CONCURRENT_DIAL** environment variable to customize the **TCP concurrent dial count**. Once set, it no longer drops to a single path automatically on China Mobile networks.
+- Added the **PROXY_CONCURRENT_DIAL** environment variable to customize the **reverse-proxy concurrent dial count**.
+
+## [2.1.20260711022318] - 2026-07-11 02:23:18
+
+### Changed
+
+- Optimized **reverse-proxy logic**: fixed multi-reverse-proxy node parameters not taking effect because a global variable was accidentally overwritten.
+- Optimized the **DoH cache**: recent domain resolution results are cached to reduce duplicate requests, speed up resolution and lower resource usage. Domains with no result are also cached briefly to avoid repeated queries.
+
+### Added
+
+- Added the **reverse-proxy concurrent dial count**: you can adjust the number of concurrent reverse-proxy connections. The higher the concurrency, the faster the connection but the more frequent the IP switching; the lower the concurrency, the more stable the connection process.
+- Added more options to the **subscription conversion config**, including **UDP**, **XUDP**, **TLS 1.3**, **insert node type** and **base node sorting**, all passed through to the subscription conversion backend.
+- Added **Trojan fallback proxy (Fallback)**: the Trojan protocol now supports a backup proxy address. When the main connection fails, it can switch automatically to the backup proxy and keep working, making connections more stable and reliable. [PR #1359](https://github.com/cmliu/edgetunnel/pull/1359)
+
+## [2.1.20260617014121] - 2026-06-17 01:41:21
+
+### Added
+
+- Added an **output node info only** option to the subscription conversion config.
+
+## [2.1.20260611041617] - 2026-06-11 04:16:17
+
+### Changed
+
+- Optimized the UUID validation logic of the **version info endpoint**, improving validation security.
+
+## [2.1.20260609132903] - 2026-06-09 13:29:03
+
+### Fixed
+
+- Fixed the **Error 1101** signature.
+
+### Changed
+
+- Optimized the **PROXYIP resolution cache**: reverse-proxy addresses are lowercased before the cache comparison, so the same address with different letter case is no longer resolved twice.
+
+## [2.1.20260601154939] - 2026-06-01 15:49:39
+
+### Changed
+
+- Adapted to **Xray-core v26.2.6**: TLS has removed the `allowInsecure` option, so Base64 subscriptions no longer output the **skip certificate verification** setting. Clash and Sing-box subscriptions are unaffected. [Release](https://github.com/XTLS/Xray-core/releases/tag/v26.2.6)
+
+## [2.1.20260529014818] - 2026-05-29 01:48:18
+
+### Changed
+
+- Optimized **China Mobile** direct access: TCP concurrent dialing is downgraded to a single path to mitigate CPU timeouts.
+
+## [2.1.20260526210857] - 2026-05-26 21:08:57
+
+### Fixed
+
+- Fixed **TURN authentication**: an empty `REALM` in the STUN auth challenge is now allowed, so an empty realm is no longer misjudged as missing and no longer causes connection failure.
+
+## [2.1.20260518183745] - 2026-05-18 18:37:45
+
+### Added
+
+- Added the **PRELOAD_RACE_DIAL** environment variable to customize **TCP preload race dialing**: on the first direct connection to a domain, A/AAAA records can first be queried concurrently via DoH, preferring IPv4 and filling up with IPv6 to the `TCP concurrent dial count` limit when there are not enough. The reverse-proxy failure fallback logic is separated from the ordinary first direct connection to avoid triggering the preload by mistake.
+
+## [2.1.20260517185203] - 2026-05-17 18:52:03
+
+### Fixed
+
+- Fixed **WS/XHTTP/gRPC upload**: upload writes now wait for the remote write to complete before processing the next chunk, avoiding a fast pile-up inside the Worker during upload bursts and the resulting `upload queue overflow`.
+- Optimized the **WS explicit transfer queue**: the upload queue protection was adjusted from 256KB to 16MB / 4096 entries, and waiting write tasks are now released correctly when the queue is cleaned up, reducing occasional overflow during large file uploads.
+
+## [2.1.20260515185129] - 2026-05-15 18:51:29
+
+### Changed
+
+- Optimized the **Shadowsocks subscription**: when TLS is turned off, preferred ports are automatically rewritten to noTLS ports. (This does not apply to reverse-proxy IPs.)
+- Optimized the **GO2SOCKS5** variable: changed from override mode to append mode. [PR #1202](https://github.com/cmliu/edgetunnel/pull/1202)
+
+## [2.1.20260513042803] - 2026-05-13 04:28:03
+
+### Changed
+
+- Optimized the **VLESS** hot path: the UUID is pre-decoded to 16 bytes for direct comparison, and first-packet parsing uses offsets and `subarray()` to copy less. [Open-source reference](https://github.com/ToiCF/GrainTCP)
+- Optimized **WS Early Data**: added an 8KB cap, and avoided injecting ordinary WebSocket subprotocols into the first packet as if they were early data. [Open-source reference](https://github.com/ToiCF/GrainTCP)
+- Optimized the **WS/XHTTP/gRPC** upload path: added a bounded queue, small-packet coalescing and 256KB backpressure protection, reducing high-frequency small writes and preventing unbounded queue growth. [Open-source reference](https://github.com/ToiCF/GrainTCP)
+- Optimized the downstream **GrainTCP** send flow: small packets are aggregated with a microtask and a short quiet window, and large packets on the BYOB path flush the aggregator first and are then sent directly, reducing copies and WebSocket frames. [Open-source reference](https://github.com/ToiCF/GrainTCP)
+- Optimized TCP connection setup: direct and proxyip reverse-proxy candidates use 4-way concurrent dialing to grab the first successful connection, while SOCKS/HTTP/HTTPS/TURN/SSTP proxy chains keep their original handshake logic. [Open-source reference](https://github.com/ToiCF/GrainTCP)
+- Optimized the WebSocket handshake and WS main-path transport: added an exception fallback for `allowHalfOpen`, the 101 response clears `Sec-WebSocket-Extensions`, and the WS main path now uses an explicit sequential queue. [Open-source reference](https://github.com/ToiCF/GrainTCP)
+
+## [2.1.20260511041705] - 2026-05-11 04:17:05
+
+### Changed
+
+- Optimized the password validation logic of the **login settings page**, so that beginners who set the `ADMIN` password with a stray line break no longer find that the password never matches and lose their patience!
+
+### Removed
+
+- Removed the request-count refresh countdown from the subscription response headers, so beginners don't lose their patience when they see it!
+
+## [2.1.20260508190728] - 2026-05-08 19:07:28
+
+### Fixed
+
+- Fixed an issue with **random preferred selection**: the carrier information was lost after subscription conversion, so the preferred IPs for the matching carrier could not be generated.
+
+### Changed
+
+- Optimized subscription conversion: a temporary `TOKEN` is now submitted for conversion, to avoid leaking the real subscription URL.
+
+## [2.1.20260508041513] - 2026-05-08 04:15:13
+
+### Changed
+
+- Optimized the **PROXYIP** domain resolution flow: a domain first reads the reverse-proxy address from its **TXT** record, and the **A** record result is used only if no TXT result is found.
+- When neither TXT nor A records return a result, the **AAAA** record is requested, reducing unnecessary IPv6 queries.
+
+### Removed
+
+- Removed the `.william` domain special case and the Google DoH backup retry logic. Ordinary domains can now also configure reverse-proxy addresses through TXT records.
+
+## [2.1.20260506175102] - 2026-05-06 17:51:02
+
+### Added
+
+- Added **TURN protocol** proxy support in reverse-proxy mode. [Open-source reference](https://github.com/ToiCF/CF-Workers-TURN)
+- Added **SSTP (SoftEther) protocol** proxy support in reverse-proxy mode. [Open-source reference](https://github.com/ToiCF/CF-Workers-SoftEther)
+- Added the ability to add **chained proxy** nodes in custom subscriptions.
+
+## [2.1.20260503011925] - 2026-05-03 01:19:25
+
+### Changed
+
+- Adapted to **Sing-box**'s custom ECH **EchConfig resolution domain** feature.
+- **Custom subscriptions** now support wildcard preferred domains.
+
+### Removed
+
+- Removed the backup DoH for the ECH **EchConfig DNS service** in **Clash**.
+
+## [2.1.20260417015756] - 2026-04-17 01:57:56
+
+### Fixed
+
+- Synced upstream project updates, fixing known **HTTPS proxy** issues. [Reference](https://t.me/Enkelte_notif/824)
+- Fixed known issues [#1117](https://github.com/cmliu/edgetunnel/issues/1117) [#1119](https://github.com/cmliu/edgetunnel/issues/1119) [#1120](https://github.com/cmliu/edgetunnel/issues/1120)
+
+## [2.1.20260416044724] - 2026-04-16 04:47:24
+
+### Added
+
+- The Trojan protocol now supports DNS queries over UDP-over-TCP.
+- Added **HTTPS proxy** support in reverse-proxy mode. [Open-source reference](https://github.com/ToiCF/CF-Workers-HTTPS)
+
+## [2.1.20260413174651] - 2026-04-13 17:46:51
+
+### Changed
+
+- Optimized the WebSocket data transfer logic, supporting BYOB mode for better performance and flexibility.
+
+## [2.1.20260410060317] - 2026-04-10 06:03:17
+
+### Added
+
+- Added **AEAD encrypted transport** for the Shadowsocks protocol, providing content encryption for non-TLS transport modes.
+
+## [2.1.0]
+
+### Added
+
+- The VLESS/Trojan protocols now support the XHTTP and gRPC transports.
+
+## [2.0.0]
+
+### Added
+
+- The project architecture has been completely rewritten, with a new front-end web page. [Front-end source](https://github.com/EDT-Pages/EDT-Pages.github.io)
+
+<p align="right"><a href="#top">⬆ Back to top</a></p>
+
+---
+
+<a id="persian"></a>
+
+<div dir="rtl">
+
+# 🇮🇷 فارسی
+
+## [2.1.20260922200117] - 2026-09-22 20:01:17
+
+### رفع‌شده
+
+- رفع مشکل **اشتراک تجمیعی (汇聚订阅)**: User-Agent اکنون به‌صورت یکپارچه تنظیم می‌شود تا رفتار درخواست‌ها هماهنگ‌تر باشد.
+
+## [2.1.20260907040834] - 2026-09-07 04:08:34
+
+### افزوده‌شده
+
+- افزودن گزینه‌ی **نمایش کامل متن قوانین** به **پیکربندی تبدیل اشتراک**.
+
+## [2.1.20260904162413] - 2026-09-04 16:24:13
+
+### افزوده‌شده
+
+- پشتیبانی از فیلد **ALPN**: لینک نودها اکنون به‌طور خودکار پارامتر ALPN را همراه دارند و با کلاینت‌های بیشتری سازگار است.
+
+### رفع‌شده
+
+- رفع مشکل **پروکسی HTTPS**: وقتی سرور بالادستی گواهی کلاینت را درخواست می‌کرد (CertificateRequest)، handshake شکست می‌خورد. اکنون یک گواهی خالی برگردانده می‌شود و handshake به‌طور عادی کامل می‌شود. [کامیت](https://github.com/cmliu/CF-Workers-CheckSocks5/commit/ae93bc28462a6df03795143a5caa85f717ba231a)
+
+## [2.1.20260811144522] - 2026-08-11 14:45:22
+
+### تغییرکرده
+
+- بهینه‌سازی انتقال آپلود **XHTTP**: سازوکار ادغام داده اضافه شد. قطعه‌های کوچک ابتدا ادغام و سپس یک‌جا ارسال می‌شوند؛ این کار نوشتن‌های مکرر بسته‌های کوچک و سربار منابع را کم می‌کند و آپلود فایل‌های بزرگ روان‌تر می‌شود.
+
+## [2.1.20260810030901] - 2026-08-10 03:09:01
+
+### افزوده‌شده
+
+- پشتیبانی سمت گیرنده از **XHTTP obfs padding**: هدرهای مبهم‌سازی `xPaddingObfsMode` (حالت‌های tokenish / queryInHeader) شناسایی می‌شوند.
+
+## [2.1.20260809231057] - 2026-08-09 23:10:57
+
+### رفع‌شده
+
+- رفع مشکل تجزیه‌ی پارامتر **پروکسی زنجیره‌ای XHTTP**: وجود `/` اضافه در انتهای مسیر باعث از کار افتادن پیکربندی پروکسی معکوس می‌شد. اکنون اسلش انتهایی هم پشتیبانی می‌شود.
+
+## [2.1.20260809201158] - 2026-08-09 20:11:58
+
+### تغییرکرده
+
+- بهینه‌سازی مسیر انتقال **XHTTP**: داده‌های TCP اکنون با اتصال مستقیم دوطرفه‌ی `request.body.pipeTo(socket.writable)` و `socket.readable.pipeTo(IdentityTransformStream)` منتقل می‌شوند و دیگر از مسیر ReadableStream + صف نوشتن آپلود + انتقال تکه‌به‌تکه‌ی BYOB/Grain عبور نمی‌کنند؛ نتیجه کاهش چشمگیر مصرف CPU است.
+- بهینه‌سازی مدیریت اتصال **XHTTP**: تابع `forwardataTCP` یک حالت «فقط برقراری اتصال» گرفته است. پس از اتصال و نوشتن بسته‌ی اول، socket مستقیماً برگردانده می‌شود تا pipe آن را به دست بگیرد، و سازوکار پشتیبان تعویض خودکار به پروکسی معکوس در صورت شکست اتصال مستقیم حفظ شده است (فراخوان‌های gRPC/WS تأثیری نمی‌بینند).
+- بهینه‌سازی پردازش **XHTTP UDP**: شاخه‌ی UDP به یک تابع پردازشی اختصاصی منتقل شد و منطق پروکسی معکوس UDP در Trojan و هدایت DNS حفظ شده است.
+
+## [2.1.20260729235734] - 2026-07-29 23:57:34
+
+### تغییرکرده
+
+- اصلاح منطق متغیر محیطی **PRELOAD_RACE_DIAL**: مقدار پیش‌فرض از `true` به `false` تغییر کرد (شماره‌گیری رقابتیِ پیش‌بارگذاری‌شده به‌طور پیش‌فرض **خاموش** است) و با مقدار `1` یا `true` **روشن** می‌شود. توضیح این متغیر در README هم متناسب با آن اصلاح شد. [کامیت](https://github.com/cmliu/edgetunnel/commit/aea8b85688ef6066116af551cfd5e6fd2ce77567)
+
+## [2.1.20260724150359] - 2026-07-24 15:03:59
+
+### تغییرکرده
+
+- همگام‌سازی با آخرین بهینه‌سازی‌های انتقال **GrainTCP**: هدف ادغام Grain در مسیر آپلود از `16KB` به `20KB` افزایش یافت و هسته‌ی یکپارچه‌ی جمع‌آوری/ادغام دوباره استفاده می‌شود. قطعه‌های کوچک پیاپی در مرحله‌ی drain در صورت امکان ادغام می‌شوند و تعداد فراخوانی‌های پرتکرار `writer.write()` کم می‌شود. [کامیت بالادستی](https://github.com/ToiCF/GrainTCP/commit/1d22628f4d1413989f521f1d41591b0c72e658eb)
+- بهینه‌سازی تجمیع **GrainTCP** در مسیر دانلود: سقف تجمیع `32KB` حفظ شده، از آستانه‌ی پایین `tail × 12` و حداکثر `4` دور بررسی رشد (هر دور `1ms`) استفاده می‌شود. flush می‌تواند چند بسته‌ی تجمیع‌شده را پشت‌سرهم بفرستد و نزدیک سقف فوراً ارسال می‌کند؛ نتیجه کاهش تعداد فریم‌های WebSocket برای بسته‌های کوچک است. [کامیت بالادستی](https://github.com/ToiCF/GrainTCP/commit/1d22628f4d1413989f521f1d41591b0c72e658eb)
+- بهینه‌سازی پردازش بسته‌های دانلود: وقتی Grain خالی است، قطعه‌های بزرگ مستقیماً ارسال می‌شوند، و قطعه‌های کوچک در مسیر BYOB/default reader ابتدا از بافر خواندنِ قابل‌استفاده‌ی مجدد جدا می‌شوند. نتیجه‌ی تجمیع پیش از ارسال کپی می‌شود تا استفاده‌ی مجدد از scratch buffer باعث بازنویسی داده نشود. [کامیت بالادستی](https://github.com/ToiCF/GrainTCP/commit/1d22628f4d1413989f521f1d41591b0c72e658eb)
+- تقویت مدیریت اتصال TCP بر پایه‌ی مدل انتقال بالادستی: connection generation، socket identity و یک مانع drain برای دانلود قدیمی اضافه شد. هنگام شماره‌گیری مجدد، داده‌های آپلود همچنان جمع می‌شوند و منتظر writer جدید می‌مانند، و پایان‌دادن ناهمگامِ reader، تایمر یا اتصال قدیمی دیگر اتصال جدید را خراب نمی‌کند. [ایده‌ی بالادستی](https://github.com/ToiCF/GrainTCP/commit/1d22628f4d1413989f521f1d41591b0c72e658eb)
+- بر پایه‌ی مدل ارسال Grain بالادستی، ارسال مستقیم، ارسال قطعه‌قطعه و flush زمان‌بندی‌شده در یک زنجیره‌ی ارسال ترتیبی یکپارچه شدند و خطاهای ناهمگام ارسال ماندگار می‌شوند. هدر پاسخ فقط در اولین ارسال واقعی مصرف می‌شود، بنابراین شماره‌گیری مجدد یا اتصال از کار افتاده نمی‌تواند هدر پاسخ پروتکل را زودتر مصرف کند. [ایده‌ی بالادستی](https://github.com/ToiCF/GrainTCP/commit/1d22628f4d1413989f521f1d41591b0c72e658eb)
+- سازگاری چندپروتکلی فعلی حفظ شد: آپلود WS با صف‌گذاری بدون انتظار انجام می‌شود تا انسداد پردازش پیام کم شود، در حالی که XHTTP/gRPC همچنان منتظر پایان نوشتن در مقصد می‌مانند. محافظ محلی سقف آپلود به اندازه‌ی `16MiB / 4096` مورد نگه داشته شده تا صف Worker بی‌نهایت رشد نکند. [تغییر بالادستی](https://github.com/ToiCF/GrainTCP/commit/1d22628f4d1413989f521f1d41591b0c72e658eb)
+- بهینه‌سازی: پاسخ محلی تست سرعت فقط در **حالت پروکسی معکوس** فعال می‌شود. هنگام استفاده از پروکسی‌های **SOCKS5/HTTP/HTTPS/TURN/SSTP**، درخواست‌های تست سرعت به‌طور عادی هدایت می‌شوند.
+
+## [2.1.20260722191426] - 2026-07-22 19:14:26
+
+### تغییرکرده
+
+- پشتیبانی از آدرس تست اتصال واقعی `http://cp.cloudflare.com/generate_204` اضافه شد.
+
+## [2.1.20260711190235] - 2026-07-11 19:02:35
+
+### افزوده‌شده
+
+- افزودن متغیر محیطی **TCP_CONCURRENT_DIAL** برای تنظیم **تعداد اتصال هم‌زمان TCP**. با تنظیم آن، دیگر روی شبکه‌ی China Mobile به‌طور خودکار به یک مسیر کاهش نمی‌یابد.
+- افزودن متغیر محیطی **PROXY_CONCURRENT_DIAL** برای تنظیم **تعداد اتصال هم‌زمان پروکسی معکوس**.
+
+## [2.1.20260711022318] - 2026-07-11 02:23:18
+
+### تغییرکرده
+
+- بهینه‌سازی **منطق پروکسی معکوس**: رفع مشکلی که در آن پارامترهای نودهای چندپروکسی معکوس به‌دلیل بازنویسی ناخواسته‌ی یک متغیر سراسری اثر نمی‌کردند.
+- بهینه‌سازی **کش DoH**: نتایج اخیر تحلیل دامنه کش می‌شوند تا درخواست‌های تکراری کم شود، سرعت تحلیل بالا برود و مصرف منابع کاهش یابد. دامنه‌هایی که نتیجه‌ای ندارند نیز موقتاً کش می‌شوند تا پرس‌وجوی مکرر انجام نشود.
+
+### افزوده‌شده
+
+- افزودن **تعداد اتصال هم‌زمان پروکسی معکوس**: می‌توانید تعداد اتصال‌های هم‌زمان پروکسی معکوس را تنظیم کنید. هرچه هم‌زمانی بیشتر باشد اتصال سریع‌تر برقرار می‌شود اما تعویض IP هم بیشتر رخ می‌دهد؛ هرچه کمتر باشد روند اتصال پایدارتر است.
+- افزودن گزینه‌های بیشتر به **پیکربندی تبدیل اشتراک**، از جمله **UDP**، **XUDP**، **TLS 1.3**، **درج نوع نود** و **مرتب‌سازی پایه‌ی نودها**، که همگی به بک‌اند تبدیل اشتراک منتقل می‌شوند.
+- افزودن **پروکسی پشتیبان Trojan (Fallback)**: پروتکل Trojan اکنون از تعیین آدرس پروکسی پشتیبان پشتیبانی می‌کند. وقتی اتصال اصلی برقرار نشود، می‌تواند خودکار به پروکسی پشتیبان سوئیچ کند و کار را ادامه دهد تا اتصال پایدارتر و مطمئن‌تر باشد. [PR #1359](https://github.com/cmliu/edgetunnel/pull/1359)
+
+## [2.1.20260617014121] - 2026-06-17 01:41:21
+
+### افزوده‌شده
+
+- افزودن گزینه‌ی **فقط خروجی اطلاعات نود** به پیکربندی تبدیل اشتراک.
+
+## [2.1.20260611041617] - 2026-06-11 04:16:17
+
+### تغییرکرده
+
+- بهینه‌سازی منطق اعتبارسنجی UUID در **رابط اطلاعات نسخه** و افزایش امنیت اعتبارسنجی.
+
+## [2.1.20260609132903] - 2026-06-09 13:29:03
+
+### رفع‌شده
+
+- اصلاح امضای (کد شناسایی) **خطای 1101**.
+
+### تغییرکرده
+
+- بهینه‌سازی **کش تحلیل PROXYIP**: آدرس‌های پروکسی معکوس پیش از مقایسه با کش به حروف کوچک تبدیل می‌شوند تا یک آدرس یکسان با اختلاف حروف بزرگ و کوچک دو بار تحلیل نشود.
+
+## [2.1.20260601154939] - 2026-06-01 15:49:39
+
+### تغییرکرده
+
+- سازگارسازی با **Xray-core v26.2.6**: گزینه‌ی `allowInsecure` از TLS حذف شده است، بنابراین اشتراک Base64 دیگر تنظیم **نادیده‌گرفتن اعتبارسنجی گواهی** را خروجی نمی‌دهد. اشتراک‌های Clash و Sing-box تحت تأثیر نیستند. [Release](https://github.com/XTLS/Xray-core/releases/tag/v26.2.6)
+
+## [2.1.20260529014818] - 2026-05-29 01:48:18
+
+### تغییرکرده
+
+- بهینه‌سازی دسترسی مستقیم روی **China Mobile**: اتصال هم‌زمان TCP به یک مسیر کاهش می‌یابد تا مشکل تایم‌اوت CPU کم شود.
+
+## [2.1.20260526210857] - 2026-05-26 21:08:57
+
+### رفع‌شده
+
+- رفع مشکل **احراز هویت TURN**: وجود `REALM` خالی در challenge احراز هویت STUN اکنون مجاز است، تا realm خالی به اشتباه «ناموجود» تشخیص داده نشود و اتصال شکست نخورد.
+
+## [2.1.20260518183745] - 2026-05-18 18:37:45
+
+### افزوده‌شده
+
+- افزودن متغیر محیطی **PRELOAD_RACE_DIAL** برای تنظیم **شماره‌گیری رقابتیِ پیش‌بارگذاریِ TCP**: در اولین اتصال مستقیم به یک دامنه، می‌توان ابتدا رکوردهای A/AAAA را هم‌زمان از طریق DoH پرس‌وجو کرد؛ IPv4 اولویت دارد و در صورت کمبود، با IPv6 تا سقف `تعداد اتصال هم‌زمان TCP` تکمیل می‌شود. منطق پشتیبان شکست پروکسی معکوس از اولین اتصال مستقیم معمولی جدا شده تا پیش‌بارگذاری به اشتباه فعال نشود.
+
+## [2.1.20260517185203] - 2026-05-17 18:52:03
+
+### رفع‌شده
+
+- رفع مشکل **آپلود WS/XHTTP/gRPC**: نوشتن در مسیر آپلود اکنون پیش از پردازش قطعه‌ی بعدی منتظر پایان نوشتن در مقصد می‌ماند، تا هنگام انفجار آپلود داده به‌سرعت داخل Worker انباشته نشود و خطای `upload queue overflow` رخ ندهد.
+- بهینه‌سازی **صف انتقال صریح WS**: محافظ صف آپلود از 256KB به 16MB / 4096 مورد تغییر کرد و هنگام پاک‌سازی صف، وظایف نوشتنِ در حال انتظار به‌درستی آزاد می‌شوند؛ این کار سرریز گاه‌به‌گاه هنگام آپلود فایل‌های بزرگ را کم می‌کند.
+
+## [2.1.20260515185129] - 2026-05-15 18:51:29
+
+### تغییرکرده
+
+- بهینه‌سازی **اشتراک Shadowsocks**: هنگام خاموش‌بودن TLS، پورت‌های برگزیده به‌طور خودکار به پورت‌های noTLS بازنویسی می‌شوند. (این قابلیت برای IP پروکسی معکوس کاربرد ندارد.)
+- بهینه‌سازی متغیر **GO2SOCKS5**: حالت آن از «جایگزینی» به «افزودن» تغییر کرد. [PR #1202](https://github.com/cmliu/edgetunnel/pull/1202)
+
+## [2.1.20260513042803] - 2026-05-13 04:28:03
+
+### تغییرکرده
+
+- بهینه‌سازی مسیر داغ **VLESS**: UUID از پیش به ۱۶ بایت رمزگشایی می‌شود تا مقایسه مستقیم انجام شود، و تجزیه‌ی بسته‌ی اول با offset و `subarray()` و کپی کمتر انجام می‌شود. [منبع متن‌باز](https://github.com/ToiCF/GrainTCP)
+- بهینه‌سازی **WS Early Data**: سقف 8KB اضافه شد و از تزریق زیرپروتکل‌های معمولی WebSocket به بسته‌ی اول، به‌جای early data، جلوگیری می‌شود. [منبع متن‌باز](https://github.com/ToiCF/GrainTCP)
+- بهینه‌سازی مسیر آپلود **WS/XHTTP/gRPC**: صف محدود، ادغام بسته‌های کوچک و محافظ backpressure برابر 256KB اضافه شد تا نوشتن‌های پرتکرار بسته‌های کوچک کم شود و صف بی‌نهایت رشد نکند. [منبع متن‌باز](https://github.com/ToiCF/GrainTCP)
+- بهینه‌سازی روند ارسال **GrainTCP** در مسیر دانلود: بسته‌های کوچک با microtask و یک پنجره‌ی سکوت کوتاه تجمیع می‌شوند، و بسته‌های بزرگ در مسیر BYOB ابتدا تجمیع‌کننده را flush می‌کنند و سپس مستقیم ارسال می‌شوند؛ این کار کپی‌ها و تعداد فریم‌های WebSocket را کم می‌کند. [منبع متن‌باز](https://github.com/ToiCF/GrainTCP)
+- بهینه‌سازی برقراری اتصال TCP: برای کاندیداهای مستقیم و پروکسی معکوس proxyip از اتصال هم‌زمان ۴ مسیره استفاده می‌شود تا اولین اتصال موفق انتخاب شود، در حالی که زنجیره‌های پروکسی SOCKS/HTTP/HTTPS/TURN/SSTP منطق handshake قبلی خود را حفظ می‌کنند. [منبع متن‌باز](https://github.com/ToiCF/GrainTCP)
+- بهینه‌سازی handshake در WebSocket و انتقال مسیر اصلی WS: برای `allowHalfOpen` بازگشت امن در صورت استثنا اضافه شد، پاسخ 101 مقدار `Sec-WebSocket-Extensions` را پاک می‌کند، و مسیر اصلی WS اکنون از یک صف ترتیبی صریح استفاده می‌کند. [منبع متن‌باز](https://github.com/ToiCF/GrainTCP)
+
+## [2.1.20260511041705] - 2026-05-11 04:17:05
+
+### تغییرکرده
+
+- بهینه‌سازی منطق اعتبارسنجی رمز در **صفحه‌ی تنظیمات ورود**، تا کاربران تازه‌کاری که هنگام تنظیم رمز `ADMIN` ناخواسته یک خط‌شکن وارد می‌کنند، دیگر با رمزی که هرگز درست وارد نمی‌شود حوصله‌شان سر نرود!
+
+### حذف‌شده
+
+- حذف شمارش معکوس تازه‌سازی تعداد درخواست‌ها از هدرهای پاسخ اشتراک، تا کاربران تازه‌کار با دیدن آن کلافه نشوند!
+
+## [2.1.20260508190728] - 2026-05-08 19:07:28
+
+### رفع‌شده
+
+- رفع مشکل **انتخاب تصادفی برگزیده**: اطلاعات اپراتور پس از تبدیل اشتراک از بین می‌رفت و در نتیجه IPهای برگزیده‌ی اپراتور مربوطه ساخته نمی‌شدند.
+
+### تغییرکرده
+
+- بهینه‌سازی تبدیل اشتراک: اکنون یک `TOKEN` موقت برای تبدیل ارسال می‌شود تا آدرس واقعی اشتراک نشت نکند.
+
+## [2.1.20260508041513] - 2026-05-08 04:15:13
+
+### تغییرکرده
+
+- بهینه‌سازی روند تحلیل دامنه‌ی **PROXYIP**: دامنه ابتدا آدرس پروکسی معکوس را از رکورد **TXT** می‌خواند و فقط در صورت نبودن نتیجه‌ی TXT از نتیجه‌ی رکورد **A** استفاده می‌شود.
+- وقتی هیچ‌یک از رکوردهای TXT و A نتیجه‌ای ندارند، رکورد **AAAA** درخواست می‌شود تا پرس‌وجوهای غیرضروری IPv6 کم شود.
+
+### حذف‌شده
+
+- حذف استثنای دامنه‌ی `.william` و منطق تلاش مجدد با Google DoH پشتیبان. اکنون دامنه‌های معمولی هم می‌توانند آدرس پروکسی معکوس را از طریق رکورد TXT تنظیم کنند.
+
+## [2.1.20260506175102] - 2026-05-06 17:51:02
+
+### افزوده‌شده
+
+- افزودن پروکسی پروتکل **TURN** در حالت پروکسی معکوس. [منبع متن‌باز](https://github.com/ToiCF/CF-Workers-TURN)
+- افزودن پروکسی پروتکل **SSTP (SoftEther)** در حالت پروکسی معکوس. [منبع متن‌باز](https://github.com/ToiCF/CF-Workers-SoftEther)
+- افزودن قابلیت اضافه‌کردن نودهای **پروکسی زنجیره‌ای** در اشتراک سفارشی.
+
+## [2.1.20260503011925] - 2026-05-03 01:19:25
+
+### تغییرکرده
+
+- سازگارسازی با قابلیت **دامنه‌ی تحلیل EchConfig** سفارشی در **Sing-box** برای ECH.
+- **اشتراک‌های سفارشی** اکنون از دامنه‌های برگزیده‌ی wildcard پشتیبانی می‌کنند.
+
+### حذف‌شده
+
+- حذف DoH پشتیبانِ **سرویس DNS مربوط به EchConfig** برای ECH در **Clash**.
+
+## [2.1.20260417015756] - 2026-04-17 01:57:56
+
+### رفع‌شده
+
+- همگام‌سازی با به‌روزرسانی‌های پروژه‌ی بالادستی و رفع مشکلات شناخته‌شده‌ی **پروکسی HTTPS**. [مرجع](https://t.me/Enkelte_notif/824)
+- رفع مشکلات شناخته‌شده [#1117](https://github.com/cmliu/edgetunnel/issues/1117) [#1119](https://github.com/cmliu/edgetunnel/issues/1119) [#1120](https://github.com/cmliu/edgetunnel/issues/1120)
+
+## [2.1.20260416044724] - 2026-04-16 04:47:24
+
+### افزوده‌شده
+
+- پروتکل Trojan اکنون از پرس‌وجوی DNS به‌روش UDP over TCP پشتیبانی می‌کند.
+- افزودن **پروکسی HTTPS** در حالت پروکسی معکوس. [منبع متن‌باز](https://github.com/ToiCF/CF-Workers-HTTPS)
+
+## [2.1.20260413174651] - 2026-04-13 17:46:51
+
+### تغییرکرده
+
+- بهینه‌سازی منطق انتقال داده‌ی WebSocket و پشتیبانی از حالت BYOB برای کارایی و انعطاف بیشتر.
+
+## [2.1.20260410060317] - 2026-04-10 06:03:17
+
+### افزوده‌شده
+
+- افزودن **انتقال رمزنگاری‌شده‌ی AEAD** برای پروتکل Shadowsocks تا در حالت‌های انتقال بدون TLS هم محتوا رمزنگاری شود.
+
+## [2.1.0]
+
+### افزوده‌شده
+
+- پروتکل‌های VLESS/Trojan اکنون از روش‌های انتقال XHTTP و gRPC پشتیبانی می‌کنند.
+
+## [2.0.0]
+
+### افزوده‌شده
+
+- معماری پروژه به‌طور کامل بازنویسی شد و یک صفحه‌ی وب فرانت‌اند جدید اضافه شد. [سورس فرانت‌اند](https://github.com/EDT-Pages/EDT-Pages.github.io)
+
+<p align="left"><a href="#top">⬆ بازگشت به بالا</a></p>
+
+</div>
+
+---
+
+<a id="chinese"></a>
+
+# 🇨🇳 简体中文
+
 ## [2.1.20260922200117] - 2026-09-22 20:01:17
 
 ### Debug
@@ -247,3 +785,5 @@
 ### New
 
 - 项目架构已完全重写，新增前端 Web 页面。[前端源码](https://github.com/EDT-Pages/EDT-Pages.github.io)
+
+<p align="right"><a href="#top">⬆ 返回顶部</a></p>
