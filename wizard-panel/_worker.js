@@ -2,7 +2,8 @@
 // Original project: edgetunnel by cmliu — https://github.com/cmliu/edgetunnel
 //
 // Install Wizard for edgetunnel — single-file Cloudflare Worker (UI + stateless API).
-// It creates a KV namespace, binds it as `KV`, sets ADMIN / KEY automatically and deploys the script.
+// It creates a KV namespace, binds it as `KV`, sets ADMIN / PASSWORD / TR_PASS (same password) and KEY / SUB_PATH (same 32-char key)
+// automatically, optionally attaches a custom domain, and deploys the script.
 // Nothing is stored: the token is used only for the requests made while installing.
 // ویزارد نصب edgetunnel — یک Worker تک‌فایل. ساخت KV، بایند به نام KV، ست‌کردن ADMIN و KEY و استقرار، همه خودکار.
 
@@ -18,18 +19,24 @@ const SOURCE_URLS = [
 const KV_BINDING = "KV";
 
 // Placement Hint choices shown in the wizard: [value, English label, Persian label].
-// Format is {provider}:{cloud-region}. "" = no hint (Cloudflare default).
-// گزینه‌های Placement Hint در ویزارد: [مقدار، برچسب انگلیسی، برچسب فارسی]. مقدار خالی = بدون Hint (پیش‌فرض کلادفلر).
+// Format is {provider}:{cloud-region}. "" = no hint (Cloudflare default). Azure regions only.
+// گزینه‌های Placement Hint در ویزارد: [مقدار، برچسب انگلیسی، برچسب فارسی]. مقدار خالی = بدون Hint. فقط ریجن‌های Azure.
 const PLACEMENTS = [
   ["", "Default (no hint)", "پیش‌فرض (بدون Hint)"],
+  ["azure:belgiumcentral", "Belgium — Azure Belgium Central", "بلژیک — Azure Belgium Central"],
+  ["azure:centralindia", "India — Azure Central India", "هند — Azure Central India"],
+  ["azure:eastus", "USA — Azure East US", "آمریکا — Azure East US"],
+  ["azure:eastus2", "USA — Azure East US 2", "آمریکا — Azure East US 2"],
+  ["azure:germanycentral", "Germany — Azure Germany Central", "آلمان — Azure Germany Central"],
+  ["azure:germanynorth", "Germany — Azure Germany North", "آلمان — Azure Germany North"],
   ["azure:italynorth", "Italy — Azure Italy North", "ایتالیا — Azure Italy North"],
-  ["gcp:europe-west8", "Italy — GCP Milan", "ایتالیا — GCP میلان"],
-  ["azure:westeurope", "Netherlands — Azure West Europe", "هلند — Azure West Europe"],
-  ["azure:germanywestcentral", "Germany — Azure Germany West Central", "آلمان — Azure Germany West Central"],
-  ["aws:eu-central-1", "Germany — AWS Frankfurt", "آلمان — AWS فرانکفورت"],
+  ["azure:norwayeast", "Norway — Azure Norway East", "نروژ — Azure Norway East"],
+  ["azure:norwaywest", "Norway — Azure Norway West", "نروژ — Azure Norway West"],
+  ["azure:spaincentral", "Spain — Azure Spain Central", "اسپانیا — Azure Spain Central"],
   ["azure:swedencentral", "Sweden — Azure Sweden Central", "سوئد — Azure Sweden Central"],
-  ["azure:francecentral", "France — Azure France Central", "فرانسه — Azure France Central"],
-  ["aws:eu-west-1", "Ireland — AWS Ireland", "ایرلند — AWS ایرلند"],
+  ["azure:switzerlandnorth", "Switzerland — Azure Switzerland North", "سوئیس — Azure Switzerland North"],
+  ["azure:switzerlandwest", "Switzerland — Azure Switzerland West", "سوئیس — Azure Switzerland West"],
+  ["azure:westeurope", "Netherlands — Azure West Europe", "هلند — Azure West Europe"],
 ];
 const PLACEMENT_VALUES = PLACEMENTS.map((x) => x[0]);
 
@@ -233,9 +240,40 @@ async function deployPages(token, accountId, name, code, kvId, vars, placement) 
   return { host: (project && project.subdomain) || `${name}.pages.dev`, placement: applied };
 }
 
+// ---------- custom domain (optional) ----------
+
+const LABEL_RE = /^[a-z0-9]([a-z0-9-]{0,40}[a-z0-9])?$/;
+
+// Active zones of the account that the token can see (needs Zone:Read).
+async function listZones(token, accountId) {
+  const out = [];
+  for (let page = 1; page <= 5; page++) {
+    const r = await cf(`/zones?per_page=50&page=${page}&status=active&account.id=${accountId}`, token);
+    if (!Array.isArray(r)) break;
+    for (const z of r) if (z && z.id && z.name) out.push({ id: z.id, name: z.name });
+    if (r.length < 50) break;
+  }
+  return out;
+}
+
+async function attachWorkersDomain(token, accountId, name, zone, hostname) {
+  await cf(`/accounts/${accountId}/workers/domains`, token, {
+    method: "PUT",
+    json: { hostname, service: name, zone_id: zone.id, environment: "production" },
+  });
+}
+
+async function attachPagesDomain(token, accountId, name, zone, hostname, pagesHost) {
+  await cf(`/accounts/${accountId}/pages/projects/${name}/domains`, token, { method: "POST", json: { name: hostname } });
+  await cf(`/zones/${zone.id}/dns_records`, token, {
+    method: "POST",
+    json: { type: "CNAME", name: hostname, content: pagesHost, proxied: true, ttl: 1 },
+  });
+}
+
 // ---------- install flow ----------
 
-async function install(token, method, adminPassword, placement) {
+async function install(token, method, adminPassword, placement, zoneName, label) {
   try {
     const verified = await cf("/user/tokens/verify", token);
     if (!verified || verified.status !== "active") throw new ApiError("TOKEN_INVALID", 401);
@@ -248,15 +286,24 @@ async function install(token, method, adminPassword, placement) {
   if (!accounts || !accounts.length) throw new ApiError("NO_ACCOUNT", 404);
   const accountId = accounts[0].id;
 
+  // optional custom domain: resolve the zone first so a bad choice fails before anything is created
+  let zone = null, customHost = "";
+  if (zoneName) {
+    zone = (await listZones(token, accountId)).find((z) => z.name === zoneName);
+    if (!zone) throw new ApiError("ZONE_INVALID", 400);
+    customHost = `${label || randomString(8, LOWER)}.${zone.name}`;
+  }
+
   const code = await fetchSource(SOURCE_URLS);
 
   // credentials: generated per install, never stored
   const admin = adminPassword || randomString(16, ALNUM);
-  const key = randomString(16, ALNUM);
+  const key = randomString(32, ALNUM);
   const name = neutralName();
-  const vars = { ADMIN: admin, KEY: key };
+  // ADMIN, PASSWORD and TR_PASS share the chosen password; KEY and SUB_PATH share the 32-char key
+  const vars = { ADMIN: admin, PASSWORD: admin, TR_PASS: admin, KEY: key, SUB_PATH: key };
 
-  // 1) create the KV namespace  2) bind it as KV  3) deploy with ADMIN / KEY
+  // 1) create the KV namespace  2) bind it as KV  3) deploy with the variables above
   const kvId = await createKV(token, accountId, `${name}-kv`);
   let deployed;
   try {
@@ -268,7 +315,18 @@ async function install(token, method, adminPassword, placement) {
     throw e;
   }
 
-  const host = deployed.host;
+  // 4) attach the custom domain (best effort: the default address keeps working if this fails)
+  let host = deployed.host, domainError = "";
+  if (zone) {
+    try {
+      if (method === "pages") await attachPagesDomain(token, accountId, name, zone, customHost, deployed.host);
+      else await attachWorkersDomain(token, accountId, name, zone, customHost);
+      host = customHost;
+    } catch (e) {
+      domainError = e instanceof ApiError ? e.code : "CF_ERROR";
+    }
+  }
+
   return {
     panel: `https://${host}/admin`,
     sub: `https://${host}/${key}`,
@@ -276,6 +334,9 @@ async function install(token, method, adminPassword, placement) {
     admin,
     key,
     name,
+    defaultHost: deployed.host,
+    customHost: zone ? customHost : "",
+    domainError,
   };
 }
 
@@ -301,10 +362,39 @@ async function handleInstall(request, url) {
   const placement = String(body.placement || "");
   if (!PLACEMENT_VALUES.includes(placement)) return json({ ok: false, code: "BAD_REQUEST" }, 400);
 
+  const zoneName = String(body.zone || "").trim().toLowerCase();
+  if (zoneName && !/^[a-z0-9.-]{3,253}$/.test(zoneName)) return json({ ok: false, code: "ZONE_INVALID" }, 400);
+  const label = String(body.label || "").trim().toLowerCase();
+  if (label && !LABEL_RE.test(label)) return json({ ok: false, code: "LABEL_INVALID" }, 400);
+
   try {
-    return json({ ok: true, ...(await install(token, body.method, adminPassword, placement)) });
+    return json({ ok: true, ...(await install(token, body.method, adminPassword, placement, zoneName, label)) });
   } catch (e) {
     if (e instanceof ApiError) return json({ ok: false, code: e.code, detail: e.detail }, e.status);
+    return json({ ok: false, code: "UNKNOWN" }, 500);
+  }
+}
+
+// Lists the domains (zones) the token can access, so the wizard can offer them. Nothing is stored.
+async function handleZones(request, url) {
+  if (request.method !== "POST") return json({ ok: false, code: "BAD_REQUEST" }, 405);
+  const origin = request.headers.get("origin");
+  if (origin && origin !== url.origin) return json({ ok: false, code: "FORBIDDEN" }, 403);
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return json({ ok: false, code: "BAD_REQUEST" }, 400);
+  }
+  const token = String(body.token || "").trim();
+  if (!/^[A-Za-z0-9_-]{20,120}$/.test(token)) return json({ ok: false, code: "TOKEN_INVALID" }, 400);
+  try {
+    const accounts = await cf("/accounts", token);
+    if (!accounts || !accounts.length) return json({ ok: true, zones: [] });
+    const zones = await listZones(token, accounts[0].id);
+    return json({ ok: true, zones: zones.map((z) => z.name).sort() });
+  } catch (e) {
+    if (e instanceof ApiError) return json({ ok: false, code: e.code }, e.status);
     return json({ ok: false, code: "UNKNOWN" }, 500);
   }
 }
@@ -358,6 +448,8 @@ a{color:var(--acc);cursor:pointer;text-decoration:none}
 .copy{background:var(--acc);color:#fff;border:0;border-radius:10px;padding:4px 14px;font:inherit;cursor:pointer}
 .links{margin:0 0 4px;font-size:.92rem}
 .note{margin-top:16px;text-align:center;color:var(--mute);font-size:.82rem}
+.hint{margin:-4px 4px 14px;color:var(--mute);font-size:.82rem}
+.warn{margin-top:8px;color:var(--warn);font-size:.9rem;word-break:break-word}
 .hidden{display:none}
 </style>
 </head>
@@ -378,6 +470,13 @@ a{color:var(--acc);cursor:pointer;text-decoration:none}
 <select id="method"><option value="workers">Cloudflare Workers</option><option value="pages">Cloudflare Pages</option></select></label>
 <label class="field"><svg viewBox="0 0 24 24"><path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>
 <select id="placement"></select></label>
+<div id="domainBox" class="hidden">
+<label class="field"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3c2.6 2.7 3.9 5.7 3.9 9s-1.3 6.3-3.9 9c-2.6-2.7-3.9-5.7-3.9-9S9.4 5.7 12 3z"/></svg>
+<select id="zone"></select></label>
+<label class="field hidden" id="labelField"><svg viewBox="0 0 24 24"><path d="M4 12h16M14 6l6 6-6 6"/></svg>
+<input id="label" type="text" dir="ltr" spellcheck="false" autocapitalize="off" autocorrect="off" autocomplete="off" maxlength="42"></label>
+<p class="hint" id="domhint"></p>
+</div>
 <button class="install" id="go" type="submit"></button>
 </form>
 <div class="status" id="status">
@@ -388,31 +487,39 @@ a{color:var(--acc);cursor:pointer;text-decoration:none}
 <div class="lbl" id="ladmin"></div><code id="adminOut"></code>
 <div class="lbl" id="lsub"></div><code id="sub"></code>
 <div class="lbl" id="lplc"></div><code id="plcOut"></code>
+<div class="warn hidden" id="warn"></div>
 <button class="copy" id="copy" type="button"></button>
 </div>
 </div>
 <p class="note" id="note"></p>
 <p class="note"><a href="https://github.com/soroushse7o/" target="_blank" rel="noopener noreferrer" id="gh1"></a> · <a href="https://github.com/cmliu/edgetunnel" target="_blank" rel="noopener noreferrer" id="gh2"></a></p>
+<p class="note"><span id="melbl"></span> <a href="https://soroush.my.id" target="_blank" rel="noopener noreferrer">soroush.my.id</a></p>
 </main>
 <script>
 (function(){
-var TOKEN_URL='https://dash.cloudflare.com/profile/api-tokens?permissionGroupKeys=%5B%7B%22key%22%3A%22workers_scripts%22%2C%22type%22%3A%22edit%22%7D%2C%7B%22key%22%3A%22workers_kv_storage%22%2C%22type%22%3A%22edit%22%7D%2C%7B%22key%22%3A%22page%22%2C%22type%22%3A%22edit%22%7D%2C%7B%22key%22%3A%22dns%22%2C%22type%22%3A%22edit%22%7D%2C%7B%22key%22%3A%22user_details%22%2C%22type%22%3A%22read%22%7D%5D&accountId=*&zoneId=all&name=edgetunnel-wizard';
+var TOKEN_URL='https://dash.cloudflare.com/profile/api-tokens?permissionGroupKeys=%5B%7B%22key%22%3A%22workers_scripts%22%2C%22type%22%3A%22edit%22%7D%2C%7B%22key%22%3A%22workers_kv_storage%22%2C%22type%22%3A%22edit%22%7D%2C%7B%22key%22%3A%22page%22%2C%22type%22%3A%22edit%22%7D%2C%7B%22key%22%3A%22dns%22%2C%22type%22%3A%22edit%22%7D%2C%7B%22key%22%3A%22zone%22%2C%22type%22%3A%22read%22%7D%2C%7B%22key%22%3A%22user_details%22%2C%22type%22%3A%22read%22%7D%5D&accountId=*&zoneId=all&name=edgetunnel-wizard';
 var PL=__PLACEMENTS__;
 var SIGNUP_URL='https://dash.cloudflare.com/sign-up';
 var L={
 en:{title:"edgetunnel Install Wizard",lang:"فارسی",
 s1:'<a data-l="signup">Sign up</a> for a Cloudflare account and verify it.',
 s2:'<a data-l="token">Create a token</a>, press <b>Continue to summary</b>, then <b>Create Token</b> and copy it.',
-s3:"Paste it here, optionally set an admin password (random if empty), choose the installation method and placement, then install.",
-s4:"One click creates a <b>KV namespace</b>, binds it as <b>KV</b>, sets <b>ADMIN</b> and <b>KEY</b>, and deploys edgetunnel. You get the admin panel link and password. Nothing is saved on any server.",
+s3:"Paste it here, optionally set an admin password (random if empty), choose the installation method and placement. If the token can access one of your domains, you can install the panel on it. Then install.",
+s4:"One click creates a <b>KV namespace</b>, binds it as <b>KV</b>, sets <b>ADMIN</b>, <b>PASSWORD</b> and <b>TR_PASS</b> (same password) and <b>KEY</b> and <b>SUB_PATH</b> (same 32-character key), and deploys edgetunnel. You get the admin panel link and password. Nothing is saved on any server.",
 ph:"Cloudflare API Token",phadmin:"Admin password (optional, random if empty)",eye:"Show / hide token",install:"Install",
 standby:"Standby",deploying:"Deploying...",success:"Success",error:"Error",
-panel:"Admin panel",admin:"Admin password (ADMIN)",sub:"Quick subscription (KEY)",plc:"Placement Hint",plcv:"Placement",plcnone:"Default (no hint)",plcfail:"Default (hint was not accepted)",copy:"Copy",copied:"Copied",
+panel:"Admin panel",admin:"Admin password (ADMIN / PASSWORD / TR_PASS)",sub:"Quick subscription (KEY / SUB_PATH)",plc:"Placement Hint",plcv:"Placement",plcnone:"Default (no hint)",plcfail:"Default (hint was not accepted)",copy:"Copy",copied:"Copied",
 note:"Nothing is stored. Your token is only used for this install, directly against Cloudflare.",
-gh1:"GitHub page",gh2:"edgetunnel on GitHub",
+gh1:"GitHub page",gh2:"edgetunnel on GitHub",melbl:"About me",
+domdef:"Default (workers.dev / pages.dev)",domv:"Domain",phlabel:"Subdomain (optional, random if empty)",
+domhint:"This token can access your domain(s). Pick one to install the panel on it; otherwise the default address is used.",
+w_domain:"Installed, but the custom domain could not be attached. The default address above works.",
+w_pages:"Pages custom domains can take a few minutes to become active.",
+e_ZONE_INVALID:"That domain is not available for this token (it needs Zone: Read and DNS: Edit).",
+e_LABEL_INVALID:"The subdomain may only contain a-z, 0-9 and hyphens.",
 e_TOKEN_EMPTY:"Enter your Cloudflare API token.",
 e_TOKEN_INVALID:"The token is invalid or expired. Create a new one with the link in step 2.",
-e_PERMISSION:"The token does not have enough permissions (Workers, KV and Pages must be Edit). Create it with the link in step 2.",
+e_PERMISSION:"The token does not have enough permissions (Workers, KV, Pages and DNS must be Edit, Zone must be Read). Create it with the link in step 2.",
 e_NETWORK:"Network error: could not reach Cloudflare. Try again.",
 e_RATE_LIMIT:"Too many requests. Wait a moment and try again.",
 e_NO_ACCOUNT:"No Cloudflare account was found for this token.",
@@ -423,16 +530,22 @@ e_BAD_REQUEST:"Invalid request.",e_FORBIDDEN:"Invalid request.",e_UNKNOWN:"Unkno
 fa:{title:"ویزارد نصب edgetunnel",lang:"English",
 s1:'<a data-l="signup">ثبت‌نام</a> در Cloudflare و تأیید حساب.',
 s2:'<a data-l="token">ساخت توکن</a>؛ روی <b>Continue to summary</b> و سپس <b>Create Token</b> بزنید و توکن را کپی کنید.',
-s3:"توکن را اینجا بچسبانید، در صورت تمایل رمز مدیریت را تعیین کنید (خالی = رندوم)، روش نصب و Placement را انتخاب کنید و نصب را بزنید.",
-s4:"با یک کلیک، یک <b>KV namespace</b> ساخته و با نام <b>KV</b> بایند می‌شود، متغیرهای <b>ADMIN</b> و <b>KEY</b> ست می‌شوند و edgetunnel نصب می‌شود. لینک پنل مدیریت و رمز را می‌گیرید. هیچ اطلاعاتی روی هیچ سروری ذخیره نمی‌شود.",
+s3:"توکن را اینجا بچسبانید، در صورت تمایل رمز مدیریت را تعیین کنید (خالی = رندوم)، روش نصب و Placement را انتخاب کنید. اگر توکن به یکی از دامنه‌های شما دسترسی داشته باشد، می‌توانید پنل را روی آن نصب کنید. سپس نصب را بزنید.",
+s4:"با یک کلیک، یک <b>KV namespace</b> ساخته و با نام <b>KV</b> بایند می‌شود، متغیرهای <b>ADMIN</b> و <b>PASSWORD</b> و <b>TR_PASS</b> (همگی با یک رمز) و <b>KEY</b> و <b>SUB_PATH</b> (هر دو با یک کلید ۳۲ کاراکتری) ست می‌شوند و edgetunnel نصب می‌شود. لینک پنل مدیریت و رمز را می‌گیرید. هیچ اطلاعاتی روی هیچ سروری ذخیره نمی‌شود.",
 ph:"توکن API کلادفلر",phadmin:"رمز مدیریت (اختیاری، خالی = رندوم)",eye:"نمایش / مخفی کردن توکن",install:"نصب",
 standby:"آماده‌باش",deploying:"در حال نصب...",success:"موفق",error:"خطا",
-panel:"پنل مدیریت",admin:"رمز مدیریت (ADMIN)",sub:"اشتراک سریع (KEY)",plc:"Placement Hint",plcv:"Placement",plcnone:"پیش‌فرض (بدون Hint)",plcfail:"پیش‌فرض (Hint پذیرفته نشد)",copy:"کپی",copied:"کپی شد",
+panel:"پنل مدیریت",admin:"رمز مدیریت (ADMIN / PASSWORD / TR_PASS)",sub:"اشتراک سریع (KEY / SUB_PATH)",plc:"Placement Hint",plcv:"Placement",plcnone:"پیش‌فرض (بدون Hint)",plcfail:"پیش‌فرض (Hint پذیرفته نشد)",copy:"کپی",copied:"کپی شد",
 note:"هیچ داده‌ای ذخیره نمی‌شود. توکن فقط برای همین نصب و مستقیم با کلادفلر استفاده می‌شود.",
-gh1:"پیج گیت‌هاب",gh2:"edgetunnel در گیت‌هاب",
+gh1:"پیج گیت‌هاب",gh2:"edgetunnel در گیت‌هاب",melbl:"درباره من",
+domdef:"پیش‌فرض (workers.dev / pages.dev)",domv:"دامنه",phlabel:"ساب‌دامنه (اختیاری، خالی = رندوم)",
+domhint:"این توکن به دامنه(های) شما دسترسی دارد. برای نصب پنل روی دامنه‌ی خودتان یکی را انتخاب کنید؛ وگرنه روی آدرس پیش‌فرض نصب می‌شود.",
+w_domain:"نصب انجام شد، اما اتصال دامنه‌ی شخصی ناموفق بود. آدرس پیش‌فرض بالا کار می‌کند.",
+w_pages:"فعال‌شدن دامنه‌ی شخصی در Pages ممکن است چند دقیقه طول بکشد.",
+e_ZONE_INVALID:"این دامنه برای این توکن در دسترس نیست (دسترسی Zone: Read و DNS: Edit لازم است).",
+e_LABEL_INVALID:"ساب‌دامنه فقط می‌تواند شامل a-z، 0-9 و خط تیره باشد.",
 e_TOKEN_EMPTY:"توکن API کلادفلر را وارد کنید.",
 e_TOKEN_INVALID:"توکن نامعتبر یا منقضی است. با لینک مرحله ۲ یک توکن جدید بسازید.",
-e_PERMISSION:"دسترسی توکن کافی نیست (Workers، KV و Pages باید Edit باشند). آن را با لینک مرحله ۲ بسازید.",
+e_PERMISSION:"دسترسی توکن کافی نیست (Workers، KV، Pages و DNS باید Edit و Zone باید Read باشد). آن را با لینک مرحله ۲ بسازید.",
 e_NETWORK:"خطای شبکه: ارتباط با کلادفلر برقرار نشد. دوباره تلاش کنید.",
 e_RATE_LIMIT:"تعداد درخواست‌ها زیاد است. کمی صبر کنید و دوباره تلاش کنید.",
 e_NO_ACCOUNT:"حسابی برای این توکن پیدا نشد.",
@@ -444,8 +557,27 @@ e_BAD_REQUEST:"درخواست نامعتبر است.",e_FORBIDDEN:"درخواس�
 var $=function(i){return document.getElementById(i)};
 var lang="en";
 var st="standby",errRes=null,result=null,busy=false;
+var zones=[],zTimer=null,lastTok="";
 function t(k){return L[lang][k]}
 function errText(r){var m=t("e_"+r.code)||t("e_UNKNOWN");return r.detail?m+" ("+r.detail+")":m}
+function fillZones(){
+ var sel=$("zone"),cur=sel.value;sel.innerHTML="";
+ var d=document.createElement("option");d.value="";d.textContent=t("domv")+": "+t("domdef");sel.appendChild(d);
+ for(var k=0;k<zones.length;k++){var o=document.createElement("option");o.value=zones[k];o.textContent=t("domv")+": "+zones[k];sel.appendChild(o)}
+ sel.value=cur;if(sel.value!==cur)sel.value="";
+ $("domainBox").classList.toggle("hidden",!zones.length);
+ $("labelField").classList.toggle("hidden",!sel.value);
+ $("label").placeholder=t("phlabel");$("domhint").textContent=t("domhint");
+}
+function checkZones(){
+ var tok=$("token").value.trim();
+ if(tok===lastTok)return;lastTok=tok;zones=[];
+ if(!/^[A-Za-z0-9_-]{20,120}$/.test(tok)){fillZones();return}
+ fetch("/api/zones",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({token:tok})})
+  .then(function(r){return r.json()})
+  .then(function(d){if(tok!==lastTok)return;zones=d.ok&&d.zones?d.zones:[];fillZones()})
+  .catch(function(){if(tok!==lastTok)return;zones=[];fillZones()});
+}
 function render(){
  var h=document.documentElement;h.lang=lang;h.dir=lang==="fa"?"rtl":"ltr";
  $("title").textContent=t("title");$("lang").textContent=t("lang");
@@ -457,6 +589,7 @@ function render(){
  sel.value=cur;
  $("token").placeholder=t("ph");$("admin").placeholder=t("phadmin");$("eye").setAttribute("aria-label",t("eye"));
  $("go").textContent=t("install");$("note").textContent=t("note");
+ fillZones();$("melbl").textContent=t("melbl")+":";
  $("gh1").textContent=t("gh1");$("gh2").textContent=t("gh2");$("tgh1").textContent=t("gh1");$("tgh2").textContent=t("gh2");
  $("status").className="status "+st;$("stext").textContent=t(st);
  var m=$("smsg");
@@ -468,10 +601,16 @@ function render(){
   $("ladmin").textContent=t("admin");$("adminOut").textContent=result.admin;
   $("lsub").textContent=t("sub");$("sub").textContent=result.sub;
   $("lplc").textContent=t("plc");$("plcOut").textContent=result.placement||(result.requested?t("plcfail"):t("plcnone"));
+  var w=$("warn"),wt="";
+  if(result.domainError)wt=t("w_domain");
+  else if(result.customHost&&result.method==="pages")wt=t("w_pages");
+  w.textContent=wt;w.classList.toggle("hidden",!wt);
   $("copy").textContent=t("copy");
  }else r.classList.add("hidden");
 }
 $("lang").onclick=function(){lang=lang==="fa"?"en":"fa";render()};
+$("token").oninput=function(){clearTimeout(zTimer);zTimer=setTimeout(checkZones,700)};
+$("zone").onchange=function(){$("labelField").classList.toggle("hidden",!$("zone").value)};
 $("eye").onclick=function(){var i=$("token");i.type=i.type==="password"?"text":"password"};
 $("copy").onclick=function(){
  if(!result)return;
@@ -485,10 +624,10 @@ $("f").onsubmit=function(e){
  if(!token){st="error";errRes={code:"TOKEN_EMPTY"};render();return}
  busy=true;$("go").disabled=true;st="deploying";errRes=null;result=null;render();
  fetch("/api/install",{method:"POST",headers:{"content-type":"application/json"},
-  body:JSON.stringify({token:token,method:$("method").value,admin:$("admin").value.trim(),placement:$("placement").value})})
+  body:JSON.stringify({token:token,method:$("method").value,admin:$("admin").value.trim(),placement:$("placement").value,zone:$("zone").value,label:$("label").value.trim()})})
  .then(function(r){return r.json()})
  .then(function(d){
-  if(d.ok){st="success";result={panel:d.panel,admin:d.admin,sub:d.sub,placement:d.placement,requested:!!$("placement").value}}
+  if(d.ok){st="success";result={panel:d.panel,admin:d.admin,sub:d.sub,placement:d.placement,requested:!!$("placement").value,customHost:d.customHost,domainError:d.domainError,method:$("method").value}}
   else{st="error";errRes=d}
  })
  .catch(function(){st="error";errRes={code:"NETWORK"}})
@@ -504,6 +643,7 @@ export default {
   async fetch(request) {
     const url = new URL(request.url);
     if (url.pathname === "/api/install") return handleInstall(request, url);
+    if (url.pathname === "/api/zones") return handleZones(request, url);
     if (url.pathname === "/") {
       return new Response(HTML.replace("__PLACEMENTS__", JSON.stringify(PLACEMENTS)), {
         headers: {
