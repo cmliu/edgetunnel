@@ -12,7 +12,7 @@ const API = "https://api.cloudflare.com/client/v4";
 // Script that gets installed. Change this URL if you want the wizard to install your own fork.
 // آدرس اسکریپتی که نصب می‌شود. برای نصب فورک خودتان همین آدرس را عوض کنید.
 const SOURCE_URLS = [
-  "https://raw.githubusercontent.com/soroushse7o/edgetunnel/refs/heads/feat/i18n-en-fa/_worker.js",
+  "https://raw.githubusercontent.com/soroushse7o/edgetunnel/refs/heads/main/_worker.js",
 ];
 
 // Name of the KV binding the script expects (env.KV).
