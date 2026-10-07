@@ -6563,7 +6563,7 @@ async function 读取config_JSON(env, hostname, userID, UA = "Mozilla/5.0", 重�
 		gRPC模式: "gun",
 		gRPCUserAgent: UA,
 		跳过证书验证: false,
-		启用0RTT: false,
+		启用0RTT: true, // default ON after install (ed=2560)
 		TLS分片: null,
 		随机路径: false,
 		ECH: false,
@@ -6577,13 +6577,13 @@ async function 读取config_JSON(env, hostname, userID, UA = "Mozilla/5.0", 重�
 		},
 		Fingerprint: "chrome",
 		优选订阅生成: {
-			local: true, // true: 基于本地的优选地址  false: 优选订阅生成器
+			local: false, // default: preferred-subscription generator (true: local random pick)
 			本地IP库: {
 				随机IP: true, // 当 随机IP 为true时生效，启用随机IP的数量，否则使用KV内的ADD.txt
 				随机数量: 16,
 				指定端口: -1,
 			},
-			SUB: null,
+			SUB: `sub.${特征码字典[1]}ssss.net`,
 			SUBNAME: "edge" + "tunnel",
 			SUBUpdateTime: 3, // 订阅更新时间（小时）
 			TOKEN: await MD5MD5(hostname + userID),

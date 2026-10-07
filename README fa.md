@@ -12,7 +12,7 @@
 [![zread](https://img.shields.io/badge/Ask_Zread-_.svg?style=flat-square&color=00b0aa&labelColor=000000&logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyB3aWR0aD0iMTYiIGhlaWdodD0iMTYiIHZpZXdCb3g9IjAgMCAxNiAxNiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTQuOTYxNTYgMS42MDAxSDIuMjQxNTZDMS44ODgxIDEuNjAwMSAxLjYwMTU2IDEuODg2NjQgMS42MDE1NiAyLjI0MDFWNC45NjAxQzEuNjAxNTYgNS4zMTM1NiAxLjg4ODEgNS42MDAxIDIuMjQxNTYgNS42MDAxSDQuOTYxNTZDNS4zMTUwMiA1LjYwMDEgNS42MDE1NiA1LjMxMzU2IDUuNjAxNTYgNC45NjAxVjIuMjQwMUM1LjYwMTU2IDEuODg2NjQgNS4zMTUwMiAxLjYwMDEgNC45NjE1NiAxLjYwMDFaIiBmaWxsPSIjZmZmIi8%2BCjxwYXRoIGQ9Ik00Ljk2MTU2IDEwLjM5OTlIMi4yNDE1NkMxLjg4ODEgMTAuMzk5OSAxLjYwMTU2IDEwLjY4NjQgMS42MDE1NiAxMS4wMzk5VjEzLjc1OTlDMS42MDE1NiAxNC4xMTM0IDEuODg4MSAxNC4zOTk5IDIuMjQxNTYgMTQuMzk5OUg0Ljk2MTU2QzUuMzE1MDIgMTQuMzk5OSA1LjYwMTU2IDE0LjExMzQgNS42MDE1NiAxMy43NTk5VjExLjAzOTlDNS42MDE1NiAxMC42ODY0IDUuMzE1MDIgMTAuMzk5OSA0Ljk2MTU2IDEwLjM5OTlaIiBmaWxsPSIjZmZmIi8%2BCjxwYXRoIGQ9Ik0xMy43NTg0IDEuNjAwMUgxMS4wMzg0QzEwLjY4NSAxLjYwMDEgMTAuMzk4NCAxLjg4NjY0IDEwLjM5ODQgMi4yNDAxVjQuOTYwMUMxMC4zOTg0IDUuMzEzNTYgMTAuNjg1IDUuNjAwMSAxMS4wMzg0IDUuNjAwMUgxMy43NTg0QzE0LjExMTkgNS42MDAxIDE0LjM5ODQgNS4zMTM1NiAxNC4zOTg0IDQuOTYwMVYyLjI0MDFDMTQuMzk4NCAxLjg4NjY0IDE0LjExMTkgMS42MDAxIDEzLjc1ODQgMS42MDAxWiIgZmlsbD0iI2ZmZiIvPgo8cGF0aCBkPSJNNCAxMkwxMiA0TDQgMTJaIiBmaWxsPSIjZmZmIi8%2BCjxwYXRoIGQ9Ik00IDEyTDEyIDQiIHN0cm9rZT0iI2ZmZiIgc3Ryb2tlLXdpZHRoPSIxLjUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPgo8L3N2Zz4K&logoColor=ffffff)](https://zread.ai/cmliu/edgetunnel)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/cmliu/edgetunnel)
 
-[English](README_en.md) | [فارسی](README_fa.md) | [简体中文](README.md)
+[English](README_en.md) | [فارسی](README_fa.md) | [简体中文](README_zh.md)
 
 ---
 
@@ -30,6 +30,29 @@
 - 🔄 **سامانه‌ی اشتراک (Subscription)**: تولید خودکار اشتراک و تبدیل (همراه با مبهم‌سازی) به‌صورت داخلی، سازگار با کلاینت‌های اصلی (Clash، Sing-box، Surge و غیره).
 - ⚡ **افزایش کارایی**: پشتیبانی از ProxyIP سفارشی، پروکسی زنجیره‌ای SOCKS5/HTTP و API انتخاب بهترین IP (优选) برای کاهش تأخیر شبکه.
 - 🌐 **سازگاری چندپلتفرمی**: سازگار با Windows، Android، iOS، macOS و فریمویر انواع روترهای نرم‌افزاری.
+
+---
+
+## ⚡ ویزارد نصب یک‌کلیکی (بدون نیاز به دانش فنی)
+
+> [!TIP]
+> 🚀 **ساده‌ترین روش نصب:** [edge-panel-wizard.soroush.my.id](https://edge-panel-wizard.soroush.my.id)
+
+یک وب‌ویزارد کوچک که edgetunnel را با یک کلیک روی **حساب Cloudflare خودتان** نصب می‌کند؛ بدون کپی‌کردن کد، بدون اتصال دستی KV و بدون تنظیم دستی متغیرها. صفحه‌ی ویزارد به دو زبان انگلیسی و فارسی در دسترس است. نگهداری و به‌روزرسانی: [soroushse7o](https://github.com/soroushse7o/).
+
+**نحوه‌ی استفاده:**
+
+1. در Cloudflare یک حساب رایگان بسازید و آن را تأیید کنید.
+2. ویزارد را باز کنید، روی `Create a token` و سپس `Continue to summary` > `Create Token` بزنید و توکن را کپی کنید.
+3. توکن را بچسبانید. در صورت تمایل یک رمز مدیریت دلخواه وارد کنید (خالی بگذارید تا رمز تصادفی ساخته شود).
+4. **Workers** یا **Pages** را انتخاب کنید (و در صورت تمایل یک ریجن Placement) و **نصب** را بزنید.
+5. وقتی وضعیت **موفق** شد، لینک **پنل مدیریت** را باز کنید و با رمزی که نشان داده شده وارد شوید.
+
+**کارهایی که ویزارد خودکار انجام می‌دهد:** یک KV namespace می‌سازد و با نام `KV` بایند می‌کند، متغیرهای `ADMIN` و `KEY` را تنظیم می‌کند، اسکریپت را دپلوی می‌کند و لینک پنل مدیریت، رمز مدیریت و لینک اشتراک سریع را نشان می‌دهد.
+
+**حریم خصوصی:** ویزارد هیچ چیزی ذخیره نمی‌کند. توکن شما فقط در زمان نصب و مستقیماً با API کلادفلر استفاده می‌شود و بعد از نصب می‌توانید آن را از داشبورد Cloudflare حذف کنید. هرگز توکن را در ویزاردی که به آن اعتماد ندارید وارد نکنید.
+
+> 📘 [مستندات کامل ویزارد](https://github.com/soroushse7o/edgetunnel/blob/feat/i18n-en-fa/wizard-panel/README.md) (ریجن‌های Placement، دسترسی‌های توکن، عیب‌یابی).
 
 ---
 
