@@ -2,7 +2,7 @@
 // Original project: edgetunnel by cmliu — https://github.com/cmliu/edgetunnel
 //
 // Install Wizard for edgetunnel — single-file Cloudflare Worker (UI + stateless API).
-// It creates a KV namespace, binds it as `KV`, sets ADMIN / PASSWORD / TR_PASS (same password) and KEY / SUB_PATH (same 32-char key)
+// It creates a KV namespace, binds it as `KV`, sets ADMIN / PASSWORD / TR_PASS (same password), KEY / SUB_PATH (same 32-char key) and PATH (random 32-char WebSocket path)
 // automatically, optionally attaches a custom domain, and deploys the script.
 // Nothing is stored: the token is used only for the requests made while installing.
 // ویزارد نصب edgetunnel — یک Worker تک‌فایل. ساخت KV، بایند به نام KV، ست‌کردن ADMIN و KEY و استقرار، همه خودکار.
@@ -301,7 +301,10 @@ async function install(token, method, adminPassword, placement, zoneName, label)
   const key = randomString(32, ALNUM);
   const name = neutralName();
   // ADMIN, PASSWORD and TR_PASS share the chosen password; KEY and SUB_PATH share the 32-char key
-  const vars = { ADMIN: admin, PASSWORD: admin, TR_PASS: admin, KEY: key, SUB_PATH: key };
+  // PATH = random WebSocket path (separate from KEY on purpose: it appears inside every client config, KEY must stay secret).
+  // The panel reads env.PATH, so the "PATH" field in Detailed configuration is always in sync with this variable.
+  const wsPath = "/" + randomString(32, ALNUM);
+  const vars = { ADMIN: admin, PASSWORD: admin, TR_PASS: admin, KEY: key, SUB_PATH: key, PATH: wsPath };
 
   // 1) create the KV namespace  2) bind it as KV  3) deploy with the variables above
   const kvId = await createKV(token, accountId, `${name}-kv`);
@@ -333,6 +336,7 @@ async function install(token, method, adminPassword, placement, zoneName, label)
     placement: deployed.placement,
     admin,
     key,
+    path: wsPath,
     name,
     defaultHost: deployed.host,
     customHost: zone ? customHost : "",
@@ -505,7 +509,7 @@ en:{title:"edgetunnel Install Wizard",lang:"فارسی",
 s1:'<a data-l="signup">Sign up</a> for a Cloudflare account and verify it.',
 s2:'<a data-l="token">Create a token</a>, press <b>Continue to summary</b>, then <b>Create Token</b> and copy it.',
 s3:"Paste it here, optionally set an admin password (random if empty), choose the installation method and placement. If the token can access one of your domains, you can install the panel on it. Then install.",
-s4:"One click creates a <b>KV namespace</b>, binds it as <b>KV</b>, sets <b>ADMIN</b>, <b>PASSWORD</b> and <b>TR_PASS</b> (same password) and <b>KEY</b> and <b>SUB_PATH</b> (same 32-character key), and deploys edgetunnel. You get the admin panel link and password. Nothing is saved on any server.",
+s4:"One click creates a <b>KV namespace</b>, binds it as <b>KV</b>, sets <b>ADMIN</b>, <b>PASSWORD</b> and <b>TR_PASS</b> (same password), <b>KEY</b> and <b>SUB_PATH</b> (same 32-character key) and <b>PATH</b> (random 32-character WebSocket path synced with the panel), and deploys edgetunnel. You get the admin panel link and password. Nothing is saved on any server.",
 ph:"Cloudflare API Token",phadmin:"Admin password (optional, random if empty)",eye:"Show / hide token",install:"Install",
 standby:"Standby",deploying:"Deploying...",success:"Success",error:"Error",
 panel:"Admin panel",admin:"Admin password (ADMIN / PASSWORD / TR_PASS)",sub:"Quick subscription (KEY / SUB_PATH)",plc:"Placement Hint",plcv:"Placement",plcnone:"Default (no hint)",plcfail:"Default (hint was not accepted)",copy:"Copy",copied:"Copied",
@@ -531,7 +535,7 @@ fa:{title:"ویزارد نصب edgetunnel",lang:"English",
 s1:'<a data-l="signup">ثبت‌نام</a> در Cloudflare و تأیید حساب.',
 s2:'<a data-l="token">ساخت توکن</a>؛ روی <b>Continue to summary</b> و سپس <b>Create Token</b> بزنید و توکن را کپی کنید.',
 s3:"توکن را اینجا بچسبانید، در صورت تمایل رمز مدیریت را تعیین کنید (خالی = رندوم)، روش نصب و Placement را انتخاب کنید. اگر توکن به یکی از دامنه‌های شما دسترسی داشته باشد، می‌توانید پنل را روی آن نصب کنید. سپس نصب را بزنید.",
-s4:"با یک کلیک، یک <b>KV namespace</b> ساخته و با نام <b>KV</b> بایند می‌شود، متغیرهای <b>ADMIN</b> و <b>PASSWORD</b> و <b>TR_PASS</b> (همگی با یک رمز) و <b>KEY</b> و <b>SUB_PATH</b> (هر دو با یک کلید ۳۲ کاراکتری) ست می‌شوند و edgetunnel نصب می‌شود. لینک پنل مدیریت و رمز را می‌گیرید. هیچ اطلاعاتی روی هیچ سروری ذخیره نمی‌شود.",
+s4:"با یک کلیک، یک <b>KV namespace</b> ساخته و با نام <b>KV</b> بایند می‌شود، متغیرهای <b>ADMIN</b> و <b>PASSWORD</b> و <b>TR_PASS</b> (همگی با یک رمز) و <b>KEY</b> و <b>SUB_PATH</b> (هر دو با یک کلید ۳۲ کاراکتری) و <b>PATH</b> (مسیر تصادفی ۳۲ کاراکتری که با پنل هماهنگ است) ست می‌شوند و edgetunnel نصب می‌شود. لینک پنل مدیریت و رمز را می‌گیرید. هیچ اطلاعاتی روی هیچ سروری ذخیره نمی‌شود.",
 ph:"توکن API کلادفلر",phadmin:"رمز مدیریت (اختیاری، خالی = رندوم)",eye:"نمایش / مخفی کردن توکن",install:"نصب",
 standby:"آماده‌باش",deploying:"در حال نصب...",success:"موفق",error:"خطا",
 panel:"پنل مدیریت",admin:"رمز مدیریت (ADMIN / PASSWORD / TR_PASS)",sub:"اشتراک سریع (KEY / SUB_PATH)",plc:"Placement Hint",plcv:"Placement",plcnone:"پیش‌فرض (بدون Hint)",plcfail:"پیش‌فرض (Hint پذیرفته نشد)",copy:"کپی",copied:"کپی شد",
