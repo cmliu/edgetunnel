@@ -885,6 +885,53 @@ const 面板本地化脚本 = String.raw`(function () {
 		}
 	} catch (e) { }
 
+	// ---------- دکمه‌ی آدرس شخصی «تغییردهنده» کنار آیکن GitHub / Telegram در فوتر پنل ----------
+	var MY_ADDRESS = 'https://www.soroush.my.id';
+	var ADDR_ID = 'edt-modder-link', addrTimer = 0;
+	var ADDR_ICON = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3c2.6 2.7 3.9 5.7 3.9 9s-1.3 6.3-3.9 9c-2.6-2.7-3.9-5.7-3.9-9S9.4 5.7 12 3z"/></svg>';
+
+	function findFooterTemplate() {
+		var a = document.querySelector('a[href*="github.com"]');
+		if (a && a.getClientRects().length) return a;
+		var w = document.createTreeWalker(document.body, 4, null), n;
+		while ((n = w.nextNode())) {
+			if (!/^\s*v\d+\.\d+/.test(rawText(n))) continue;
+			var el = n.parentElement && n.parentElement.closest('a,button,div,span');
+			if (el && el.getClientRects().length && el.parentElement && el.parentElement.children.length > 2) {
+				var row = el.parentElement;
+				return row.children[0];
+			}
+		}
+		return null;
+	}
+
+	function mountAddress() {
+		addrTimer = 0;
+		try {
+			if (!document.body || location.pathname.indexOf('admin') < 0) return;
+			var old = document.getElementById(ADDR_ID);
+			if (old && old.isConnected) return;
+			var tpl = findFooterTemplate();
+			if (!tpl || !tpl.parentNode) return;
+			var n = tpl.cloneNode(true);
+			n.id = ADDR_ID;
+			n.removeAttribute('onclick');
+			n.innerHTML = ADDR_ICON;
+			n.setAttribute('title', 'Soroush');
+			n.setAttribute('aria-label', 'Soroush');
+			if (n.tagName === 'A') {
+				n.href = MY_ADDRESS;
+				n.target = '_blank';
+				n.rel = 'noopener noreferrer';
+			} else {
+				n.addEventListener('click', function () { window.open(MY_ADDRESS, '_blank', 'noopener'); });
+			}
+			tpl.parentNode.insertBefore(n, tpl.nextSibling);
+		} catch (e) { }
+	}
+
+	function scheduleAddress() { if (!addrTimer) addrTimer = setTimeout(mountAddress, 400); }
+
 	window.__edtTr = function (x, l) { lang = l; return tr(x, ''); };
 	applyDirection();
 	injectCss();
@@ -896,10 +943,11 @@ const 面板本地化脚本 = String.raw`(function () {
 			else if (m.type === 'attributes') procAttrs(m.target);
 			else for (var j = 0; j < m.addedNodes.length; j++) walk(m.addedNodes[j]);
 		}
+		scheduleAddress();
 	});
 	mo.observe(document.documentElement, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ATTRS.concat(['value']) });
 
-	function ready() { walk(document.documentElement); mountSwitch(); }
+	function ready() { walk(document.documentElement); mountSwitch(); mountAddress(); }
 	if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', ready); else ready();
 })();`;
 function 本地化页面响应(响应) {
