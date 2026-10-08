@@ -1,7 +1,961 @@
-﻿const Version = '2026-09-22 20:01:17';
+const Version = '2026-09-22 20:01:17';
 let config_JSON, 缓存SOCKS5白名单 = null, 调试日志打印 = false;
 let SOCKS5白名单 = ['*tapecontent.net', '*cloudatacdn.com', '*loadshare.org', '*cdn-centaurus.com', 'scholar.google.com'];
 const Pages静态页面 = 'https://edt-pages.github.io';
+/////////////////////////////////////////////////////// 面板界面本地化（فارسی / English） ///////////////////////////////////////////////
+// 面板页面(/login /admin /noADMIN /noKV)来自上面的 Pages静态页面，这里只在返回前注入一段前端翻译脚本，不改动任何代理/订阅逻辑。
+// 默认语言: English；第二语言: فارسی；左下角切换按钮: EN / فارسی；原中文界面仅可通过在地址后手动添加 ?lang=zh 恢复（所选语言会保存在浏览器 localStorage 中）。
+const 面板本地化脚本 = String.raw`(function () {
+	if (window.__edtI18n) return;
+	window.__edtI18n = 1;
+	var LS_KEY = 'edt_ui_lang';
+	var lang = 'en';
+	try {
+		var q = new URLSearchParams(location.search).get('lang');
+		if (q && /^(fa|en|zh)$/.test(q)) localStorage.setItem(LS_KEY, q);
+		var saved = localStorage.getItem(LS_KEY);
+		if (saved && /^(fa|en|zh)$/.test(saved)) lang = saved;
+	} catch (e) {
+		var q2 = (location.search.match(/[?&]lang=(fa|en|zh)/) || [])[1];
+		if (q2) lang = q2;
+	}
+
+	// [中文, فارسی, English]
+	// کلیدهای کوتاه‌تر از ۲ حرف فقط برای تطبیق کامل متن استفاده می‌شوند.
+	var D = [
+		// ---------- عمومی ----------
+		['管理后台', 'پنل مدیریت', 'Admin Panel'],
+		['加载中...', 'در حال بارگذاری...', 'Loading...'],
+		['加载中，请稍候', 'در حال بارگذاری، لطفاً صبر کنید', 'Loading, please wait'],
+		['加载中', 'در حال بارگذاری', 'Loading'],
+		['正在加载...', 'در حال بارگذاری...', 'Loading...'],
+		['等待加载更新日志...', 'در انتظار بارگذاری تغییرات نسخه...', 'Waiting for the changelog...'],
+		['等待源码混淆重组', 'در انتظار مبهم‌سازی و بازآرایی کد', 'Waiting for source obfuscation and reassembly'],
+		['取消重置', 'انصراف از بازنشانی', 'Cancel reset'],
+		['取消', 'انصراف', 'Cancel'],
+		['保存并应用', 'ذخیره و اعمال', 'Save and apply'],
+		['保存', 'ذخیره', 'Save'],
+		['确定重置', 'بله، بازنشانی کن', 'Yes, reset'],
+		['确定清除', 'بله، پاک کن', 'Yes, clear'],
+		['确认开启', 'تأیید و فعال‌سازی', 'Confirm and enable'],
+		['确定', 'تأیید', 'OK'],
+		['添加', 'افزودن', 'Add'],
+		['关闭 ECH', 'غیرفعال‌کردن ECH', 'Turn ECH off'],
+		['关闭', 'بستن', 'Close'],
+		['全部日志', 'همه‌ی گزارش‌ها', 'All logs'],
+		['全部', 'همه', 'All'],
+		['可用性验证', 'بررسی دسترس‌پذیری', 'Check availability'],
+		['自定义后端地址', 'آدرس بک‌اند سفارشی', 'Custom backend address'],
+		['自定义域名列表', 'فهرست دامنه‌های سفارشی', 'Custom domain list'],
+		['自定义', 'سفارشی', 'Custom'],
+		['预设模板', 'قالب آماده', 'Preset template'],
+		['获取当前UA', 'دریافت UA فعلی', 'Get current UA'],
+		['复制节点', 'کپی نود', 'Copy node'],
+		['复制订阅', 'کپی اشتراک', 'Copy subscription'],
+		['复制成功', 'با موفقیت کپی شد', 'Copied'],
+		['已复制', 'کپی شد', 'Copied'],
+		['复制失败', 'کپی ناموفق بود', 'Copy failed'],
+		['二维码', 'کد QR', 'QR code'],
+		['保存成功', 'با موفقیت ذخیره شد', 'Saved successfully'],
+		['保存失败', 'ذخیره ناموفق بود', 'Save failed'],
+		['验证成功', 'تأیید موفق', 'Verification succeeded'],
+		['验证失败', 'تأیید ناموفق', 'Verification failed'],
+		['请求失败', 'درخواست ناموفق بود', 'Request failed'],
+		['网络错误', 'خطای شبکه', 'Network error'],
+		['未知错误', 'خطای ناشناخته', 'Unknown error'],
+
+		// ---------- ورود ----------
+		['登录设置页面', 'ورود به صفحه‌ی تنظیمات', 'Settings Login'],
+		['请输入您的管理员密码', 'رمز عبور مدیر را وارد کنید', 'Enter your admin password'],
+		['立即登录', 'ورود', 'Log in'],
+		['密码错误', 'رمز عبور اشتباه است', 'Wrong password'],
+		['强力驱动', 'نیرو می‌گیرد', ''],
+		['由', 'با', 'Powered by'],
+		['重定向中...', 'در حال انتقال...', 'Redirecting...'],
+
+		// ---------- بالای پنل ----------
+		['edgetunnel 设置页面', 'صفحه‌ی تنظیمات edgetunnel', 'edgetunnel Settings'],
+		['我是小白！我想简单点！', 'من مبتدی هستم! ساده‌تر می‌خواهم!', 'I am a beginner! Keep it simple!'],
+		['我是高手！我就要折腾！', 'من حرفه‌ای هستم! می‌خواهم همه‌چیز را تنظیم کنم!', 'I am an expert! Let me tinker!'],
+		['重置配置失败，失败原因：', 'بازنشانی تنظیمات ناموفق بود. دلیل: ', 'Config reset failed. Reason: '],
+		['重置配置', 'بازنشانی تنظیمات', 'Reset config'],
+		['退出登录', 'خروج از حساب', 'Log out'],
+
+		// ---------- مصرف درخواست ----------
+		['Workers/Pages 请求使用情况', 'وضعیت مصرف درخواست‌های Workers/Pages', 'Workers/Pages request usage'],
+		['Workers 请求', 'درخواست‌های Workers', 'Workers requests'],
+		['Pages 请求', 'درخواست‌های Pages', 'Pages requests'],
+		['日配额', 'سهمیه‌ی روزانه', 'Daily quota'],
+		['每日请求数重置清零：', 'صفر شدن روزانه‌ی تعداد درخواست‌ها: ', 'Daily request counter reset: '],
+		['距离重置还有', 'تا بازنشانی: ', 'Time until reset: '],
+		['北京时间 (UTC+8)', 'وقت پکن (UTC+8)', 'Beijing time (UTC+8)'],
+		['今日使用情况总计：', 'مجموع مصرف امروز: ', 'Total usage today: '],
+		['重置', 'بازنشانی', 'reset'],
+
+		// ---------- اطلاعات شبکه ----------
+		['当前网络信息', 'اطلاعات شبکه‌ی فعلی', 'Current network info'],
+		['国内测试', 'تست داخلی (چین)', 'Domestic test'],
+		['国外测试', 'تست خارجی', 'International test'],
+		['墙外测试', 'تست سایت‌های فیلترشده', 'Blocked-site test'],
+		['漏网之鱼', 'سایت‌های فیلترنشده', 'Unblocked sites'],
+		['您访问国内站点所使用的IP', 'IP‌ای که برای دسترسی به سایت‌های داخلی چین استفاده می‌شود', 'The IP used when you visit domestic (China) sites'],
+		['您访问没有被封的国外站点所使用的IP', 'IP‌ای که برای دسترسی به سایت‌های خارجیِ فیلترنشده استفاده می‌شود', 'The IP used when you visit foreign sites that are not blocked'],
+		['您访问CFCDN站点所使用的落地IP', 'IP خروجی برای سایت‌های پشت CDN کلودفلر', 'The exit IP used for sites behind Cloudflare CDN'],
+		['您访问墙外站点所使用的IP', 'IP‌ای که برای دسترسی به سایت‌های فیلترشده استفاده می‌شود', 'The IP used when you visit blocked sites'],
+		['是由您梯子的', 'توسط ', 'is decided by your client\u2019s '],
+		['是由您的', 'توسط ', 'is decided by your '],
+		['分流规则', 'قوانین تفکیک مسیر', 'routing rules'],
+		['优选IP', 'IP برگزیده', 'preferred IP'],
+		['谷歌', 'گوگل', 'Google'],
+		['推特', 'توییتر', 'Twitter'],
+		['决定的', ' تعیین می‌شود', ''],
+		['，而', '، و ', ', while '],
+
+		// ---------- لینک نود / اشتراک ----------
+		['获取节点链接', 'دریافت لینک نود', 'Get node links'],
+		['节点链接格式', 'فرمت لینک نود', 'Node link format'],
+		['自适应订阅', 'اشتراک تطبیقی', 'Adaptive subscription'],
+		['Base64订阅', 'اشتراک Base64', 'Base64 subscription'],
+		['Clash订阅', 'اشتراک Clash', 'Clash subscription'],
+		['SingBox订阅', 'اشتراک SingBox', 'SingBox subscription'],
+
+		// ---------- ساخت اشتراک برگزیده ----------
+		['优选订阅生成器（抄作业，直接使用大佬优选好的结果）', 'مولد اشتراک برگزیده (کپی از کاربران حرفه‌ای: مستقیماً از نتایج آماده استفاده کنید)', 'Preferred-subscription generator (copy the homework: use ready-made results)'],
+		['随机优选（根据订阅时的网络自动下发对应网络的官方优选）', 'انتخاب تصادفی (بر اساس شبکه‌ی لحظه‌ی دریافت اشتراک، IPهای برگزیده‌ی رسمی همان شبکه ارسال می‌شود)', 'Random pick (official preferred IPs matching your network at subscription time)'],
+		['自定义订阅（支持汇聚订阅）', 'اشتراک سفارشی (از ادغام اشتراک‌ها پشتیبانی می‌کند)', 'Custom subscription (supports aggregated subscriptions)'],
+		['优选订阅生成器', 'مولد اشتراک برگزیده', 'Preferred-subscription generator'],
+		['优选订阅生成', 'ساخت اشتراک برگزیده', 'Preferred subscription'],
+		['优选订阅模式', 'حالت اشتراک برگزیده', 'Preferred subscription mode'],
+		['随机优选数量', 'تعداد انتخاب تصادفی', 'Random pick count'],
+		['指定优选端口', 'پورت برگزیده', 'Preferred port'],
+		['随机端口', 'پورت تصادفی', 'Random port'],
+		['自定义优选', 'فهرست برگزیده‌ی سفارشی', 'Custom preferred list'],
+		['开始优选', 'شروع انتخاب', 'Start selecting'],
+		['订阅接口', 'API اشتراک', 'Subscription API'],
+		['链式代理', 'پروکسی زنجیره‌ای', 'Chained proxy'],
+		['提示：', 'نکته: ', 'Tip: '],
+		['一行写一条，地址后可加', 'هر خط یک مورد؛ پس از آدرس می‌توانید', 'One entry per line; after the address you can add '],
+		['备注', 'توضیح', 'a remark'],
+		['优选IPv6 写成', 'IPv6 برگزیده را این‌طور بنویسید', 'Write preferred IPv6 as'],
+		['优选域名/IP 端口不写默认', 'اگر پورت دامنه/IP برگزیده را ننویسید، پیش‌فرض', 'If you omit the port for a preferred domain/IP the default is'],
+		['优选节点 案例', 'نمونه‌ی نودهای برگزیده', 'Preferred node examples'],
+		['优选域名 / IP API', 'API دامنه / IP برگزیده', 'Preferred domain / IP API'],
+		['优选域名 / IP', 'دامنه / IP برگزیده', 'Preferred domain / IP'],
+		['优选域名/IP', 'دامنه/IP برگزیده', 'Preferred domain/IP'],
+		['汇聚订阅 案例', 'نمونه‌ی اشتراک‌های ادغامی', 'Aggregated subscription examples'],
+		['汇聚机场订阅', 'ادغام اشتراک سرویس‌دهنده', 'Aggregate a provider subscription'],
+		['汇聚现成节点', 'ادغام نودهای آماده', 'Aggregate ready-made nodes'],
+		['优选域名', 'دامنه‌ی برگزیده', 'Preferred domain'],
+		['优选IPv4', 'IPv4 برگزیده', 'Preferred IPv4'],
+		['优选IPv6', 'IPv6 برگزیده', 'Preferred IPv6'],
+		['CM优选订阅', 'اشتراک برگزیده‌ی CM', 'CM preferred subscription'],
+
+		// ---------- جزئیات پیکربندی ----------
+		['详细配置信息', 'جزئیات پیکربندی', 'Detailed configuration'],
+		['订阅名称', 'نام اشتراک', 'Subscription name'],
+		['节点协议', 'پروتکل نود', 'Node protocol'],
+		['加密方式', 'روش رمزنگاری', 'Encryption method'],
+		['CPU消耗少速度快', 'مصرف CPU کم و سرعت بالا', 'low CPU usage, fast'],
+		['在性能不佳的老设备上，加解密速度会变慢', 'روی دستگاه‌های قدیمی و ضعیف، رمزگذاری و رمزگشایی کندتر می‌شود', 'on weak, older devices encryption and decryption get slower'],
+		['开启TLS，速度不会比VLESS/Trojan更快，因为Shadowsocks自带AEAD加密', 'فعال‌کردن TLS سرعت را از VLESS/Trojan بیشتر نمی‌کند، چون Shadowsocks خودش رمزنگاری AEAD دارد', 'enabling TLS will not be faster than VLESS/Trojan because Shadowsocks has built-in AEAD encryption'],
+		['传输协议', 'پروتکل انتقال', 'Transport protocol'],
+		['WebSocket 速度快', 'WebSocket سریع', 'WebSocket is fast'],
+		['适合大多数场景', 'مناسب بیشتر سناریوها', 'suits most cases'],
+		['XHTTP 长连接不断流', 'XHTTP اتصال بلندمدت بدون قطعی', 'XHTTP long-lived connection, no drops'],
+		['适合AI长思考、单线程下载', 'مناسب تفکر طولانی هوش مصنوعی و دانلود تک‌رشته‌ای', 'good for long AI reasoning and single-thread downloads'],
+		['gRPC 花里胡笑', 'gRPC پر زرق‌وبرق', 'gRPC is flashy'],
+		['gRPC模式', 'حالت gRPC', 'gRPC mode'],
+		['普通模式', 'حالت عادی', 'normal mode'],
+		['并发模式', 'حالت هم‌زمان', 'concurrent mode'],
+		['指纹伪装', 'جعل اثرانگشت (Fingerprint)', 'Fingerprint spoofing'],
+		['支持ECH', 'پشتیبانی از ECH', 'ECH supported'],
+		['客户端自动协商', 'مذاکره‌ی خودکار توسط کلاینت', 'Client auto-negotiation'],
+		['跳过证书验证', 'رد کردن اعتبارسنجی گواهی', 'Skip certificate verification'],
+		['随机伪装路径', 'مسیر پوششی تصادفی', 'Random disguise path'],
+		['启用分片', 'فعال‌سازی فرگمنت ', 'Enable fragmentation '],
+		['分片', 'فرگمنت', 'fragmentation'],
+		['启用', 'فعال‌سازی ', 'Enable '],
+
+		// ---------- ECH ----------
+		['ECH 设置', 'تنظیمات ECH', 'ECH settings'],
+		['EchConfig DNS服务', 'سرویس DNS برای EchConfig', 'EchConfig DNS service'],
+		['EchConfig 解析域名', 'دامنه‌ی تحلیل EchConfig', 'EchConfig resolution domain'],
+		['自动获取（使用节点的伪装域名解析 EchConfig）', 'دریافت خودکار (EchConfig با دامنه‌ی پوششی نود تحلیل می‌شود)', 'Automatic (resolve EchConfig with the node\u2019s disguise domain)'],
+		['阿里 DoH', 'DoH علی‌بابا (Alidns)', 'Alibaba DoH'],
+		['腾讯国密 DoH', 'DoH تنسنت (SM2)', 'Tencent SM2 DoH'],
+		['国内DNS需搭配设置ECH解析域名', 'برای DNS داخل چین باید دامنه‌ی تحلیل ECH هم تنظیم شود', 'domestic DNS must be paired with an ECH resolution domain'],
+		['是否可用需自行验证', 'قابل‌استفاده بودن را خودتان بررسی کنید', 'verify availability yourself'],
+		['小白推荐选这个', 'برای مبتدی‌ها پیشنهاد می‌شود', 'recommended for beginners'],
+		['Cloudflare ECH域名', 'دامنه‌ی ECH کلودفلر', 'Cloudflare ECH domain'],
+		['Cloudflare密码学服务', 'سرویس رمزنگاری کلودفلر', 'Cloudflare cryptography service'],
+		['Cloudflare加密SNI', 'SNI رمزشده‌ی کلودفلر', 'Cloudflare encrypted SNI'],
+		['愛料理 HK', 'iCook (آشپزی) HK', 'iCook HK'],
+		['CM科技大学', 'دانشگاه فناوری CM', 'CM University of Technology'],
+		['Godot 开源游戏引擎', 'موتور بازی‌سازی متن‌باز Godot', 'Godot open-source game engine'],
+		['大英百科全书', 'دایرةالمعارف بریتانیکا', 'Encyclopaedia Britannica'],
+		['Prometheus 监控系统', 'سامانه‌ی پایش Prometheus', 'Prometheus monitoring system'],
+		['Kyocera 集团官网', 'وب‌سایت رسمی گروه Kyocera', 'Kyocera Group official site'],
+		['Celestia 模块化区块链', 'بلاک‌چین ماژولار Celestia', 'Celestia modular blockchain'],
+		['Lido 流动质押', 'استیکینگ نقدشونده‌ی Lido', 'Lido liquid staking'],
+		['为什么需要ECH', 'چرا به ECH نیاز داریم', 'Why do we need ECH'],
+		['ECH又是什么', 'ECH چیست', 'What is ECH'],
+
+		// ---------- دسترسی CDN کلودفلر ----------
+		['访问设置', 'تنظیمات دسترسی', 'access settings'],
+		['反代模式', 'حالت پروکسی معکوس', 'Reverse-proxy mode'],
+		['其他代理', 'پروکسی‌های دیگر', 'Other proxies'],
+		['自动获取', 'دریافت خودکار', 'auto-fetch'],
+		['代理协议', 'پروتکل پروکسی', 'Proxy protocol'],
+		['全局代理', 'پروکسی سراسری', 'global proxy'],
+		['为什么需要反代', 'چرا به پروکسی معکوس نیاز است', 'Why is a reverse proxy needed'],
+		['PROXYIP又是什么', 'PROXYIP چیست', 'What is PROXYIP'],
+		['路径模板配置', 'پیکربندی قالب مسیر', 'Path template configuration'],
+		['获取更多', 'دریافت بیشتر ', 'Get more '],
+
+		// ---------- تبدیل اشتراک ----------
+		['订阅转换后端', 'بک‌اند تبدیل اشتراک', 'Subscription converter backend'],
+		['订阅转换配置文件', 'فایل پیکربندی تبدیل اشتراک', 'Converter config file'],
+		['订阅转换配置', 'پیکربندی تبدیل اشتراک', 'Subscription converter settings'],
+		['订阅转换后端异常：', 'خطای بک‌اند تبدیل اشتراک: ', 'Converter backend error: '],
+		['仅输出节点信息', 'فقط خروجی اطلاعات نود', 'Output node info only'],
+		['插入节点类型', 'درج نوع نود', 'Insert node type'],
+		['基础节点排序', 'مرتب‌سازی پایه‌ی نودها', 'Basic node sorting'],
+		['展开规则全文', 'بسط کامل قوانین', 'Expand full rules'],
+
+		// ---------- اعلان‌ها و آمار ----------
+		['消息通知设置', 'تنظیمات اعلان‌ها', 'Notification settings'],
+		['Telegram Bot 通知设置', 'تنظیمات اعلان ربات تلگرام', 'Telegram Bot notification settings'],
+		['Cloudflare Workers/Pages 可用请求数统计', 'آمار درخواست‌های مجاز Cloudflare Workers/Pages', 'Cloudflare Workers/Pages available request stats'],
+		['参数配置', 'پیکربندی پارامترها', 'Configure parameters'],
+		['清除配置', 'پاک‌کردن تنظیمات', 'Clear config'],
+		['查看操作日志', 'مشاهده‌ی گزارش عملیات', 'View operation log'],
+		['所有操作日志', 'همه‌ی گزارش‌های عملیات', 'All operation logs'],
+		['因为KV空间有限，所以只保留4MB的操作日志，当日志大小超过该容量会自动清理最老的日志记录。', 'چون فضای KV محدود است، فقط ۴ مگابایت از گزارش‌ها نگه داشته می‌شود و با عبور از این حد، قدیمی‌ترین گزارش‌ها خودکار پاک می‌شوند.', 'KV space is limited, so only 4MB of logs are kept; the oldest records are cleaned automatically when this is exceeded.'],
+		['TelegramBot 通知参数配置', 'پیکربندی اعلان ربات تلگرام', 'Telegram Bot notification settings'],
+		['请选择统计方案', 'روش آمارگیری را انتخاب کنید', 'Choose a statistics method'],
+		['支持多账号统计', 'پشتیبانی از آمار چند حساب', 'multi-account stats supported'],
+		['API令牌权限 开启', 'در دسترسی‌های توکن API این مورد را فعال کنید:', 'Enable this API token permission:'],
+		['权限即可', 'کافی است', 'is enough'],
+		['UsageAPI地址', 'آدرس UsageAPI', 'UsageAPI address'],
+		['支持多账号汇总，可通过部署', 'از جمع‌بندی چند حساب پشتیبانی می‌کند؛ با استقرار پروژه‌ی', 'Supports multi-account totals; deploy the'],
+		['项目获取 UsageAPI 地址', 'می‌توانید آدرس UsageAPI را بگیرید', 'project to get a UsageAPI address'],
+
+		// ---------- درباره / نسخه ----------
+		['关于 edgetunnel', 'درباره‌ی edgetunnel', 'About edgetunnel'],
+		['最新版本', 'آخرین نسخه', 'Latest version'],
+		['当前版本', 'نسخه‌ی فعلی', 'Current version'],
+		['需要更新', 'نیاز به به‌روزرسانی', 'update needed'],
+		['复制最新Worker.js源码', 'کپی آخرین کد Worker.js', 'Copy the latest Worker.js source'],
+		['到剪贴板', 'در کلیپ‌بورد', 'to clipboard'],
+		['下载最新Pages.zip源码', 'دانلود آخرین Pages.zip', 'Download the latest Pages.zip'],
+		['上传部署', 'برای آپلود و استقرار', 'to upload and deploy'],
+		['查看更新日志', 'مشاهده‌ی تغییرات نسخه‌ها', 'View changelog'],
+		['更新日志', 'تغییرات نسخه‌ها', 'Changelog'],
+
+		// ---------- هشدارها ----------
+		['确定是否完全重置配置？', 'آیا از بازنشانی کامل تنظیمات مطمئن هستید؟', 'Do you really want to fully reset the configuration?'],
+		['重置配置将会初始化所有设置，包括订阅生成、节点信息、反代配置等。此操作不可撤销，请谨慎操作。', 'بازنشانی، همه‌ی تنظیمات از جمله ساخت اشتراک، اطلاعات نود و پیکربندی پروکسی معکوس را به حالت اولیه برمی‌گرداند. این کار قابل بازگشت نیست؛ با احتیاط ادامه دهید.', 'Resetting restores all settings, including subscription generation, node info and reverse-proxy settings. This cannot be undone, so proceed with care.'],
+		['清除 Telegram 配置', 'پاک‌کردن تنظیمات تلگرام', 'Clear Telegram config'],
+		['清除 Telegram Bot 通知配置后，将无法继续接收 Telegram 消息通知。此操作不可撤销，请谨慎操作。', 'پس از پاک‌کردن تنظیمات اعلان ربات تلگرام، دیگر اعلانی در تلگرام دریافت نمی‌کنید. این کار قابل بازگشت نیست؛ با احتیاط ادامه دهید.', 'After clearing the Telegram Bot notification config you will no longer receive Telegram notifications. This cannot be undone, so proceed with care.'],
+		['确定是否清除 Telegram 通知配置？', 'آیا از پاک‌کردن تنظیمات اعلان تلگرام مطمئن هستید؟', 'Do you really want to clear the Telegram notification config?'],
+		['清除 Cloudflare 配置', 'پاک‌کردن تنظیمات Cloudflare', 'Clear Cloudflare config'],
+		['清除 Cloudflare 配置后，将无法继续统计 Workers/Pages 的请求数。此操作不可撤销，请谨慎操作。', 'پس از پاک‌کردن تنظیمات Cloudflare، آمار درخواست‌های Workers/Pages دیگر محاسبه نمی‌شود. این کار قابل بازگشت نیست؛ با احتیاط ادامه دهید.', 'After clearing the Cloudflare config, Workers/Pages request stats will no longer be collected. This cannot be undone, so proceed with care.'],
+		['确定是否清除 Cloudflare 通知配置？', 'آیا از پاک‌کردن تنظیمات Cloudflare مطمئن هستید؟', 'Do you really want to clear the Cloudflare config?'],
+		['关于 跳过证书验证', 'درباره‌ی «رد کردن اعتبارسنجی گواهی»', 'About skipping certificate verification'],
+		['重要更新：', 'به‌روزرسانی مهم: ', 'Important update: '],
+		['及后续版本将陆续停止支持', ' و نسخه‌های بعدی به‌تدریج پشتیبانی از قابلیت ', ' and later versions will gradually drop support for '],
+		['这是', 'این یک ', 'This is a '],
+		['核心安全策略调整', 'تغییر سیاست امنیتی اصلی است', 'core security policy change'],
+		['影响范围：', 'دامنه‌ی تأثیر: ', 'Impact: '],
+		['如果你的客户端（如', 'اگر کلاینت شما (مثل ', 'If your client (such as '],
+		['等）使用的是', 'و ...) از ', ' etc.) uses the '],
+		['内核，则开启该功能将导致', 'هسته استفاده کند، فعال‌کردن این قابلیت باعث', 'core, enabling this will cause the '],
+		['内核运行失败', 'اجرا نشدن هسته می‌شود', 'core to fail to run'],
+		['详情', 'جزئیات', 'details'],
+		['关于 ALPN 协议协商', 'درباره‌ی مذاکره‌ی پروتکل ALPN', 'About ALPN negotiation'],
+		['您当前选择的 ALPN 选项为', 'گزینه‌ی ALPN انتخاب‌شده‌ی شما: ', 'Your selected ALPN option: '],
+		['用于显式指定节点所使用的应用层协议优先级，属于', 'برای تعیین صریح اولویت پروتکل لایه‌ی کاربرد نود استفاده می‌شود و یک ', 'is used to explicitly set the application-layer protocol priority of the node; it is an '],
+		['高级配置项', 'تنظیم پیشرفته است', 'advanced setting'],
+		['设置不当可能导致节点与您的客户端或网络环境不兼容，', 'تنظیم نادرست ممکن است نود را با کلاینت یا شبکه‌ی شما ناسازگار کند و ', 'Incorrect settings may make the node incompatible with your client or network, and '],
+		['最坏情况下节点将无法建立连接', 'در بدترین حالت اتصال برقرار نمی‌شود', 'in the worst case the node cannot connect'],
+		['。如果您不确定该选项的含义与影响，建议保持默认的', '. اگر از معنا و اثر این گزینه مطمئن نیستید، همان پیش‌فرض را نگه دارید: ', '. If you are unsure what this option does, keep the default: '],
+		['，由客户端自行完成协议协商', '، تا کلاینت خودش پروتکل را مذاکره کند', ', letting the client negotiate the protocol itself'],
+		['我知道风险，继续使用', 'ریسک را می‌دانم، ادامه می‌دهم', 'I know the risk, continue'],
+		['使用「客户端自动协商」', 'استفاده از «مذاکره‌ی خودکار کلاینت»', 'Use \u201cClient auto-negotiation\u201d'],
+		['ECH 与浏览器指纹冲突', 'ناسازگاری ECH با اثرانگشت مرورگر', 'ECH conflicts with browser fingerprint'],
+		['您已开启 ECH，但当前选择的浏览器指纹', 'ECH را فعال کرده‌اید، اما اثرانگشت مرورگر انتخاب‌شده', 'You enabled ECH, but the selected browser fingerprint'],
+		['不支持 ECH。', 'از ECH پشتیبانی نمی‌کند.', 'does not support ECH.'],
+		['仅在', 'فقط با اثرانگشت', 'only works with'],
+		['指纹下生效。请选择处理方式：切换到支持的浏览器指纹以保留 ECH，或关闭 ECH。', 'کار می‌کند. یکی را انتخاب کنید: تغییر به اثرانگشت پشتیبانی‌شده برای حفظ ECH، یا غیرفعال‌کردن ECH.', 'fingerprints. Choose: switch to a supported fingerprint to keep ECH, or turn ECH off.'],
+		['使用 chrome 指纹并开启 ECH', 'استفاده از اثرانگشت chrome و فعال‌سازی ECH', 'Use chrome fingerprint and enable ECH'],
+		['使用 firefox 指纹并开启 ECH', 'استفاده از اثرانگشت firefox و فعال‌سازی ECH', 'Use firefox fingerprint and enable ECH'],
+		['gRPC 功能提示', 'نکته‌ی قابلیت gRPC', 'gRPC feature notice'],
+		['当前你选择了', 'شما اکنون این پروتکل انتقال را انتخاب کرده‌اید:', 'You have selected the'],
+		['传输协议，使用前请确认以下两点：', ' ؛ پیش از استفاده این دو مورد را بررسی کنید:', 'transport protocol; before use please confirm two things:'],
+		['项目必须部署在', 'پروژه باید روی', 'The project must be deployed on'],
+		['（不是 Pages）', '(نه Pages) مستقر شود', '(not Pages)'],
+		['请前往', 'به', 'Go to the'],
+		['面板 为当前域名开启', 'بروید و برای این دامنه فعال کنید:', 'dashboard and enable for this domain:'],
+		['，否则节点可能无法连接', '؛ وگرنه ممکن است نود وصل نشود', ' — otherwise the node may fail to connect'],
+		['网络 (Network) > gRPC > 开启', 'Network > gRPC > فعال', 'Network > gRPC > On'],
+		['我已开启 gRPC', 'gRPC را فعال کرده‌ام', 'I have enabled gRPC'],
+		['关闭 TLS传输层加密', 'غیرفعال‌کردن رمزنگاری لایه‌ی انتقال TLS', 'Turn off TLS transport encryption'],
+		['你正在准备关闭', 'در حال غیرفعال‌کردن TLS برای', 'You are about to turn off TLS for'],
+		['传输层加密', 'رمزنگاری لایه‌ی انتقال', 'transport-layer encryption'],
+		['为了避免节点失联，请先确认部署环境满足要求。', 'برای جلوگیری از قطع شدن نود، ابتدا مطمئن شوید محیط استقرار شرایط را دارد.', 'To avoid losing the node, first confirm your deployment environment meets the requirements.'],
+		['关闭 TLS 前，请确认以下三点：', 'پیش از غیرفعال‌کردن TLS این سه مورد را بررسی کنید:', 'Before turning off TLS, confirm these three points:'],
+		['在 Cloudflare 中关闭', 'در Cloudflare غیرفعال کنید:', 'In Cloudflare turn off'],
+		['始终使用 HTTPS', 'Always Use HTTPS', 'Always Use HTTPS'],
+		['边缘证书', 'Edge Certificates', 'Edge Certificates'],
+		['直接使用', 'یا مستقیماً از', 'or simply use the'],
+		['项目分配的域名', 'دامنه‌ی اختصاص‌یافته به پروژه استفاده کنید', 'domain assigned to the project'],
+		['使用的优选IP/域名的 端口 必须是', 'پورتِ IP/دامنه‌ی برگزیده باید از نوع', 'The port of the preferred IP/domain must be an'],
+		['类型端口，例如：', 'باشد، مثلاً:', 'type port, for example:'],
+		['传输与加密说明', 'توضیح انتقال و رمزنگاری', 'Transport and encryption notes'],
+		['关闭 TLS 后，数据将以 HTTP 明文形态传输，不再具备 TLS加密 对链路的封装与伪装能力。', 'پس از غیرفعال‌کردن TLS، داده‌ها به‌صورت HTTP متن‌ساده منتقل می‌شوند و دیگر پوشش و استتار رمزنگاری TLS را ندارند.', 'After TLS is turned off, data travels as plain HTTP and loses the wrapping and disguise that TLS provides.'],
+		['但节点仍由 Shadowsocks AEAD', 'اما نود همچنان با Shadowsocks AEAD', 'But the node is still protected by Shadowsocks AEAD'],
+		['加密，流量数据本身依旧是加密传输。', 'رمزنگاری می‌شود و خودِ داده‌ی ترافیک همچنان رمزشده منتقل می‌شود.', 'encryption, so the traffic data itself is still encrypted.'],
+		['总结：最终流量会以', 'خلاصه: ترافیک نهایی به‌صورت', 'Summary: the final traffic is sent as'],
+		['明文的方式', 'متن‌ساده', 'plaintext'],
+		['传输', 'منتقل می‌شود', 'carrying'],
+		['加密数据', 'داده‌ی رمزشده', 'encrypted data'],
+		['我准备好了', 'آماده‌ام', 'I am ready'],
+		['域名配置提示', 'نکته‌ی پیکربندی دامنه', 'Domain configuration notice'],
+		['您当前访问管理面板使用的域名是：', 'دامنه‌ای که اکنون برای ورود به پنل استفاده می‌کنید: ', 'The domain you are using to access the panel is: '],
+		['注意：', 'توجه: ', 'Note: '],
+		['该域名', 'این دامنه ', 'This domain '],
+		['未配置为节点伪装域名', 'به‌عنوان دامنه‌ی پوششی نود تنظیم نشده است', 'is not set as a node disguise domain'],
+		['这意味着生成的订阅配置将', 'یعنی تنظیمات اشتراک ساخته‌شده', 'This means the generated subscription will'],
+		['不会使用当前域名', 'از دامنه‌ی فعلی استفاده نخواهد کرد', 'not use the current domain'],
+		['当前配置的节点伪装域名：', 'دامنه‌ی پوششی نودِ تنظیم‌شده‌ی فعلی: ', 'Currently configured node disguise domain: '],
+		['如何修改？', 'چگونه تغییر دهم؟', 'How to change it?'],
+		['请在', 'در بخش', 'In'],
+		['小白模式 / 高手模式均可查看', 'حالت مبتدی و حرفه‌ای هر دو قابل مشاهده است', 'visible in both beginner and expert mode'],
+		['里添加您的域名', 'دامنه‌ی خود را اضافه کنید', 'add your domain'],
+		['保存配置后即可生效', 'پس از ذخیره‌ی تنظیمات اعمال می‌شود', 'it takes effect after saving'],
+		['我知道了！24小时内不再提示！', 'متوجه شدم! تا ۲۴ ساعت دیگر نمایش نده!', 'Got it! Do not show again for 24 hours!'],
+
+		// ---------- شروع انتخاب IP برگزیده ----------
+		['开始优选', 'شروع انتخاب', 'Start selecting'],
+		['请选择一种优选方式', 'یک روش انتخاب را برگزینید', 'Choose a selection method'],
+		['在线优选IP', 'انتخاب آنلاین IP', 'Online IP selection'],
+		['在线优选域名', 'انتخاب آنلاین دامنه', 'Online domain selection'],
+		['本地优选IP', 'انتخاب محلی IP', 'Local IP selection'],
+		['推荐', 'پیشنهادی', 'Recommended'],
+		['稳定', 'پایدار', 'Stable'],
+		['通过浏览器实时进行在线优选，兼容性高，有浏览器就能进行', 'انتخاب آنلاین زنده از طریق مرورگر؛ سازگاری بالا و فقط به یک مرورگر نیاز دارد', 'Live online selection in the browser; highly compatible, a browser is all you need'],
+		['访问官方在线优选域名站点，直接使用现成的优选结果，无需自己操作', 'به سایت رسمی انتخاب آنلاین دامنه مراجعه کنید و مستقیماً از نتایج آماده استفاده کنید', 'Visit the official online domain-selection site and use ready-made results directly'],
+		['下载客户端在本地设备上运行，灵活多变，功能性更多', 'کلاینت را دانلود و روی دستگاه خود اجرا کنید؛ انعطاف و امکانات بیشتر', 'Download a client and run it locally; more flexible and feature-rich'],
+		['优点：无需安装，即开即用', 'مزیت: بدون نصب، فوری قابل استفاده', 'Pros: no install, ready instantly'],
+		['缺点：易受运营商阻断，阻断时无法使用', 'عیب: ممکن است اپراتور آن را مسدود کند و در آن صورت کار نمی‌کند', 'Cons: easily blocked by ISPs; unusable when blocked'],
+		['优点：开箱即用，一劳永逸', 'مزیت: آماده‌به‌کار و یک‌بار برای همیشه', 'Pros: works out of the box, set and forget'],
+		['缺点：更换网络运营商环境后需重新优选', 'عیب: با عوض‌شدن اپراتور/شبکه باید دوباره انتخاب کنید', 'Cons: must re-select after changing network/ISP'],
+		['优点：灵活多变，功能丰富', 'مزیت: انعطاف‌پذیر و پرامکانات', 'Pros: flexible and feature-rich'],
+		['缺点：需下载客户端，在本地设备上运行', 'عیب: باید کلاینت را دانلود و محلی اجرا کنید', 'Cons: needs a downloaded client running locally'],
+		['本地优选工具', 'ابزارهای انتخاب محلی', 'Local selection tools'],
+		['选择一款工具，点击「前往 GitHub」即可在新窗口查看与下载', 'یک ابزار انتخاب کنید و روی «رفتن به GitHub» بزنید تا در پنجره‌ی جدید ببینید و دانلود کنید', 'Pick a tool and click \u201cGo to GitHub\u201d to view and download it in a new window'],
+		['前往 GitHub', 'رفتن به GitHub', 'Go to GitHub'],
+		['网页界面', 'رابط وب', 'Web UI'],
+		['图形界面', 'رابط گرافیکی', 'GUI'],
+		['命令行CLI', 'خط فرمان (CLI)', 'Command line (CLI)'],
+		['欢迎开源优选项目投稿', 'پروژه‌های متن‌باز انتخاب IP را ارسال کنید', 'Open-source selection projects are welcome'],
+		['默认端口', 'پورت پیش‌فرض', 'Default port'],
+		['将优选作为PROXYIP', 'استفاده از نتایج برگزیده به‌عنوان PROXYIP', 'Use the picks as PROXYIP'],
+		['接口结果', 'نتیجه‌ی API', 'API result'],
+		['追加API', 'افزودن API', 'Append API'],
+		['追加结果', 'افزودن نتیجه', 'Append result'],
+		['添加链式代理节点', 'افزودن نود پروکسی زنجیره‌ای', 'Add chained-proxy node'],
+		['节点名称', 'نام نود', 'Node name'],
+		['生成专属 Snippet.js 源码', 'ساخت کد اختصاصی Snippet.js', 'Generate your own Snippet.js source'],
+		['编辑节点 自定义域名 列表', 'ویرایش فهرست دامنه‌های سفارشیِ نود', 'Edit node custom-domain list'],
+		['一行一个节点域名，无需添加逗号', 'هر خط یک دامنه‌ی نود؛ نیازی به ویرگول نیست', 'One node domain per line, no commas needed'],
+		['路径模板中必须存在路径占位符', 'در قالب مسیر باید جایگزین مسیر وجود داشته باشد:', 'The path template must contain the path placeholder'],
+		['才能适配路径反代', 'تا با پروکسی معکوس مسیرمحور سازگار شود', 'to work with path-based reverse proxy'],
+		['缺少占位符', 'جایگزین موجود نیست', 'Placeholder missing'],
+		['PROXYIP路径', 'مسیر PROXYIP', 'PROXYIP path'],
+		['SOCKS5标准路径', 'مسیر استاندارد SOCKS5', 'SOCKS5 standard path'],
+		['SOCKS5全局路径', 'مسیر سراسری SOCKS5', 'SOCKS5 global path'],
+		['HTTP标准路径', 'مسیر استاندارد HTTP', 'HTTP standard path'],
+		['HTTP全局路径', 'مسیر سراسری HTTP', 'HTTP global path'],
+		['HTTPS标准路径', 'مسیر استاندارد HTTPS', 'HTTPS standard path'],
+		['HTTPS全局路径', 'مسیر سراسری HTTPS', 'HTTPS global path'],
+		['反代资源来自 Github、', 'منابع پروکسی معکوس از GitHub و ', 'Reverse-proxy resources come from GitHub, the '],
+		['代理资源来自 Github、', 'منابع پروکسی از GitHub و ', 'Proxy resources come from GitHub, the '],
+		['频道 等开源社区。', 'کانال‌ها و سایر جوامع متن‌باز است.', 'channel and other open-source communities.'],
+		['等开源社区', 'و سایر جوامع متن‌باز', 'and other open-source communities'],
+		['大佬', 'استادان', 'experts'],
+		['选择目标地区', 'منطقه‌ی هدف را انتخاب کنید', 'Select target region'],
+		['选择目标代理', 'پروکسی هدف را انتخاب کنید', 'Select target proxy'],
+		['最多8个', 'حداکثر ۸ مورد', 'up to 8'],
+
+		// ---------- توضیح PROXYIP ----------
+		['为什么需要反代模式？PROXYIP又是什么？', 'چرا حالت پروکسی معکوس لازم است؟ PROXYIP چیست؟', 'Why is reverse-proxy mode needed? What is PROXYIP?'],
+		['场景一：访问非 Cloudflare CDN 站点', 'حالت اول: دسترسی به سایت‌هایی که پشت CDN کلودفلر نیستند', 'Case 1: visiting sites not behind Cloudflare CDN'],
+		['场景二：访问 Cloudflare CDN 站点', 'حالت دوم: دسترسی به سایت‌های پشت CDN کلودفلر', 'Case 2: visiting sites behind Cloudflare CDN'],
+		['例如：油管、谷歌。Worker 可以直接访问，不需要先找 PROXYIP。', 'مثلاً یوتیوب و گوگل. Worker مستقیماً به آن‌ها وصل می‌شود و به PROXYIP نیازی نیست.', 'For example YouTube and Google. The Worker connects directly, no PROXYIP needed.'],
+		['例如：推特、ChatGPT。根据', 'مثلاً توییتر و ChatGPT. طبق', 'For example Twitter and ChatGPT. According to the'],
+		['官方文档，Worker 不能直接访问 Cloudflare 自己，所以需要跳板。', 'مستندات رسمی، Worker نمی‌تواند مستقیماً به خود کلودفلر وصل شود، پس به یک واسطه نیاز دارد.', 'official docs, a Worker cannot connect directly to Cloudflare itself, so a relay is needed.'],
+		['实际落地IP 由 优选域名/IP 决定', 'IP خروجی واقعی را دامنه/IP برگزیده تعیین می‌کند', 'The actual exit IP is decided by the preferred domain/IP'],
+		['实际落地IP 由 PROXYIP/代理 决定', 'IP خروجی واقعی را PROXYIP/پروکسی تعیین می‌کند', 'The actual exit IP is decided by PROXYIP/proxy'],
+		['你连到 Cloudflare 的入口', 'ورودی اتصال شما به کلودفلر', 'Your entry point into Cloudflare'],
+		['只负责把你带到 Worker', 'فقط شما را به Worker می‌رساند', 'Only gets you to the Worker'],
+		['就近机房处理请求', 'نزدیک‌ترین دیتاسنتر درخواست را پردازش می‌کند', 'The nearest data center handles the request'],
+		['发现目标也在 Cloudflare', 'تشخیص می‌دهد مقصد هم روی کلودفلر است', 'Detects the target is also on Cloudflare'],
+		['外部跳板，帮 Worker 继续访问', 'واسطه‌ی بیرونی که Worker را ادامه می‌دهد', 'An external relay that continues the connection for the Worker'],
+		['油管 / 谷歌', 'یوتیوب / گوگل', 'YouTube / Google'],
+		['推特 / ChatGPT', 'توییتر / ChatGPT', 'Twitter / ChatGPT'],
+		['非 Cloudflare CDN 站点', 'سایت خارج از CDN کلودفلر', 'Non-Cloudflare CDN site'],
+		['落地 IP：', 'IP خروجی: ', 'Exit IP: '],
+		['由优选 IP 指向的 Cloudflare 机房决定。比如优选到新加坡 CF，目标站看到的通常就是新加坡附近的 CF 出口。', 'را دیتاسنتر کلودفلرِ مرتبط با IP برگزیده تعیین می‌کند. مثلاً اگر به CF سنگاپور برگزیده شود، سایت مقصد معمولاً خروجی CF نزدیک سنگاپور را می‌بیند.', 'is decided by the Cloudflare data center the preferred IP points to. For example, with a Singapore CF pick, the target site usually sees a CF exit near Singapore.'],
+		['由 PROXYIP/其他代理 决定。目标站看到的是跳板服务器在访问，不是优选 IP。', 'را PROXYIP/پروکسی دیگر تعیین می‌کند. سایت مقصد سرورِ واسطه را می‌بیند، نه IP برگزیده را.', 'is decided by PROXYIP/other proxy. The target site sees the relay server, not the preferred IP.'],
+		['反代模式 使用 其他代理 且开启「全局代理」后，非Cloudflare站点也会走 其他代理，落地 IP 会跟着代理变化。', 'اگر در حالت پروکسی معکوس «پروکسی‌های دیگر» را بزنید و «پروکسی سراسری» را فعال کنید، سایت‌های غیر کلودفلر هم از آن پروکسی عبور می‌کنند و IP خروجی با پروکسی تغییر می‌کند.', 'If reverse-proxy mode uses \u201cOther proxies\u201d with \u201cGlobal proxy\u201d on, non-Cloudflare sites also go through it and the exit IP follows the proxy.'],
+
+		// ---------- توضیح ECH ----------
+		['什么是ECH？', 'ECH چیست؟', 'What is ECH?'],
+		['如何使用？', 'چطور استفاده کنیم؟', 'How to use it?'],
+		['如何确认 ECH 是否已经生效？', 'چطور بفهمیم ECH فعال شده است؟', 'How to confirm ECH is working?'],
+		['什么是 ECH？', 'ECH چیست؟', 'What is ECH?'],
+		['加密客户端问候', 'Client Hello رمزشده', 'Encrypted Client Hello'],
+		['是 TLS 的一项新特性，用来', 'قابلیت جدیدی در TLS است که', 'is a new TLS feature used to'],
+		['将原本会明文暴露的域名信息一起加密', 'اطلاعات دامنه را که قبلاً آشکار بود رمز می‌کند', 'encrypt the domain information that would otherwise be exposed in plaintext'],
+		['如果你希望了解更完整、偏技术细节的说明，可以参考 Cloudflare 官方博客：', 'برای توضیح کامل‌تر و فنی‌تر به وبلاگ رسمی کلودفلر مراجعه کنید:', 'For a fuller, more technical explanation see the official Cloudflare blog:'],
+		['背景说明', 'پیش‌زمینه', 'Background'],
+		['当我们使用', 'وقتی از نودی با', 'When we use a'],
+		['的节点进行代理时：', 'پروکسی می‌کنیم:', 'node for proxying:'],
+		['实际通信内容已经被 TLS 加密，GFW', 'محتوای ارتباط با TLS رمز شده و فایروال', 'The traffic is encrypted by TLS, so the firewall'],
+		['无法看到你访问的具体内容', 'نمی‌تواند ببیند دقیقاً به چه چیزی دسترسی دارید', 'cannot see what exactly you access'],
+		['但在 TLS 握手阶段，仍然会暴露一个关键信息：', 'اما در مرحله‌ی دست‌دهی TLS یک اطلاعات کلیدی هنوز آشکار می‌شود:', 'But during the TLS handshake one key piece of information is still exposed:'],
+		['SNI 就是节点的伪装域名（HOST）', 'SNI همان دامنه‌ی پوششی نود (HOST) است', 'The SNI is the node\u2019s disguise domain (HOST)'],
+		['会带来什么问题？', 'چه مشکلی ایجاد می‌کند؟', 'What problems does this cause?'],
+		['这就是为什么在以下场景中经常出现异常情况：', 'برای همین در این موارد مشکل زیاد پیش می‌آید:', 'This is why problems often appear in these scenarios:'],
+		['批量测试真链接延迟', 'تست دسته‌ای تأخیر واقعی لینک', 'batch real-link latency tests'],
+		['策略组自动选择节点', 'انتخاب خودکار نود در گروه سیاست', 'automatic node selection in policy groups'],
+		['表现通常为：', 'علامت معمول:', 'Typical symptom:'],
+		['所有节点瞬间 -1，全部无法使用', 'همه‌ی نودها یک‌دفعه -1 می‌شوند و هیچ‌کدام کار نمی‌کند', 'all nodes instantly show -1 and none work'],
+		['其原因并不是节点真的失效，而是', 'علتش از کار افتادن واقعی نودها نیست، بلکه', 'The cause is not that the nodes really failed, but that the '],
+		['运营商 / GFW 通过阻断节点域名的访问来干扰代理连接', 'اپراتور/فایروال با مسدودکردن دامنه‌ی نود، اتصال پروکسی را مختل می‌کند', 'ISP / firewall interferes with the proxy by blocking the node domain'],
+		['由于这种阻断大多是自动化策略，容易误判，因此', 'چون این مسدودسازی بیشتر خودکار است و خطا هم دارد،', 'Because this blocking is mostly automated and error-prone,'],
+		['过一段时间节点又可能恢复正常', 'بعد از مدتی نودها ممکن است دوباره درست شوند', 'the nodes may recover after a while'],
+		['，反复循环', '، و این چرخه تکرار می‌شود', ', repeating in a loop'],
+		['ECH 的作用', 'کار ECH', 'What ECH does'],
+		['ECH 的核心作用是：', 'کار اصلی ECH این است:', 'The core purpose of ECH:'],
+		['将 SNI（也就是节点域名）加密', 'رمزکردن SNI (یعنی دامنه‌ی نود)', 'Encrypt the SNI (the node domain)'],
+		['启用 ECH 后：', 'پس از فعال‌سازی ECH:', 'After enabling ECH:'],
+		['无法获取真实的节点域名', 'نمی‌تواند دامنه‌ی واقعی نود را ببیند', 'cannot get the real node domain'],
+		['外部观察到的域名将统一显示为：', 'دامنه‌ای که از بیرون دیده می‌شود همیشه این است:', 'The domain seen from outside will always be:'],
+		['这从源头上', 'این کار از ریشه', 'This'],
+		['阻断了通过域名精准封锁节点的手段', 'راه مسدودسازی دقیق نود از روی دامنه را می‌بندد', 'cuts off the ability to precisely block nodes by domain'],
+		['ECH 会不会被封？', 'آیا ECH مسدود می‌شود؟', 'Will ECH be blocked?'],
+		['理论上，GFW 只需', 'در تئوری، فایروال فقط کافی است', 'In theory the firewall only needs to'],
+		['直接阻断', 'مستقیماً مسدود کند:', 'block'],
+		['但这样会：', 'اما این کار باعث می‌شود:', 'But doing so would:'],
+		['误伤大量正常使用 ECH 的网站和服务', 'بسیاری از سایت‌ها و سرویس‌های عادیِ دارای ECH آسیب ببینند', 'break many legitimate websites and services that use ECH'],
+		['带来较高的封锁成本和副作用', 'هزینه و عوارض جانبیِ مسدودسازی بالا برود', 'carry a high blocking cost and side effects'],
+		['因此，', 'بنابراین ', 'Therefore, '],
+		['能持续多久，取决于 GFW 的取舍与策略', 'تا کِی دوام بیاورد به تصمیم و سیاست فایروال بستگی دارد', 'how long it lasts depends on the firewall\u2019s trade-offs and policy'],
+		['至少在目前阶段仍然非常有效', 'دست‌کم فعلاً هنوز بسیار مؤثر است', 'at least for now it is still very effective'],
+		['如何使用 ECH？', 'چطور از ECH استفاده کنیم؟', 'How to use ECH?'],
+		['使用 ECH 非常简单，只需要', 'استفاده از ECH بسیار ساده است؛ فقط کافی است', 'Using ECH is very simple; just'],
+		['设置', 'تنظیم', 'set'],
+		['为', 'را', 'to'],
+		['开启', 'فعال', 'On'],
+		['后更新订阅即可', 'کنید و اشتراک را به‌روزرسانی کنید', 'and refresh your subscription'],
+		['支持 ECH 的客户端', 'کلاینت‌های پشتیبان ECH', 'Clients that support ECH'],
+		['内核的客户端均支持 ECH', 'همه‌ی کلاینت‌های مبتنی بر این هسته از ECH پشتیبانی می‌کنند', 'Clients on this core all support ECH'],
+		['所有使用', 'همه‌ی کلاینت‌هایی که از', 'All clients using'],
+		['需要 DNS 配合使用', 'نیاز به تنظیم DNS هم دارد', 'requires matching DNS settings'],
+		['Clash 用户注意事项', 'نکات برای کاربران Clash', 'Notes for Clash users'],
+		['当前订阅配置中已', 'در تنظیمات اشتراک فعلی', 'The current subscription config already'],
+		['内置 ECH 所需的 DNS 设置', 'تنظیمات DNS موردنیاز ECH از قبل گنجانده شده است', 'includes the DNS settings ECH needs'],
+		['如果出现以下情况：', 'اگر این حالت پیش آمد:', 'If this happens:'],
+		['已开启 ECH', 'ECH را فعال کرده‌اید', 'ECH is enabled'],
+		['已更新订阅', 'اشتراک را به‌روزرسانی کرده‌اید', 'subscription updated'],
+		['ECH 节点仍然无法使用', 'اما نودهای ECH هنوز کار نمی‌کنند', 'but ECH nodes still do not work'],
+		['请检查：', 'این را بررسی کنید:', 'Please check:'],
+		['是否在更新订阅时覆盖了原有的 DNS 配置', 'آیا هنگام به‌روزرسانی اشتراک، تنظیمات DNS قبلی بازنویسی شده است؟', 'whether updating the subscription overwrote the original DNS settings'],
+		['建议：', 'پیشنهاد: ', 'Suggestion: '],
+		['不要覆盖订阅中自带的 DNS 设置', 'تنظیمات DNS داخل اشتراک را بازنویسی نکنید', 'do not overwrite the DNS settings built into the subscription'],
+		['如何确认 ECH 是否已经生效？', 'چطور بفهمیم ECH فعال است؟', 'How to confirm ECH is active?'],
+		['可以通过一个', 'با یک روش', 'You can use a'],
+		['简单且直观的方法', 'ساده و شهودی', 'simple and intuitive method'],
+		['来验证 ECH 是否正常工作', 'می‌توانید درستی کار ECH را بسنجید', 'to verify ECH works'],
+		['验证步骤', 'مراحل بررسی', 'Verification steps'],
+		['打开节点的', 'باز کنید:', 'Open the node\u2019s'],
+		['在 HOST 中手动填写一个', 'در HOST دستی یک دامنه بنویسید', 'In HOST manually enter a'],
+		['你当前项目的已被墙的域名', 'که فیلتر/مسدود شده است', 'domain of your project that is already blocked'],
+		['例如：', 'مثلاً: ', 'for example: '],
+		['保存配置后', 'پس از ذخیره‌ی تنظیمات', 'After saving'],
+		['重新更新订阅', 'اشتراک را دوباره به‌روزرسانی کنید', 'refresh the subscription again'],
+		['在节点列表中查找：', 'در فهرست نودها پیدا کنید:', 'In the node list find:'],
+		['的节点', 'نودی که', 'the node whose'],
+		['并尝试连接该节点', 'و سعی کنید به آن وصل شوید', 'and try connecting to it'],
+		['如何判断结果？', 'نتیجه را چطور بخوانیم؟', 'How to read the result?'],
+		['如果节点可以正常连接使用', 'اگر نود درست وصل شد', 'If the node connects and works'],
+		['说明', 'یعنی', 'it means'],
+		['ECH 已成功生效', 'ECH با موفقیت فعال شده است', 'ECH is working'],
+		['真实被墙的域名已被隐藏，对外仅显示为', 'دامنه‌ی مسدودشده‌ی واقعی پنهان شده و از بیرون فقط به این شکل دیده می‌شود:', 'the real blocked domain is hidden and only appears externally as'],
+		['如果节点无法连接', 'اگر نود وصل نشد', 'If the node cannot connect'],
+		['ECH 未生效，或客户端版本、DNS 配置存在问题', 'ECH فعال نشده، یا نسخه‌ی کلاینت/تنظیمات DNS مشکل دارد', 'ECH is not active, or the client version / DNS setup has a problem'],
+
+		// ---------- توضیح UUID ----------
+		['方式 1：动态关联', 'روش ۱: وابستگی پویا', 'Method 1: dynamic link'],
+		['方式 2：手动固定', 'روش ۲: ثابت‌کردن دستی', 'Method 2: pin manually'],
+		['修改项目变量', 'تغییر متغیرهای پروژه', 'Edit project variables'],
+		['直接赋值 UUID', 'مقداردهی مستقیم UUID', 'Assign UUID directly'],
+		['修改变量', 'مقدار متغیر', 'Changing the variable'],
+		['的值，系统将动态生成 UUID 并自动同步生成新的 订阅TOKEN。', 'را عوض کنید؛ سیستم UUID را پویا می‌سازد و TOKEN اشتراک جدید را خودکار همگام می‌کند.', 'dynamically generates a UUID and automatically syncs a new subscription TOKEN.'],
+		['的值，系统将会根据算法动态生成新的 UUID。', 'را عوض کنید؛ سیستم بر اساس الگوریتم یک UUID جدید می‌سازد.', 'makes the system generate a new UUID by algorithm.'],
+		['设定变量', 'متغیر', 'Set the variable'],
+		['。系统将跳过动态生成，直接以此 UUID 生成对应的 订阅TOKEN。', 'را تنظیم کنید؛ سیستم تولید پویا را رد می‌کند و TOKEN اشتراک را مستقیماً از همین UUID می‌سازد.', '; the system skips dynamic generation and builds the subscription TOKEN from this UUID.'],
+		['设定符合', 'متغیر', 'Set a variable that matches'],
+		['标准的变量', 'با استاندارد', 'standard,'],
+		['，可将 UUID 强制锁定为您指定的值。', 'را با مقدار دلخواه تنظیم کنید تا UUID روی همان ثابت شود.', 'to lock the UUID to your chosen value.'],
+		['重要提示：', 'هشدار مهم: ', 'Important: '],
+		['一旦手动为变量', 'به‌محض اینکه برای متغیر', 'Once you manually set the variable'],
+		['赋值，TOKEN 将进入“固定模式”，不再随 ADMIN/KEY 的变化而自动更新。', 'مقدار بدهید، TOKEN وارد «حالت ثابت» می‌شود و دیگر با تغییر ADMIN/KEY خودکار به‌روز نمی‌شود.', 'a value, the TOKEN enters \u201cfixed mode\u201d and no longer updates automatically when ADMIN/KEY changes.'],
+		['一旦手动指定', 'به‌محض اینکه دستی مشخص کنید', 'Once you manually specify'],
+		['变量，其值将不再随 ADMIN/KEY 的改动而发生变化。', 'مقدارش دیگر با تغییر ADMIN/KEY عوض نمی‌شود.', 'its value will no longer change when ADMIN/KEY change.'],
+		['系统将动态生成', 'سیستم به‌صورت پویا می‌سازد', 'the system generates dynamically'],
+		['订阅TOKEN', 'TOKEN اشتراک', 'subscription TOKEN'],
+
+		// ---------- پیام‌های خود Worker ----------
+		['配置已保存', 'تنظیمات ذخیره شد', 'Configuration saved'],
+		['保存配置失败: ', 'ذخیره‌ی تنظیمات ناموفق بود: ', 'Failed to save configuration: '],
+		['配置不完整', 'تنظیمات ناقص است', 'Configuration is incomplete'],
+		['自定义IP已保存', 'IPهای سفارشی ذخیره شد', 'Custom IPs saved'],
+		['保存自定义IP失败: ', 'ذخیره‌ی IPهای سفارشی ناموفق بود: ', 'Failed to save custom IPs: '],
+		['不支持的POST请求路径', 'مسیر درخواست POST پشتیبانی نمی‌شود', 'Unsupported POST path'],
+		['查询请求量失败，失败原因：', 'دریافت تعداد درخواست‌ها ناموفق بود. دلیل: ', 'Failed to query request usage. Reason: '],
+		['验证优选API失败，失败原因：', 'بررسی API برگزیده ناموفق بود. دلیل: ', 'Failed to verify the preferred-IP API. Reason: '],
+		['缺少代理参数', 'پارامتر پروکسی موجود نیست', 'Missing proxy parameter'],
+		['无法连接到代理服务器', 'اتصال به سرور پروکسی ممکن نیست', 'Cannot connect to the proxy server'],
+		['代理检测响应头过长或无效', 'هدر پاسخ بررسی پروکسی خیلی بلند یا نامعتبر است', 'Proxy check response header is too long or invalid'],
+		['代理检测响应无效', 'پاسخ بررسی پروکسی نامعتبر است', 'Proxy check response is invalid'],
+		['代理检测请求失败', 'درخواست بررسی پروکسی ناموفق بود', 'Proxy check request failed'],
+		['失败原因：', 'دلیل: ', 'Reason: '],
+
+		// ---------- مبدل اشتراک: بک‌اندها و فایل‌های پیکربندی ----------
+		['CM负载均衡后端', 'بک‌اند توزیع بار CM', 'CM load-balancing backend'],
+		['CM应急备用后端', 'بک‌اند اضطراری CM', 'CM emergency backup backend'],
+		['肥羊增强型后端', 'بک‌اند پیشرفته‌ی Feiyang', 'Feiyang enhanced backend'],
+		['肥羊备用后端', 'بک‌اند پشتیبان Feiyang', 'Feiyang backup backend'],
+		['周润发后端', 'بک‌اند Chow Yun-fat', 'Chow Yun-fat backend'],
+		['CM自用规则', 'قوانین اختصاصی CM', 'CM custom rules'],
+		['默认版', 'نسخه‌ی پیش‌فرض', 'Default'],
+		['精简版', 'نسخه‌ی سبک', 'Lite'],
+		['不带自动测速', 'بدون تست سرعت خودکار', 'without auto speed test'],
+		['自动测速', 'تست سرعت خودکار', 'auto speed test'],
+		['故障转移', 'جایگزینی خودکار هنگام خطا', 'failover'],
+		['负载均衡', 'توزیع بار', 'load balancing'],
+		['识别港美地区', 'تشخیص مناطق هنگ‌کنگ و آمریکا', 'detects HK/US regions'],
+		['有效减少', 'کاهش مؤثر ', 'effectively reduces '],
+		['-1情况', '-1 موارد', '-1 cases'],
+		['细分', 'تفکیک', 'split'],
+		['识别Cloud', 'تشخیص Cloud', 'detects Cloud'],
+		['可用请求数统计', 'آمار تعداد درخواست‌های مجاز', 'available request statistics'],
+		['当前访问管理面板使用的域名', 'دامنه‌ای که اکنون با آن پنل مدیریت را باز کرده‌اید', 'The domain you are currently using to open the admin panel'],
+		['全分组 重度用户使用 谷歌分流', 'گروه‌بندی کامل (کاربران حرفه‌ای)، تفکیک گوگل', 'Full groups (heavy users), Google split'],
+		['分组比较完整', 'گروه‌بندی نسبتاً کامل', 'fairly complete groups'],
+		['与Github同步', 'همگام با Github', 'synced with GitHub'],
+		['无广告拦截规则', 'بدون قوانین مسدودسازی تبلیغات', 'no ad-blocking rules'],
+		['更多去广告', 'مسدودسازی بیشتر تبلیغات', 'more ad blocking'],
+		['带故障转移', 'همراه با جایگزینی خودکار هنگام خطا', 'with failover'],
+		['无自动测速', 'بدون تست سرعت خودکار', 'no auto speed test'],
+		['奈飞全量', 'نتفلیکس (کامل)', 'full Netflix'],
+		['谷歌分流', 'تفکیک مسیر گوگل', 'Google routing split'],
+		['多国家分组', 'گروه‌بندی چندکشوری', 'multi-country groups'],
+		['全分组', 'گروه‌بندی کامل', 'full groups'],
+		['抄作业，直接使用大佬优选好的结果', 'مستقیم از نتیجه‌ی انتخابِ افراد باتجربه استفاده کنید', 'copy the homework \u2014 directly use results already picked by experts'],
+		['虽然不知道你在访问什么', 'اگرچه نمی‌داند به چه چیزی دسترسی دارید', 'it cannot see what you are visiting'],
+		['但知道你在', 'اما می‌داند که شما در حال ', 'but it knows you are '],
+		['扶墙', 'عبور از فیلترینگ هستید', 'bypassing the firewall'],
+		['并且知道你连接的是哪个域名', 'و می‌داند به کدام دامنه وصل شده‌اید', 'and it knows which domain you connect to'],
+		['的客户端均支持', ' از ECH پشتیبانی می‌کنند', ' support ECH'],
+		['将进入', 'وارد ', 'will enter '],
+		['固定模式', 'حالت ثابت', 'fixed mode'],
+		['的变化而自动更新', ' تغییر نمی‌کند و خودکار به‌روز نمی‌شود', ' changes and no longer updates automatically'],
+		['系统将会根据算法动态生成新的', 'سیستم بر اساس الگوریتم، یک مقدار جدید می‌سازد: ', 'The system will dynamically generate a new one by algorithm: '],
+		['当前项目必须部署在', 'پروژه‌ی فعلی باید روی ', 'The current project must be deployed on '],
+		['当前你选择了', 'شما اکنون این‌ها را انتخاب کرده‌اید: ', 'You have currently selected '],
+		['选择统计方案', 'انتخاب روش آمار', 'Choose a statistics method'],
+		['小白模式', 'حالت مبتدی', 'Beginner mode'],
+		['高手模式', 'حالت پیشرفته', 'Expert mode'],
+		['ADMIN 或 KEY', 'ADMIN یا KEY', 'ADMIN or KEY'],
+		['XHTTP 或 gRPC', 'XHTTP یا gRPC', 'XHTTP or gRPC'],
+		['或 HOST 直接使用', 'یا HOST را مستقیماً روی ', 'or set HOST directly to '],
+		['的 TLS 传输层加密', '', ''],
+		['，在"HOST"', '، در "HOST"', ', in "HOST"'],
+		['ECH 设置 为 开启', 'تنظیم ECH روی «روشن»', 'ECH setting set to On'],
+
+		['抄作业', 'کپی‌کردن کار دیگران', 'copy the homework'],
+		['好的结果', 'نتیجه‌ی آماده', 'ready results'],
+		['内核', 'هسته', 'core'],
+		['赋值', 'مقداردهی', 'assigning a value'],
+		['不再随', 'دیگر با ', 'no longer follows '],
+		['案例', 'نمونه', 'examples'],
+		['云机场', ' سرویس‌دهنده', ' provider'],
+		['当前项目', 'پروژه‌ی فعلی', 'the current project'],
+		['你当前', 'اکنون شما', 'you currently'],
+		['频道', 'کانال', 'channel'],
+		['切换', 'تغییر', 'Switch'],
+		['作为', 'به‌عنوان', 'as'],
+		['HOST 为', 'HOST برابر', 'HOST is'],
+		['的节点', ' نود', ' node'],
+		['为', 'روی', 'set to'],
+		['或', 'یا', 'or'],
+		['的', '', ''],
+		['在', 'در', 'in'],
+		['项目', 'پروژه', 'project'],
+		['当前', 'فعلی', 'current'],
+		['域名', 'دامنه', 'domain'],
+		['情况', ' موارد', ' cases'],
+		['识别', 'تشخیص ', 'detects '],
+		// ---------- واژه‌های عمومی (جایگزین‌های پشتیبان) ----------
+		['订阅', ' اشتراک ', ' subscription '],
+		['节点', ' نود ', ' node '],
+		['代理', ' پروکسی ', ' proxy '],
+		['配置', ' تنظیمات ', ' config '],
+		['优选', ' برگزیده ', ' preferred '],
+		['密码', 'رمز عبور', 'password']
+	];
+
+	var PUNCT_FA = { '，': '، ', '、': '، ', '。': '. ', '：': ': ', '；': '؛ ', '（': ' (', '）': ') ', '！': '!', '？': '؟', '「': '«', '」': '»', '\u201c': '«', '\u201d': '»', '～': '~' };
+	var PUNCT_EN = { '，': ', ', '、': ', ', '。': '. ', '：': ': ', '；': '; ', '（': ' (', '）': ') ', '！': '!', '？': '?', '「': '"', '」': '"', '～': '~' };
+	var RULES = [
+		[/(\d+)\s*小时\s*(\d+)\s*分\s*(\d+)\s*秒/g, '$1 ساعت و $2 دقیقه و $3 ثانیه', '$1h $2m $3s']
+	];
+
+	var CJK = /[\u3400-\u9fff\uff00-\uffef\u3000-\u303f]/;
+	var CJK_RUN = /[\u3400-\u9fff]+/g;
+	var EXACT = {}, LIST = [], CTX = {};
+	var has = Object.prototype.hasOwnProperty;
+	CTX['OPTION|关闭'] = ['', 'غیرفعال', 'Off'];
+	CTX['OPTION|启用'] = ['', 'فعال', 'Enabled'];
+	D.forEach(function (r) {
+		if (!has.call(EXACT, r[0])) EXACT[r[0]] = r;
+		if (r[0].length >= 2) LIST.push(r);
+	});
+	LIST.sort(function (a, b) { return b[0].length - a[0].length; });
+
+	var MISSING = {};
+	window.__i18nMissing = function () { var k = Object.keys(MISSING); console.log(k.join('\n')); return k; };
+
+	function tr(s, tag) {
+		if (lang === 'zh' || typeof s !== 'string' || !CJK.test(s)) return s;
+		var idx = lang === 'fa' ? 1 : 2;
+		var core = s.trim();
+		var ck = (tag || '') + '|' + core;
+		if (has.call(CTX, ck)) return s.replace(core, CTX[ck][idx]);
+		var out = s;
+		if (s === core && has.call(EXACT, core) && EXACT[core][idx] !== undefined) return EXACT[core][idx].replace(/\s+$/, '');
+		var i, r;
+		for (i = 0; i < RULES.length; i++) out = out.replace(RULES[i][0], RULES[i][idx]);
+		for (i = 0; i < LIST.length; i++) {
+			r = LIST[i];
+			if (out.indexOf(r[0]) > -1) out = out.split(r[0]).join(r[idx]);
+		}
+		if (has.call(EXACT, out.trim()) && out.trim().length === 1) out = out.replace(out.trim(), EXACT[out.trim()][idx]);
+		var P = lang === 'fa' ? PUNCT_FA : PUNCT_EN;
+		out = out.replace(/[，、。：；（）！？「」\u201c\u201d～]/g, function (c) { return P[c] !== undefined ? P[c] : c; });
+		out = out.replace(/ {2,}/g, ' ').replace(/\( /g, '(').replace(/ \)/g, ')');
+		if (!/^\s/.test(s)) out = out.replace(/^\s+/, '');
+		if (!/\s$/.test(s)) out = out.replace(/\s+$/, '');
+		var m = out.match(CJK_RUN);
+		if (m) m.forEach(function (x) { MISSING[x] = 1; });
+		return out;
+	}
+
+	// تک‌حرف‌ها (مثل «由») فقط وقتی کل متن باشند ترجمه می‌شوند
+	var _tr = tr;
+	tr = function (s, tag) {
+		if (typeof s === 'string' && lang !== 'zh') {
+			var t = s.trim();
+			if (t.length === 1 && has.call(EXACT, t)) {
+				var v = EXACT[t][lang === 'fa' ? 1 : 2];
+				return s.replace(t, v);
+			}
+		}
+		return _tr(s, tag);
+	};
+
+	// ---------- لایه‌ی شفاف: ظاهر صفحه ترجمه می‌شود، ولی اسکریپت خود صفحه همیشه متن اصلی (چینی) را «می‌خواند» ----------
+	// دلیل: پنل برای منطق خودش (اطلاعات شبکه، PROXYIP خودکار، مقدار گزینه‌ها و ...) متن‌های DOM را می‌خواند؛
+	// اگر متن عوض شده را بخواند، منطقش به هم می‌خورد. پس خواندن‌ها (textContent / nodeValue / getAttribute / option.value ...) متن اصلی را برمی‌گردانند.
+	var RAW = {};
+	try {
+		RAW.nvGet = Object.getOwnPropertyDescriptor(Node.prototype, 'nodeValue');
+		RAW.tcGet = Object.getOwnPropertyDescriptor(Node.prototype, 'textContent');
+		RAW.dataGet = Object.getOwnPropertyDescriptor(CharacterData.prototype, 'data');
+		RAW.getAttr = Element.prototype.getAttribute;
+		RAW.itGet = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'innerText');
+		RAW.optVal = Object.getOwnPropertyDescriptor(HTMLOptionElement.prototype, 'value');
+		RAW.optText = Object.getOwnPropertyDescriptor(HTMLOptionElement.prototype, 'text');
+		RAW.selVal = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value');
+	} catch (e) { }
+	var T_ORIG = new WeakMap(), T_APPLIED = new WeakMap();
+	function rawText(n) { return RAW.nvGet.get.call(n); }
+	function origOf(n) {
+		var cur = rawText(n);
+		return (T_ORIG.has(n) && T_APPLIED.get(n) === cur) ? T_ORIG.get(n) : cur;
+	}
+	function origTextContent(node) {
+		if (node.nodeType === 3 || node.nodeType === 4) return origOf(node);
+		if (node.nodeType !== 1 && node.nodeType !== 11 && node.nodeType !== 9) return RAW.tcGet.get.call(node);
+		var out = '', w = document.createTreeWalker(node, 4, null), n;
+		while ((n = w.nextNode())) out += origOf(n);
+		return out;
+	}
+	try {
+		Object.defineProperty(Node.prototype, 'nodeValue', { configurable: true, enumerable: RAW.nvGet.enumerable, get: function () { return this.nodeType === 3 ? origOf(this) : RAW.nvGet.get.call(this); }, set: RAW.nvGet.set });
+		Object.defineProperty(CharacterData.prototype, 'data', { configurable: true, enumerable: RAW.dataGet.enumerable, get: function () { return this.nodeType === 3 ? origOf(this) : RAW.dataGet.get.call(this); }, set: RAW.dataGet.set });
+		Object.defineProperty(Node.prototype, 'textContent', { configurable: true, enumerable: RAW.tcGet.enumerable, get: function () { return origTextContent(this); }, set: RAW.tcGet.set });
+		if (RAW.itGet) Object.defineProperty(HTMLElement.prototype, 'innerText', {
+			configurable: true, enumerable: RAW.itGet.enumerable, set: RAW.itGet.set,
+			get: function () {
+				// متن‌های ترجمه‌شده را لحظه‌ای به اصل برمی‌گردانیم، innerText را می‌خوانیم و دوباره برمی‌گردانیم
+				var swapped = [], w = document.createTreeWalker(this, 4, null), n;
+				while ((n = w.nextNode())) {
+					if (T_ORIG.has(n) && T_APPLIED.get(n) === rawText(n)) swapped.push([n, rawText(n), T_ORIG.get(n)]);
+				}
+				if (!swapped.length) return RAW.itGet.get.call(this);
+				var i;
+				for (i = 0; i < swapped.length; i++) RAW.nvGet.set.call(swapped[i][0], swapped[i][2]);
+				var v = RAW.itGet.get.call(this);
+				for (i = 0; i < swapped.length; i++) RAW.nvGet.set.call(swapped[i][0], swapped[i][1]);
+				try { mo.takeRecords(); } catch (e) { }
+				return v;
+			}
+		});
+		var A_ORIG = new WeakMap();
+		Element.prototype.getAttribute = function (name) {
+			var v = RAW.getAttr.call(this, name);
+			if (v !== null && ATTRS_LC[String(name).toLowerCase()]) {
+				var rec = A_ORIG.get(this);
+				var k = String(name).toLowerCase();
+				if (rec && rec[k] && rec[k].applied === v) return rec[k].orig;
+			}
+			return v;
+		};
+		window.__edtAOrig = A_ORIG;
+		if (RAW.optVal) Object.defineProperty(HTMLOptionElement.prototype, 'value', { configurable: true, enumerable: RAW.optVal.enumerable, set: RAW.optVal.set, get: function () {
+			if (this.hasAttribute('value')) return this.getAttribute('value');
+			return String(origTextContent(this)).replace(/[ \t\n\f\r]+/g, ' ').trim();
+		} });
+		if (RAW.optText) Object.defineProperty(HTMLOptionElement.prototype, 'text', { configurable: true, enumerable: RAW.optText.enumerable, set: RAW.optText.set, get: function () {
+			return String(origTextContent(this)).replace(/[ \t\n\f\r]+/g, ' ').trim();
+		} });
+		if (RAW.selVal) Object.defineProperty(HTMLSelectElement.prototype, 'value', { configurable: true, enumerable: RAW.selVal.enumerable, set: RAW.selVal.set, get: function () {
+			var o = this.selectedOptions && this.selectedOptions[0];
+			return o ? o.value : '';
+		} });
+	} catch (e) { }
+	var ATTRS_LC = { placeholder: 1, title: 1, 'aria-label': 1, alt: 1, value: 1 };
+
+	var SKIP = 'script,style,textarea,pre,code,noscript';
+	var ATTRS = ['placeholder', 'title', 'aria-label', 'alt'];
+	var origT = T_ORIG, appliedT = T_APPLIED, origA = new WeakMap();
+
+	function procText(n) {
+		var p = n.parentNode;
+		if (!p || p.nodeType !== 1) return;
+		if (p.closest && p.closest(SKIP)) return;
+		var cur = rawText(n), src;
+		if (origT.has(n) && appliedT.get(n) === cur) src = origT.get(n);
+		else if (CJK.test(cur)) { src = cur; origT.set(n, cur); }
+		else { origT.delete(n); appliedT.delete(n); return; }
+		var t = tr(src, p.nodeName);
+		appliedT.set(n, t);
+		if (t !== cur) RAW.nvGet.set.call(n, t);
+	}
+
+	function procAttrs(el) {
+		var rec = origA.get(el);
+		var names = ATTRS;
+		var isBtn = el.nodeName === 'INPUT' && /^(button|submit|reset)$/i.test(RAW.getAttr.call(el, 'type') || '');
+		var list = isBtn ? names.concat(['value']) : names;
+		for (var i = 0; i < list.length; i++) {
+			var a = list[i];
+			if (!el.hasAttribute(a)) continue;
+			var cur = RAW.getAttr.call(el, a), src;
+			if (rec && rec[a] && rec[a].applied === cur) src = rec[a].orig;
+			else if (CJK.test(cur)) src = cur;
+			else { if (rec && rec[a]) delete rec[a]; continue; }
+			if (!rec) { rec = {}; origA.set(el, rec); window.__edtAOrig.set(el, rec); }
+			var t = tr(src, '');
+			rec[a] = { orig: src, applied: t };
+			if (t !== cur) el.setAttribute(a, t);
+		}
+	}
+
+	function walk(root) {
+		if (!root) return;
+		if (root.nodeType === 3) { procText(root); return; }
+		if (root.nodeType !== 1 && root.nodeType !== 9) return;
+		if (root.nodeType === 1) procAttrs(root);
+		var w = document.createTreeWalker(root, 1 | 4, null);
+		var n;
+		while ((n = w.nextNode())) {
+			if (n.nodeType === 3) procText(n); else procAttrs(n);
+		}
+	}
+
+	function applyDirection() {
+		var h = document.documentElement;
+		if (!h) return;
+		h.setAttribute('lang', lang === 'fa' ? 'fa' : lang === 'en' ? 'en' : 'zh-CN');
+		h.setAttribute('dir', lang === 'fa' ? 'rtl' : 'ltr');
+	}
+
+	function injectCss() {
+		if (document.getElementById('edt-i18n-css')) return;
+		var st = document.createElement('style');
+		st.id = 'edt-i18n-css';
+		st.textContent =
+			'html[dir=rtl] body{font-family:Vazirmatn,Tahoma,"Segoe UI",system-ui,-apple-system,sans-serif}' +
+			'html[dir=rtl] pre,html[dir=rtl] code{direction:ltr;text-align:left;unicode-bidi:isolate}' +
+			'html[dir=rtl] input,html[dir=rtl] textarea{unicode-bidi:plaintext}' +
+			'#edt-lang button{all:unset;cursor:pointer;padding:6px 10px;border-radius:999px;color:#ddd;font:600 12px/1 system-ui,sans-serif}' +
+			'#edt-lang button.on{background:#f7931e;color:#fff}';
+		(document.head || document.documentElement).appendChild(st);
+	}
+
+	function setLang(l) {
+		lang = l;
+		try { localStorage.setItem(LS_KEY, l); } catch (e) { }
+		applyDirection();
+		walk(document.documentElement);
+		paintSwitch();
+	}
+
+	function paintSwitch() {
+		var box = document.getElementById('edt-lang');
+		if (!box) return;
+		[].forEach.call(box.children, function (b) { b.className = b.getAttribute('data-l') === lang ? 'on' : ''; });
+	}
+
+	function mountSwitch() {
+		if (document.getElementById('edt-lang') || !document.body) return;
+		var box = document.createElement('div');
+		box.id = 'edt-lang';
+		box.setAttribute('dir', 'ltr');
+		box.style.cssText = 'position:fixed;bottom:max(14px,env(safe-area-inset-bottom));left:14px;z-index:2147483647;display:flex;gap:2px;padding:3px;border-radius:999px;background:rgba(20,20,20,.75);box-shadow:0 2px 8px rgba(0,0,0,.3)';
+		[['en', 'EN'], ['fa', '\u0641\u0627\u0631\u0633\u06cc']].forEach(function (x) {
+			var b = document.createElement('button');
+			b.type = 'button';
+			b.setAttribute('data-l', x[0]);
+			b.textContent = x[1];
+			b.addEventListener('click', function () { setLang(x[0]); });
+			box.appendChild(b);
+		});
+		document.body.appendChild(box);
+		paintSwitch();
+	}
+
+	['alert', 'confirm', 'prompt'].forEach(function (name) {
+		var f = window[name];
+		if (typeof f !== 'function') return;
+		window[name] = function () {
+			var a = [].slice.call(arguments);
+			if (typeof a[0] === 'string') a[0] = tr(a[0], '');
+			if (typeof a[1] === 'string') a[1] = tr(a[1], '');
+			return f.apply(window, a);
+		};
+	});
+
+	// ---------- پنل عیب‌یابی: آدرس را با ?debug=1 باز کنید (فقط نمایش، دخالتی در صفحه ندارد) ----------
+	try {
+		if (/[?&]debug=1/.test(location.search)) {
+			var DBG = [];
+			var showDbg = function () {
+				var b = document.getElementById('edt-dbg');
+				if (!b && document.body) {
+					b = document.createElement('pre');
+					b.id = 'edt-dbg';
+					b.style.cssText = 'position:fixed;top:0;left:0;right:0;max-height:30vh;overflow:auto;margin:0;padding:6px 8px;background:rgba(120,0,0,.92);color:#fff;font:11px/1.4 monospace;z-index:2147483646;white-space:pre-wrap;direction:ltr;text-align:left';
+					document.body.appendChild(b);
+				}
+				if (b) {
+					var miss = Object.keys(MISSING);
+					b.textContent = DBG.slice(-20).join('\n') + (miss.length ? '\nUNTRANSLATED (' + miss.length + '): ' + miss.join(' | ') : '\nUNTRANSLATED: none');
+				}
+			};
+			window.addEventListener('error', function (e) { DBG.push('JS error: ' + e.message + ' @' + String(e.filename || '').split('/').pop() + ':' + e.lineno); });
+			window.addEventListener('unhandledrejection', function (e) { DBG.push('Promise rejected: ' + (e.reason && (e.reason.message || e.reason))); });
+			setInterval(showDbg, 1500);
+		}
+	} catch (e) { }
+
+	// ---------- دکمه‌ی آدرس شخصی «تغییردهنده» کنار آیکن GitHub / Telegram در فوتر پنل ----------
+	var MY_ADDRESS = 'https://www.soroush.my.id';
+	var ADDR_ID = 'edt-modder-link', addrTimer = 0;
+	var ADDR_ICON = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3c2.6 2.7 3.9 5.7 3.9 9s-1.3 6.3-3.9 9c-2.6-2.7-3.9-5.7-3.9-9S9.4 5.7 12 3z"/></svg>';
+
+	function findFooterTemplate() {
+		var a = document.querySelector('a[href*="github.com"]');
+		if (a && a.getClientRects().length) return a;
+		var w = document.createTreeWalker(document.body, 4, null), n;
+		while ((n = w.nextNode())) {
+			if (!/^\s*v\d+\.\d+/.test(rawText(n))) continue;
+			var el = n.parentElement && n.parentElement.closest('a,button,div,span');
+			if (el && el.getClientRects().length && el.parentElement && el.parentElement.children.length > 2) {
+				var row = el.parentElement;
+				return row.children[0];
+			}
+		}
+		return null;
+	}
+
+	function mountAddress() {
+		addrTimer = 0;
+		try {
+			if (!document.body || location.pathname.indexOf('admin') < 0) return;
+			var old = document.getElementById(ADDR_ID);
+			if (old && old.isConnected) return;
+			var tpl = findFooterTemplate();
+			if (!tpl || !tpl.parentNode) return;
+			var n = tpl.cloneNode(true);
+			n.id = ADDR_ID;
+			n.removeAttribute('onclick');
+			n.innerHTML = ADDR_ICON;
+			n.setAttribute('title', 'Soroush');
+			n.setAttribute('aria-label', 'Soroush');
+			if (n.tagName === 'A') {
+				n.href = MY_ADDRESS;
+				n.target = '_blank';
+				n.rel = 'noopener noreferrer';
+			} else {
+				n.addEventListener('click', function () { window.open(MY_ADDRESS, '_blank', 'noopener'); });
+			}
+			tpl.parentNode.insertBefore(n, tpl.nextSibling);
+		} catch (e) { }
+	}
+
+	function scheduleAddress() { if (!addrTimer) addrTimer = setTimeout(mountAddress, 400); }
+
+	window.__edtTr = function (x, l) { lang = l; return tr(x, ''); };
+	applyDirection();
+	injectCss();
+
+	var mo = new MutationObserver(function (list) {
+		for (var i = 0; i < list.length; i++) {
+			var m = list[i];
+			if (m.type === 'characterData') procText(m.target);
+			else if (m.type === 'attributes') procAttrs(m.target);
+			else for (var j = 0; j < m.addedNodes.length; j++) walk(m.addedNodes[j]);
+		}
+		scheduleAddress();
+	});
+	mo.observe(document.documentElement, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ATTRS.concat(['value']) });
+
+	function ready() { walk(document.documentElement); mountSwitch(); mountAddress(); }
+	if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', ready); else ready();
+})();`;
+function 本地化页面响应(响应) {
+	try {
+		if (!((响应.headers.get('content-type') || '').toLowerCase().includes('text/html'))) return 响应;
+		return new HTMLRewriter().on('html', { element(元素) { 元素.prepend('<script>' + 面板本地化脚本 + '</script>', { html: true }); } }).transform(响应);
+	} catch (e) { return 响应; }
+}
 ///////////////////////////////////////////////////////全局常量和工具函数///////////////////////////////////////////////
 const WS早期数据最大字节 = 8 * 1024, WS早期数据最大头长度 = Math.ceil(WS早期数据最大字节 * 4 / 3) + 4;
 const 上行合包目标字节 = 20 * 1024, 上行队列最大字节 = 16 * 1024 * 1024, 上行队列最大条目 = 4096;
@@ -81,7 +1035,7 @@ export default {
 			return await 处理叉HTTP请求(request, userID, 反代上下文);
 		} else {
 			if (url.protocol === 'http:') return Response.redirect(url.href.replace(`http://${url.hostname}`, `https://${url.hostname}`), 301);
-			if (!管理员密码) return fetch(Pages静态页面 + '/noADMIN').then(r => { const headers = new Headers(r.headers); headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate'); headers.set('Pragma', 'no-cache'); headers.set('Expires', '0'); return new Response(r.body, { status: 404, statusText: r.statusText, headers }) });
+			if (!管理员密码) return fetch(Pages静态页面 + '/noADMIN').then(r => { const headers = new Headers(r.headers); headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate'); headers.set('Pragma', 'no-cache'); headers.set('Expires', '0'); return 本地化页面响应(new Response(r.body, { status: 404, statusText: r.statusText, headers })) });
 			if (env.KV && typeof env.KV.get === 'function') {
 				const 区分大小写访问路径 = url.pathname.slice(1);
 				if (区分大小写访问路径 === 加密秘钥 && 加密秘钥 !== '勿动此默认密钥，有需求请自行通过添加变量KEY进行修改') {//快速订阅
@@ -103,7 +1057,7 @@ export default {
 							return 响应;
 						}
 					}
-					return fetch(Pages静态页面 + '/login');
+					return fetch(Pages静态页面 + '/login').then(本地化页面响应);
 				} else if (访问路径 === 'admin' || 访问路径.startsWith('admin/')) {//验证cookie后响应管理页面
 					const cookies = request.headers.get('Cookie') || '';
 					const authCookie = cookies.split(';').find(c => c.trim().startsWith('auth='))?.split('=')[1];
@@ -296,7 +1250,7 @@ export default {
 					}
 
 					ctx.waitUntil(请求日志记录(env, request, 访问IP, 'Admin_Login', config_JSON));
-					return fetch(Pages静态页面 + '/admin' + url.search);
+					return fetch(Pages静态页面 + '/admin' + url.search).then(本地化页面响应);
 				} else if (访问路径 === 'logout' || uuidRegex.test(访问路径)) {//清除cookie并跳转到登录页面
 					const 响应 = new Response('重定向中...', { status: 302, headers: { 'Location': '/login' } });
 					响应.headers.set('Set-Cookie', 'auth=; Path=/; Max-Age=0; HttpOnly');
@@ -499,7 +1453,7 @@ export default {
 					const authCookie = cookies.split(';').find(c => c.trim().startsWith('auth='))?.split('=')[1];
 					if (authCookie && authCookie == await MD5MD5(UA + 加密秘钥 + 管理员密码)) return fetch(new Request('https://speed.cloudflare.com/locations', { headers: { 'Referer': 'https://speed.cloudflare.com/' } }));
 				} else if (访问路径 === 'robots.txt') return new Response('User-agent: *\nDisallow: /', { status: 200, headers: { 'Content-Type': 'text/plain; charset=UTF-8' } });
-			} else if (!envUUID) return fetch(Pages静态页面 + '/noKV').then(r => { const headers = new Headers(r.headers); headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate'); headers.set('Pragma', 'no-cache'); headers.set('Expires', '0'); return new Response(r.body, { status: 404, statusText: r.statusText, headers }) });
+			} else if (!envUUID) return fetch(Pages静态页面 + '/noKV').then(r => { const headers = new Headers(r.headers); headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate'); headers.set('Pragma', 'no-cache'); headers.set('Expires', '0'); return 本地化页面响应(new Response(r.body, { status: 404, statusText: r.statusText, headers })) });
 		}
 
 		let 伪装页URL = env.URL || 'nginx';
@@ -5609,7 +6563,7 @@ async function 读取config_JSON(env, hostname, userID, UA = "Mozilla/5.0", 重�
 		gRPC模式: "gun",
 		gRPCUserAgent: UA,
 		跳过证书验证: false,
-		启用0RTT: false,
+		启用0RTT: true, // default ON after install (ed=2560)
 		TLS分片: null,
 		随机路径: false,
 		ECH: false,
@@ -5623,13 +6577,13 @@ async function 读取config_JSON(env, hostname, userID, UA = "Mozilla/5.0", 重�
 		},
 		Fingerprint: "chrome",
 		优选订阅生成: {
-			local: true, // true: 基于本地的优选地址  false: 优选订阅生成器
+			local: false, // default: preferred-subscription generator (true: local random pick)
 			本地IP库: {
 				随机IP: true, // 当 随机IP 为true时生效，启用随机IP的数量，否则使用KV内的ADD.txt
 				随机数量: 16,
 				指定端口: -1,
 			},
-			SUB: null,
+			SUB: `sub.${特征码字典[1]}ssss.net`,
 			SUBNAME: "edge" + "tunnel",
 			SUBUpdateTime: 3, // 订阅更新时间（小时）
 			TOKEN: await MD5MD5(hostname + userID),
@@ -5880,13 +6834,13 @@ async function 生成随机IP(request, count = 16, 指定端口 = -1) {
 	const 查询参数运营商 = String(url.searchParams.get('cnIspCode') || '').toLowerCase();
 	const 运营商文件标识 = ['ct', 'cu', 'cmcc', 'cf'].includes(查询参数运营商) ? 查询参数运营商 : 识别运营商(request);
 	const 运营商名称映射 = {
-		cmcc: 'CF移动优选',
-		cu: 'CF联通优选',
-		ct: 'CF电信优选',
-		cf: 'CF官方优选',
+		cmcc: 'CF-Mobile-',
+		cu: 'CF-Unicom-',
+		ct: 'CF-Telecom-',
+		cf: 'CF-Official-',
 	};
 	const cidr_url = 运营商文件标识 === 'cf' ? `https://raw.githubusercontent.com/${特征码字典[1]}/${特征码字典[1]}/main/CF-CIDR.txt` : `https://raw.githubusercontent.com/${特征码字典[1]}/${特征码字典[1]}/main/CF-CIDR/${运营商文件标识}.txt`;
-	const cfname = 运营商名称映射[运营商文件标识] || 'CF官方优选';
+	const cfname = 运营商名称映射[运营商文件标识] || 'CF-Official-';
 	const cfport = [443, 2053, 2083, 2087, 2096, 8443];
 	let cidrList = [];
 	try { const res = await fetch(cidr_url); cidrList = res.ok ? await 整理成数组(await res.text()) : ['104.16.0.0/13'] } catch { cidrList = ['104.16.0.0/13'] }
@@ -5924,7 +6878,7 @@ async function 获取优选订阅生成器数据(优选订阅生成器HOST) {
 		const url = new URL(格式化HOST);
 		格式化HOST = url.origin;
 	} catch (error) {
-		优选IP.push(`127.0.0.1:1234#${优选订阅生成器HOST}优选订阅生成器格式化异常:${error.message}`);
+		优选IP.push(`127.0.0.1:1234#${优选订阅生成器HOST} generator format error: ${error.message}`);
 		return [优选IP, 其他节点LINK];
 	}
 
@@ -5936,7 +6890,7 @@ async function 获取优选订阅生成器数据(优选订阅生成器HOST) {
 		});
 
 		if (!response.ok) {
-			优选IP.push(`127.0.0.1:1234#${优选订阅生成器HOST}优选订阅生成器异常:${response.statusText}`);
+			优选IP.push(`127.0.0.1:1234#${优选订阅生成器HOST} generator error: ${response.statusText}`);
 			return [优选IP, 其他节点LINK];
 		}
 
@@ -5961,7 +6915,7 @@ async function 获取优选订阅生成器数据(优选订阅生成器HOST) {
 			}
 		}
 	} catch (error) {
-		优选IP.push(`127.0.0.1:1234#${优选订阅生成器HOST}优选订阅生成器异常:${error.message}`);
+		优选IP.push(`127.0.0.1:1234#${优选订阅生成器HOST} generator error: ${error.message}`);
 	}
 
 	return [优选IP, 其他节点LINK];
@@ -6152,7 +7106,7 @@ async function 请求优选API(urls, 默认端口 = '443', 超时时间 = 3000) 
 					dataLines.forEach(line => {
 						const cols = line.split(',').map(c => c.trim());
 						const wrappedIP = IPV6_PATTERN.test(cols[ipIdx]) ? `[${cols[ipIdx]}]` : cols[ipIdx];
-						const ipItem = `${wrappedIP}:${port}#CF优选 ${cols[delayIdx]}ms ${cols[speedIdx]}MB/s`;
+						const ipItem = `${wrappedIP}:${port}#CF-Preferred ${cols[delayIdx]}ms ${cols[speedIdx]}MB/s`;
 						// 处理第一个数组 - 优选IP
 						if (API备注名) {
 							const 处理后IP = `${ipItem} [${API备注名}]`;
