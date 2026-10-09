@@ -1,8 +1,8 @@
-name = "v20251104"
+name = "edgetunnel"
 main = "_worker.js"
 compatibility_date = "2025-11-04"
 keep_vars = true
 
-#[[kv_namespaces]]
-#binding = "KV"			#KV绑定名默认不可修改
-#id = ""				#KV数据库id
+[[kv_namespaces]]
+binding = "KV"        # KV绑定名固定不可修改，必须为 KV
+id = "dc650898c40e4256bfa0fd3c008c5998"   # 你的 test-edgetunnel 命名空间ID
