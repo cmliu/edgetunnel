@@ -3,6 +3,23 @@ main = "_worker.js"
 compatibility_date = "2025-11-04"
 keep_vars = true
 
+# ─────────────────────────────────────────────────────────────
+#  مهم — برای باز شدن پنل (/admin) این دو مورد را در داشبورد کلودفلر تنظیم کنید:
+#  REQUIRED for the /admin panel — set these in the Cloudflare Dashboard:
+#
+#  1) رمز ورود به پنل (الزامی) / Admin password (required):
+#     Pages/Worker → Settings → Environment variables → Production
+#     Variable name: ADMIN     Value: (رمز دلخواه شما / your password)
+#     سپس حتماً یک دیپلوی جدید بگیرید / Then create a NEW deployment.
+#
+#  2) دیتابیس KV برای ماندگاری تنظیمات (شدیداً توصیه می‌شود):
+#     KV namespace for persistent panel settings (strongly recommended):
+#     Settings → Bindings → Add → KV namespace
+#     Variable name (دقیقاً / exactly): KV
+#     توجه: بدون KV هم پنل با حافظهٔ موقت باز می‌شود، اما تنظیماتی که ذخیره
+#     کنید پایدار نمی‌مانند. Without KV the panel still opens (in-memory
+#     fallback), but saved settings will NOT persist.
+# ─────────────────────────────────────────────────────────────
 #[[kv_namespaces]]
 #binding = "KV"			#KV绑定名默认不可修改
 #id = ""				#KV数据库id

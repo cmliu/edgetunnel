@@ -1,5 +1,40 @@
 ﻿const Version = '2026-10-08 22:23:27';
 let config_JSON, 缓存SOCKS5白名单 = null, 调试日志打印 = false;
+///////////////////////////////////////////////////////无KV内存回退 + 配置缺失提示（修复未设置ADMIN/未绑定KV时 /admin 只显示 nginx 伪装页、静态页获取失败直接抛 1101）///////////////////////////////////////////////
+const 内存KV数据 = new Map();
+let 使用内存KV回退 = false;
+const 内存KV对象 = {
+	async get(键名, 选项) {
+		if (!内存KV数据.has(键名)) return null;
+		const 值 = 内存KV数据.get(键名), 类型 = typeof 选项 === 'string' ? 选项 : 选项?.type;
+		if (类型 === 'json') { try { return JSON.parse(值); } catch (e) { return null; } }
+		if (类型 === 'arrayBuffer') return new TextEncoder().encode(值).buffer;
+		if (类型 === 'stream') return new Response(值).body;
+		return 值;
+	},
+	async getWithMetadata(键名, 选项) { return { value: await this.get(键名, 选项), metadata: null, cacheStatus: null }; },
+	async put(键名, 值) { 内存KV数据.set(键名, typeof 值 === 'string' ? 值 : new TextDecoder().decode(值)); },
+	async delete(键名) { 内存KV数据.delete(键名); },
+	async list(选项 = {}) { const 前缀 = 选项?.prefix || ''; return { keys: [...内存KV数据.keys()].filter(k => k.startsWith(前缀)).map(name => ({ name })), list_complete: true, cacheStatus: null }; }
+};
+const 备用登录页HTML = `<!DOCTYPE html><html lang="fa" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ورود | edgetunnel</title><style>body{font-family:Tahoma,Arial,sans-serif;background:#0f172a;color:#e2e8f0;display:flex;min-height:100vh;align-items:center;justify-content:center;margin:0}.box{background:#1e293b;padding:2rem;border-radius:12px;max-width:340px;width:90%}input{width:100%;padding:.7rem;margin:.6rem 0;box-sizing:border-box;border-radius:8px;border:1px solid #475569;background:#0f172a;color:#fff}button{width:100%;padding:.7rem;border:0;border-radius:8px;background:#2563eb;color:#fff;cursor:pointer;font-size:1rem}small{color:#94a3b8}</style></head><body><div class="box"><h2>🔐 ورود به پنل مدیریت</h2><p><small>صفحهٔ ورود اصلی در دسترس نیست؛ این فرم جایگزین موقت است. Main login page is unreachable — temporary fallback form.</small></p><form id="f"><input id="p" type="password" placeholder="رمز ADMIN" required autofocus><button type="submit">ورود</button></form><p id="m"></p></div><script>document.getElementById('f').addEventListener('submit',async function(e){e.preventDefault();var m=document.getElementById('m');m.textContent='در حال بررسی…';try{var r=await fetch('/login',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'password='+encodeURIComponent(document.getElementById('p').value)});var j={};try{j=await r.json();}catch(x){}if(j.success){location.href='/admin';}else{m.textContent='رمز نادرست است.';}}catch(x){m.textContent='خطای شبکه: '+x.message;}});</script></body></html>`;
+const 面板页获取失败HTML = `<!DOCTYPE html><html lang="fa" dir="rtl"><head><meta charset="utf-8"><meta http-equiv="refresh" content="10;url=/admin"><meta name="viewport" content="width=device-width,initial-scale=1"><title>در حال تلاش مجدد…</title><style>body{font-family:Tahoma,Arial,sans-serif;background:#0f172a;color:#e2e8f0;display:flex;min-height:100vh;align-items:center;justify-content:center;margin:0}.box{background:#1e293b;padding:2rem;border-radius:12px;max-width:520px;width:90%;line-height:2}a{color:#93c5fd}</style></head><body><div class="box"><h2>⏳ صفحهٔ پنل موقتاً دریافت نشد</h2><p>صفحهٔ پنل از سرور خارجی (edt-pages.github.io) بارگذاری می‌شود و این‌بار پاسخ نداد؛ چند ثانیهٔ دیگر به‌صورت خودکار دوباره تلاش می‌شود. بک‌اند سالم است: <a href="/admin/config.json">مشاهدهٔ config.json</a> — <a href="/admin">تلاش همین حالا</a></p><p dir="ltr" style="text-align:left"><small>Panel page could not be fetched from edt-pages.github.io. Retrying automatically… Backend check: /admin/config.json</small></p></div></body></html>`;
+function 配置缺失提示响应() {
+	const HTML = `<!DOCTYPE html><html lang="fa" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>edgetunnel — نیاز به تنظیم رمز مدیر</title><style>body{font-family:Tahoma,Arial,sans-serif;background:#0f172a;color:#e2e8f0;display:flex;min-height:100vh;align-items:center;justify-content:center;margin:0}.box{background:#1e293b;padding:2rem;border-radius:12px;max-width:640px;width:92%;line-height:2.1}code{background:#0f172a;padding:.1rem .45rem;border-radius:6px;color:#fbbf24;direction:ltr;unicode-bidi:embed}ol{padding-right:1.2rem}small{color:#94a3b8}</style></head><body><div class="box"><h2>⚙️ edgetunnel نصب شده، ولی رمز مدیر (ADMIN) تعریف نشده است</h2><p>برای باز شدن پنل این کارها رو در کلودفلر انجام بده (۲ دقیقه):</p><ol><li>داشبورد کلودفلر ← <b>Workers &amp; Pages</b> ← پروژهٔ خودت ← تب <b>Settings</b></li><li>بخش <b>Environment variables</b> ← محیط <b>Production</b> ← <b>Add variable</b>: نام = <code>ADMIN</code> ، مقدار = رمز دلخواه خودت ← Save (همین کار رو برای محیط <b>Preview</b> هم انجام بده)</li><li>تب <b>Deployments</b> ← <b>Create new deployment</b> (یا روی آخرین دیپلوی: ⋯ ← Retry deployment) — بدون دیپلوی مجدد متغیر اعمال نمی‌شه</li><li>بعد از دیپلوی، آدرس <code>/admin</code> رو باز کن و با همون رمز وارد شو</li></ol><p><small>پیشنهاد: برای ماندگار شدن تنظیمات پنل، بعداً در Settings ← Bindings یک KV Namespace با نام دقیق <code>KV</code> هم اضافه کن (بدون اون هم پنل با حافظهٔ موقت باز می‌شه، ولی تغییراتی که در پنل ذخیره کنی ممکنه بعداً ریست بشن).</small></p><p dir="ltr" style="text-align:left"><small>edgetunnel is deployed but no admin password is configured. Cloudflare Dashboard → Workers &amp; Pages → your project → Settings → Environment variables → Production → Add variable: name <b>ADMIN</b>, value = your password → Save (repeat for Preview) → Deployments → Create new deployment → open /admin.</small></p></div></body></html>`;
+	return new Response(HTML, { status: 404, headers: { 'Content-Type': 'text/html; charset=UTF-8', 'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate', 'Pragma': 'no-cache', 'Expires': '0' } });
+}
+async function 安全获取静态页(路径, 失败HTML) {
+	try {
+		const 响应 = await fetch(Pages静态页面 + 路径);
+		if (响应.status >= 500) throw new Error('HTTP ' + 响应.status);
+		if (!使用内存KV回退) return 响应;
+		const 新响应 = new Response(响应.body, 响应);
+		新响应.headers.set('X-EDT-KV-Mode', 'memory-fallback-bind-a-KV-namespace-named-KV-for-persistent-settings');
+		return 新响应;
+	} catch (e) {
+		return new Response(失败HTML, { status: 502, headers: { 'Content-Type': 'text/html; charset=UTF-8', 'Cache-Control': 'no-store', 'Retry-After': '15' } });
+	}
+}
 let SOCKS5白名单 = ['*tapecontent.net', '*cloudatacdn.com', '*loadshare.org', '*cdn-centaurus.com', 'scholar.google.com'];
 const Pages静态页面 = 'https://edt-pages.github.io', EDT_版本号 = Number(String(Version).replace(/\D+/g, ''));
 ///////////////////////////////////////////////////////全局常量和工具函数///////////////////////////////////////////////
@@ -17,6 +52,7 @@ const 汇聚订阅_UA = 'v2rayN/edge' + 'tunnel (https://github.com/' + 特征�
 ///////////////////////////////////////////////////////主程序入口///////////////////////////////////////////////
 export default {
 	async fetch(request, env, ctx) {
+		if (!env.KV || typeof env.KV.get !== 'function') { 使用内存KV回退 = true; env = { ...env, KV: 内存KV对象 }; }
 		let 请求URL文本 = request.url.replace(/%5[Cc]/g, '').replace(/\\/g, '');
 		const 请求URL锚点索引 = 请求URL文本.indexOf('#');
 		const 请求URL主体部分 = 请求URL锚点索引 === -1 ? 请求URL文本 : 请求URL文本.slice(0, 请求URL锚点索引);
@@ -81,7 +117,7 @@ export default {
 			return await 处理叉HTTP请求(request, userID, 反代上下文);
 		} else {
 			if (url.protocol === 'http:') return Response.redirect(url.href.replace(`http://${url.hostname}`, `https://${url.hostname}`), 301);
-			if (!管理员密码) return fetch(Pages静态页面 + '/noADMIN').then(r => { const headers = new Headers(r.headers); headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate'); headers.set('Pragma', 'no-cache'); headers.set('Expires', '0'); return new Response(r.body, { status: 404, statusText: r.statusText, headers }) });
+			if (!管理员密码) return 配置缺失提示响应();
 			if (env.KV && typeof env.KV.get === 'function') {
 				const 区分大小写访问路径 = url.pathname.slice(1);
 				if (区分大小写访问路径 === 加密秘钥 && 加密秘钥 !== '勿动此默认密钥，有需求请自行通过添加变量KEY进行修改') {//快速订阅
@@ -103,7 +139,7 @@ export default {
 							return 响应;
 						}
 					}
-					return fetch(Pages静态页面 + '/login');
+					return await 安全获取静态页('/login', 备用登录页HTML);
 				} else if (访问路径 === 'admin' || 访问路径.startsWith('admin/')) {//验证cookie后响应管理页面
 					const cookies = request.headers.get('Cookie') || '';
 					const authCookie = cookies.split(';').find(c => c.trim().startsWith('auth='))?.split('=')[1];
@@ -296,7 +332,7 @@ export default {
 					}
 
 					ctx.waitUntil(请求日志记录(env, request, 访问IP, 'Admin_Login', config_JSON));
-					return fetch(Pages静态页面 + '/admin' + url.search);
+					return await 安全获取静态页('/admin' + url.search, 面板页获取失败HTML);
 				} else if (访问路径 === 'logout' || uuidRegex.test(访问路径)) {//清除cookie并跳转到登录页面
 					const 响应 = new Response('重定向中...', { status: 302, headers: { 'Location': '/login' } });
 					响应.headers.set('Set-Cookie', 'auth=; Path=/; Max-Age=0; HttpOnly');
