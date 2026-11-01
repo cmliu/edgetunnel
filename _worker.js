@@ -7,6 +7,29 @@ const WS早期数据最大字节 = 8 * 1024, WS早期数据最大头长度 = Mat
 const 上行合包目标字节 = 20 * 1024, 上行队列最大字节 = 16 * 1024 * 1024, 上行队列最大条目 = 4096;
 const 下行Grain包字节 = 32 * 1024, 下行Grain尾部阈值 = 512, 下行Grain低水位字节 = Math.max(4096, 下行Grain尾部阈值 * 12), 下行Grain最大等待轮次 = 4;
 let TCP并发拨号数 = 2, 反代并发拨号数 = 1, 预加载竞速拨号 = false;
+// xhttp 连接复用调优(只改客户端如何复用 TCP/QUIC 连接，不改变 Worker 请求数: stream-one 下 1 个代理连接 = 1 次请求)
+// H3: 开 N 条独立 QUIC 连接(各自独立 UDP 源端口)，代理流分散到各连接，避免全部挤在同一条 UDP 流里被 QoS
+let 叉HTTP_H3连接池 = '4-6', 叉HTTP_H2连接池 = '', 叉HTTP双ALPN节点 = false;
+function 解析范围参数(值, 默认值) {
+	if (值 === undefined || 值 === null || String(值).trim() === '') return 默认值;
+	const m = String(值).trim().match(/^(\d+)(?:-(\d+))?$/);
+	if (!m) return 默认值;
+	const 起 = Number(m[1]), 止 = m[2] === undefined ? 起 : Number(m[2]);
+	return 起 <= 止 && 止 <= 64 ? (m[2] === undefined ? String(起) : `${起}-${止}`) : 默认值;
+}
+function 叉HTTP是H3(alpn) {
+	return String(alpn || '').split(',').map(v => v.trim().toLowerCase()).filter(Boolean).join(',') === 'h3';
+}
+function 连接池有效(池) { return !!池 && Number(String(池).split('-').pop()) > 0; }
+const 用户ID哈希缓存 = new Map();
+async function 缓存MD5MD5(文本) {
+	let 结果 = 用户ID哈希缓存.get(文本);
+	if (结果) return 结果;
+	结果 = await MD5MD5(文本);
+	if (用户ID哈希缓存.size >= 8) 用户ID哈希缓存.clear();
+	用户ID哈希缓存.set(文本, 结果);
+	return 结果;
+}
 ///////////////////////////////////////////////////////查杀特征码///////////////////////////////////////////////
 const 特征码字典 = [
 	(Proxy.name + "IP").toUpperCase(),
@@ -29,7 +52,7 @@ export default {
 		const upgradeHeader = (request.headers.get('Upgrade') || '').toLowerCase(), contentType = (request.headers.get('content-type') || '').toLowerCase();
 		const 管理员密码 = env.ADMIN || env.admin || env.PASSWORD || env.password || env.pswd || env.TOKEN || env.KEY || env.UUID || env.uuid;
 		const 加密秘钥 = env.KEY || '勿动此默认密钥，有需求请自行通过添加变量KEY进行修改';
-		const userIDMD5 = await MD5MD5(管理员密码 + 加密秘钥);
+		const userIDMD5 = await 缓存MD5MD5(管理员密码 + 加密秘钥);
 		const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/;
 		const envUUID = env.UUID || env.uuid;
 		const userID = (envUUID && uuidRegex.test(envUUID)) ? envUUID.toLowerCase() : [userIDMD5.slice(0, 8), userIDMD5.slice(8, 12), '4' + userIDMD5.slice(13, 16), '8' + userIDMD5.slice(17, 20), userIDMD5.slice(20)].join('-');
@@ -41,6 +64,9 @@ export default {
 		反代并发拨号数 = Math.max(1, Number(env.PROXY_CONCURRENT_DIAL) || 反代并发拨号数);
 		TCP并发拨号数 = Math.max(1, Number(env.TCP_CONCURRENT_DIAL) || TCP并发拨号数);
 		if (!env.TCP_CONCURRENT_DIAL && TCP并发拨号数 !== 1 && 识别运营商(request) === 'cmcc') TCP并发拨号数 = 1;
+		叉HTTP_H3连接池 = 解析范围参数(env.XHTTP_H3_CONNS, '4-6');
+		叉HTTP_H2连接池 = 解析范围参数(env.XHTTP_H2_CONNS, '');
+		叉HTTP双ALPN节点 = ['1', 'true'].includes(String(env.XHTTP_DUAL_ALPN).toLowerCase());
 		let 默认反代IP = (`${request.cf.colo}.${特征码字典[0]}.${特征码字典[1]}SsSs.nEt`).toLowerCase(), 默认反代兜底 = true;
 		if (env.PROXYIP) {
 			const proxyIPs = await 整理成数组(env.PROXYIP);
@@ -401,6 +427,8 @@ export default {
 							const ECHLINK参数 = config_JSON.ECH ? `&ech=${encodeURIComponent((config_JSON.ECHConfig.SNI ? config_JSON.ECHConfig.SNI + '+' : '') + config_JSON.ECHConfig.DNS)}` : '';
 							const isLoonOrSurge = ua.includes('loon') || ua.includes('surge');
 							const { type: 传输协议, 路径字段名, 域名字段名 } = 获取传输协议配置(config_JSON);
+							const 双ALPN节点 = 叉HTTP双ALPN节点 && config_JSON.传输协议 === 'xhttp' && 叉HTTP是H3(config_JSON.ALPN);
+							const 传输协议H2 = 双ALPN节点 ? 获取传输协议配置(config_JSON, 'h2').type : null;
 							订阅内容 = 其他节点LINK + 完整优选IP.map(原始地址 => {
 								// 统一正则: 匹配 域名/IPv4/IPv6地址 + 可选端口 + 可选备注
 								// 示例:
@@ -451,7 +479,9 @@ export default {
 									return `${协议类型}://${btoa(config_JSON.SS.加密方式 + ':00000000-0000-4000-8000-000000000000')}@${节点地址}:${节点端口}?plugin=v2${encodeURIComponent('ray-plugin;mode=websocket;host=example.com;path=' + (config_JSON.随机路径 ? 随机路径(完整节点路径) : 完整节点路径) + (config_JSON.SS.TLS ? ';tls' : '')) + ECHLINK参数 + TLS分片参数}#${encodeURIComponent(节点备注)}`;
 								} else {
 									const 传输路径参数值 = 获取传输路径参数值(config_JSON, 完整节点路径, 作为优选订阅生成器);
-									return `${协议类型}://00000000-0000-4000-8000-000000000000@${节点地址}:${节点端口}?security=tls&type=${传输协议 + ECHLINK参数}&${域名字段名}=example.com&fp=${config_JSON.Fingerprint}&sni=example.com&${路径字段名}=${encodeURIComponent(传输路径参数值) + TLS分片参数}&encryption=none&alpn=${encodeURIComponent(config_JSON.ALPN)}#${encodeURIComponent(节点备注)}`;
+									const 生成链接 = (类型参数, ALPN值, 备注) => `${协议类型}://00000000-0000-4000-8000-000000000000@${节点地址}:${节点端口}?security=tls&type=${类型参数 + ECHLINK参数}&${域名字段名}=example.com&fp=${config_JSON.Fingerprint}&sni=example.com&${路径字段名}=${encodeURIComponent(传输路径参数值) + TLS分片参数}&encryption=none&alpn=${encodeURIComponent(ALPN值)}#${encodeURIComponent(备注)}`;
+									if (!双ALPN节点) return 生成链接(传输协议, config_JSON.ALPN, 节点备注);
+									return 生成链接(传输协议, 'h3', 节点备注 + ' h3') + '\n' + 生成链接(传输协议H2, 'h2', 节点备注 + ' h2');
 								}
 							}).filter(item => item !== null).join('\n');
 						} else { // 订阅转换
@@ -4791,7 +4821,7 @@ function base64SecretDecode(encoded, secret) {
 	return decoder.decode(data);
 }
 
-function 获取传输协议配置(配置 = {}) {
+function 获取传输协议配置(配置 = {}, ALPN覆盖 = null) {
 	const 是gRPC = 配置.传输协议 === 'grpc';
 	const [本机标识头, 本机标识键] = 获取本机标识(配置.UUID);
 	const 叉混淆JSON = {
@@ -4801,6 +4831,11 @@ function 获取传输协议配置(配置 = {}) {
 		"xPaddingHeader": 本机标识头,
 		"xPaddingKey": 本机标识键
 	};
+	if (配置.传输协议 === 'xhttp') {
+		// maxConnections 与 maxConcurrency 互斥，这里只用 maxConnections；空/0 = 不下发
+		const 连接池 = 叉HTTP是H3(ALPN覆盖 !== null ? ALPN覆盖 : 配置.ALPN) ? 叉HTTP_H3连接池 : 叉HTTP_H2连接池;
+		if (连接池有效(连接池)) 叉混淆JSON.xmux = { maxConnections: /^\d+$/.test(连接池) ? Number(连接池) : 连接池 };
+	}
 	return {
 		type: 是gRPC ? (配置.gRPC模式 === 'multi' ? 'grpc&mode=multi' : 'grpc&mode=gun') : (配置.传输协议 === 'xhttp' ? `xhttp&mode=stream-one&extra=${encodeURIComponent(JSON.stringify(叉混淆JSON))}` : 'ws'),
 		路径字段名: 是gRPC ? 'serviceName' : 'path',
@@ -4816,6 +4851,94 @@ function 获取传输路径参数值(配置 = {}, 节点路径 = '/', 作为优�
 
 function log(...args) {
 	if (调试日志打印) console.log(...args);
+}
+
+function Clash节点注入XHTTP复用设置(clash_yaml, config_JSON = {}) {
+	// mihomo >= 1.19.23 才支持 xhttp-opts.reuse-settings(旧内核会忽略)。
+	// 只设 max-connections，其余 0: mihomo 在 max-connections 与 h-max-* 同时到顶时不会轮换连接(issue #2690)，所以 h-max-* 一律不填。
+	if (config_JSON?.传输协议 !== 'xhttp' || (!连接池有效(叉HTTP_H3连接池) && !连接池有效(叉HTTP_H2连接池))) return clash_yaml;
+	const 取连接池 = (节点文本) => {
+		const 是H3 = /alpn\s*:\s*(?:\[\s*["']?h3["']?\s*\]|(?:#[^\n]*)?\n\s*-\s*["']?h3["']?\s*(?:\n|$))/i.test(节点文本);
+		const 池 = 是H3 ? 叉HTTP_H3连接池 : 叉HTTP_H2连接池;
+		return 连接池有效(池) ? 池 : null;
+	};
+	const 是XHTTP节点 = (节点文本) => /network\s*:\s*["']?xhttp["']?/i.test(节点文本);
+	const 复用Flow = (池) => `reuse-settings: {max-connections: "${池}", max-concurrency: "0", c-max-reuse-times: "0"}`;
+	const 找匹配右括号 = (文本, 左括号位置) => {
+		let 深度 = 0;
+		for (let k = 左括号位置; k < 文本.length; k++) {
+			if (文本[k] === '{') 深度++;
+			else if (文本[k] === '}' && --深度 === 0) return k;
+		}
+		return -1;
+	};
+	const 处理Flow节点 = (节点文本) => {
+		if (!是XHTTP节点(节点文本) || /reuse-settings\s*:/i.test(节点文本)) return 节点文本;
+		const 池 = 取连接池(节点文本);
+		if (!池) return 节点文本;
+		const m = /xhttp-opts\s*:\s*\{/i.exec(节点文本);
+		if (m) {
+			const 左 = m.index + m[0].length - 1, 右 = 找匹配右括号(节点文本, 左);
+			if (右 < 0) return 节点文本;
+			const 内容 = 节点文本.slice(左 + 1, 右).trim();
+			return 节点文本.slice(0, 右).replace(/\s+$/, '') + (内容 ? ', ' : '') + 复用Flow(池) + 节点文本.slice(右);
+		}
+		const 末尾 = 节点文本.lastIndexOf('}');
+		if (末尾 < 0) return 节点文本;
+		return 节点文本.slice(0, 末尾).replace(/\s+$/, '') + `, xhttp-opts: {${复用Flow(池)}}` + 节点文本.slice(末尾);
+	};
+	const 处理Block节点 = (节点行, 顶级缩进) => {
+		const 全文 = 节点行.join('\n');
+		if (!是XHTTP节点(全文) || /reuse-settings\s*:/i.test(全文)) return 节点行;
+		const 池 = 取连接池(全文);
+		if (!池) return 节点行;
+		const 缩进 = ' '.repeat(顶级缩进);
+		const 复用行 = (基准) => [`${基准}reuse-settings:`, `${基准}  max-connections: "${池}"`, `${基准}  max-concurrency: "0"`, `${基准}  c-max-reuse-times: "0"`];
+		const 序号 = 节点行.findIndex(l => l.trim() && l.search(/\S/) === 顶级缩进 && /^xhttp-opts\s*:/i.test(l.trim()));
+		if (序号 >= 0) {
+			const 行 = 节点行[序号];
+			if (/xhttp-opts\s*:\s*\{/i.test(行)) {
+				if (/\}\s*(?:#.*)?$/.test(行)) 节点行[序号] = 处理Flow节点(行);
+				return 节点行;
+			}
+			节点行.splice(序号 + 1, 0, ...复用行(`${缩进}  `));
+			return 节点行;
+		}
+		let 末行 = 节点行.length - 1;
+		while (末行 >= 0 && !节点行[末行].trim()) 末行--;
+		if (末行 < 0) return 节点行;
+		节点行.splice(末行 + 1, 0, `${缩进}xhttp-opts:`, ...复用行(`${缩进}  `));
+		return 节点行;
+	};
+	const lines = clash_yaml.split('\n'), out = [];
+	let i = 0;
+	while (i < lines.length) {
+		const line = lines[i], t = line.trim();
+		if (t.startsWith('- {')) {
+			let 节点 = line;
+			let 括号 = (line.match(/\{/g) || []).length - (line.match(/\}/g) || []).length;
+			while (括号 > 0 && i + 1 < lines.length) {
+				i++;
+				节点 += '\n' + lines[i];
+				括号 += (lines[i].match(/\{/g) || []).length - (lines[i].match(/\}/g) || []).length;
+			}
+			out.push(处理Flow节点(节点));
+			i++;
+		} else if (t.startsWith('- name:')) {
+			const 基准缩进 = line.search(/\S/);
+			const 节点行 = [line];
+			i++;
+			while (i < lines.length && (!lines[i].trim() || lines[i].search(/\S/) > 基准缩进)) {
+				节点行.push(lines[i]);
+				i++;
+			}
+			out.push(...处理Block节点(节点行, 基准缩进 + 2));
+		} else {
+			out.push(line);
+			i++;
+		}
+	}
+	return out.join('\n');
 }
 
 function Clash订阅配置文件热补丁(Clash_原始订阅内容, config_JSON = {}) {
@@ -4972,6 +5095,7 @@ function Clash订阅配置文件热补丁(Clash_原始订阅内容, config_JSON 
 		clash_yaml = 插入NameserverPolicy(clash_yaml, hostsEntries);
 	}
 
+	clash_yaml = Clash节点注入XHTTP复用设置(clash_yaml, config_JSON);
 	if (!需要处理ECH && !需要处理gRPC) return clash_yaml;
 
 	const lines = clash_yaml.split('\n');
@@ -5793,7 +5917,7 @@ async function 读取config_JSON(env, hostname, userID, UA = "Mozilla/5.0", 重�
 	const 传输路径参数值 = 获取传输路径参数值(config_JSON, config_JSON.完整节点路径);
 	config_JSON.LINK = config_JSON.协议类型 === 'ss'
 		? `${config_JSON.协议类型}://${btoa(config_JSON.SS.加密方式 + ':' + userID)}@${host}:${config_JSON.SS.TLS ? '443' : '80'}?plugin=v2${encodeURIComponent(`ray-plugin;mode=websocket;host=${host};path=${((config_JSON.完整节点路径.includes('?') ? config_JSON.完整节点路径.replace('?', '?enc=' + config_JSON.SS.加密方式 + '&') : (config_JSON.完整节点路径 + '?enc=' + config_JSON.SS.加密方式)) + (config_JSON.SS.TLS ? ';tls' : ''))};mux=0`) + ECHLINK参数}#${encodeURIComponent(config_JSON.优选订阅生成.SUBNAME)}`
-		: `${config_JSON.协议类型}://${userID}@${host}:443?security=tls&type=${传输协议 + ECHLINK参数}&${域名字段名}=${host}&fp=${config_JSON.Fingerprint}&sni=${host}&${路径字段名}=${encodeURIComponent(传输路径参数值) + TLS分片参数}&encryption=none#${encodeURIComponent(config_JSON.优选订阅生成.SUBNAME)}`;
+		: `${config_JSON.协议类型}://${userID}@${host}:443?security=tls&type=${传输协议 + ECHLINK参数}&${域名字段名}=${host}&fp=${config_JSON.Fingerprint}&sni=${host}&${路径字段名}=${encodeURIComponent(传输路径参数值) + TLS分片参数}&encryption=none${config_JSON.ALPN ? '&alpn=' + encodeURIComponent(config_JSON.ALPN) : ''}#${encodeURIComponent(config_JSON.优选订阅生成.SUBNAME)}`;
 	config_JSON.优选订阅生成.TOKEN = await MD5MD5(hostname + userID);
 
 	const 初始化TG_JSON = { BotToken: null, ChatID: null };
