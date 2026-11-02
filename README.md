@@ -165,6 +165,15 @@
    /trojan=1.1.1.1:1234
    ```
 
+- 订阅时指定 `地区`（`region=sg` / `region=us`，或三位机房代码如 `region=nrt`）
+   ```url
+   /sub?token=xxx&region=sg
+   /sub?token=xxx&region=us
+   ```
+   - 节点路径固定使用对应机房的反代IP池（sg→`sin`，us→`lax`），反代失败不再兜底到其他地区；后台已配置 SOCKS5/HTTP 代理时不覆盖。
+   - 同时只下发备注以 `SG` / `US`（即 region 值）开头的节点，如 `ADD.txt` 中的 `1.1.1.1:443#SG-1`；没有匹配的备注时下发全部节点。
+   - 节点 IP 实际落地哪个机房可用 `curl.exe -s --resolve 域名:443:IP https://域名/cdn-cgi/trace` 查看 `colo=`。
+
 ---
 
 ## 💻 客户端适配情况

@@ -348,6 +348,10 @@ export default {
 
 						if (!ua.includes('mozilla')) responseHeaders["Content-Disposition"] = `attachment; filename*=utf-8''${encodeURIComponent(config_JSON.优选订阅生成.SUBNAME)}`;
 						const 协议类型 = ((url.searchParams.has('surge') || ua.includes('surge')) && config_JSON.协议类型 !== 'ss') ? 'tro' + 'jan' : config_JSON.协议类型;
+						// 订阅地区: region=sg/us 或机房代码(如 nrt)，按备注前缀筛选节点，并给节点路径固定对应机房的反代IP池
+						const 地区机房映射 = { sg: 'sin', us: 'lax' }, 地区参数 = (url.searchParams.get('region') || '').trim().toLowerCase();
+						const 订阅地区 = (地区机房映射[地区参数] || /^[a-z]{3}$/.test(地区参数)) ? 地区参数 : '';
+						const 订阅地区反代IP = 订阅地区 ? (`${地区机房映射[订阅地区] || 订阅地区}.${特征码字典[0]}.${特征码字典[1]}SsSs.nEt`).toLowerCase() : '';
 						let 订阅内容 = '';
 						if (订阅类型 === 'mixed') {
 							const TLS分片参数 = config_JSON.TLS分片 == 'Shadowrocket' ? `&fragment=${encodeURIComponent('1,40-60,30-50,tlshello')}` : config_JSON.TLS分片 == 'Happ' ? `&fragment=${encodeURIComponent('3,1,tlshello')}` : '';
@@ -398,6 +402,12 @@ export default {
 								完整优选IP = 完整优选IP.concat(优选生成器IP数组);
 								其他节点LINK += 优选生成器其他节点;
 							}
+							if (订阅地区) {
+								const 地区标签 = 订阅地区.toUpperCase();
+								const 地区节点 = 完整优选IP.filter(地址 => (地址.split('#')[1] || '').trim().toUpperCase().startsWith(地区标签));
+								if (地区节点.length > 0) 完整优选IP = 地区节点;
+							}
+							const 已配置SOCKS5反代 = !!(config_JSON.反代.SOCKS5.启用 && config_JSON.反代.SOCKS5.账号);
 							const ECHLINK参数 = config_JSON.ECH ? `&ech=${encodeURIComponent((config_JSON.ECHConfig.SNI ? config_JSON.ECHConfig.SNI + '+' : '') + config_JSON.ECHConfig.DNS)}` : '';
 							const isLoonOrSurge = ua.includes('loon') || ua.includes('surge');
 							const { type: 传输协议, 路径字段名, 域名字段名 } = 获取传输协议配置(config_JSON);
@@ -434,6 +444,8 @@ export default {
 									} catch (error) {
 										console.warn(`[订阅内容] 链式代理解析失败，已忽略该指令: ${链式代理匹配[0]} (${error && error.message ? error.message : error})`);
 									}
+								} else if (订阅地区反代IP && !已配置SOCKS5反代) {
+									完整节点路径 = (`${config_JSON.PATH}/proxyip=${订阅地区反代IP}`).replace(/\/\//g, '/') + (config_JSON.启用0RTT ? '?ed=2560' : '');
 								} else if (反代IP池.length > 0) {
 									const 匹配到的反代IP = 反代IP池.find(p => p.includes(节点地址));
 									if (匹配到的反代IP) 完整节点路径 = (`${config_JSON.PATH}/proxyip=${匹配到的反代IP}`).replace(/\/\//g, '/') + (config_JSON.启用0RTT ? '?ed=2560' : '');
@@ -455,12 +467,12 @@ export default {
 								}
 							}).filter(item => item !== null).join('\n');
 						} else { // 订阅转换
-							const 订阅转换URL = `${config_JSON.订阅转换配置.SUBAPI}/sub?target=${订阅类型}&url=${encodeURIComponent(url.protocol + '//' + url.host + '/sub?target=mixed&token=' + 今日订阅转换后端专属TOKEN + '&cnIspCode=' + 识别运营商(request) + (url.searchParams.has('sub') && url.searchParams.get('sub') != '' ? `&sub=${url.searchParams.get('sub')}` : ''))}&config=${encodeURIComponent(config_JSON.订阅转换配置.SUBCONFIG)}&emoji=${config_JSON.订阅转换配置.SUBEMOJI}&list=${config_JSON.订阅转换配置.SUBLIST}&scv=${config_JSON.跳过证书验证}&xudp=${config_JSON.订阅转换配置.XUDP}&udp=${config_JSON.订阅转换配置.UDP}&tls13=${config_JSON.订阅转换配置.TLS13}&append_type=${config_JSON.订阅转换配置.APPEND_TYPE}&sort=${config_JSON.订阅转换配置.SORT}&expand=${config_JSON.订阅转换配置.EXPAND}`;
+							const 订阅转换URL = `${config_JSON.订阅转换配置.SUBAPI}/sub?target=${订阅类型}&url=${encodeURIComponent(url.protocol + '//' + url.host + '/sub?target=mixed&token=' + 今日订阅转换后端专属TOKEN + '&cnIspCode=' + 识别运营商(request) + (url.searchParams.has('sub') && url.searchParams.get('sub') != '' ? `&sub=${url.searchParams.get('sub')}` : '') + (订阅地区 ? `&region=${订阅地区}` : ''))}&config=${encodeURIComponent(config_JSON.订阅转换配置.SUBCONFIG)}&emoji=${config_JSON.订阅转换配置.SUBEMOJI}&list=${config_JSON.订阅转换配置.SUBLIST}&scv=${config_JSON.跳过证书验证}&xudp=${config_JSON.订阅转换配置.XUDP}&udp=${config_JSON.订阅转换配置.UDP}&tls13=${config_JSON.订阅转换配置.TLS13}&append_type=${config_JSON.订阅转换配置.APPEND_TYPE}&sort=${config_JSON.订阅转换配置.SORT}&expand=${config_JSON.订阅转换配置.EXPAND}`;
 							try {
 								const response = await fetch(订阅转换URL, { headers: { 'User-Agent': 'Subconverter for ' + 订阅类型 + ' edge' + 'tunnel (https://github.com/' + 特征码字典[1] + '/edge' + 'tunnel) Uid/0x' + 本机标识头 + ' Version/' + EDT_版本号 } });
 								if (response.ok) {
 									订阅内容 = await response.text();
-									if (url.searchParams.has('surge') || ua.includes('surge')) 订阅内容 = Surge订阅配置文件热补丁(订阅内容, url.protocol + '//' + url.host + '/sub?token=' + 订阅TOKEN + '&surge', config_JSON);
+									if (url.searchParams.has('surge') || ua.includes('surge')) 订阅内容 = Surge订阅配置文件热补丁(订阅内容, url.protocol + '//' + url.host + '/sub?token=' + 订阅TOKEN + '&surge' + (订阅地区 ? `&region=${订阅地区}` : ''), config_JSON);
 								} else return new Response('订阅转换后端异常：' + response.statusText, { status: response.status });
 							} catch (error) {
 								return new Response('订阅转换后端异常：' + error.message, { status: 403 });
