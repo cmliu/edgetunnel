@@ -416,6 +416,8 @@ export default {
 									节点地址 = match[1];  // IP地址或域名(可能带方括号)
 									节点端口 = match[2] ? match[2] : '443';  // 端口默认443，SS noTLS在生成链接时再映射
 									节点备注 = match[3] || 节点地址;  // 备注,默认为地址本身
+									// 关闭“显示地区”时，剥离后台优选测速写入的“国家-城市”前缀（其后紧跟面板优选类型）
+									if (!config_JSON.优选订阅生成.显示地区) 节点备注 = 节点备注.replace(/^[\u4e00-\u9fa5]{2,10}(?:-\S{2,20})?\s+(?=(?:电信优选|联通优选|移动优选|官方优选|优选反代))/, '');
 								} else {
 									// 不规范的格式，跳过处理返回null
 									console.warn(`[订阅内容] 不规范的IP格式已忽略: ${原始地址}`);
@@ -5624,6 +5626,7 @@ async function 读取config_JSON(env, hostname, userID, UA = "Mozilla/5.0", 重�
 		Fingerprint: "chrome",
 		优选订阅生成: {
 			local: true, // true: 基于本地的优选地址  false: 优选订阅生成器
+			显示地区: false, // true: 节点名保留后台优选测速写入的“国家-城市”前缀；false: 订阅时剥离
 			本地IP库: {
 				随机IP: true, // 当 随机IP 为true时生效，启用随机IP的数量，否则使用KV内的ADD.txt
 				随机数量: 16,
@@ -5719,6 +5722,7 @@ async function 读取config_JSON(env, hostname, userID, UA = "Mozilla/5.0", 重�
 	if (!config_JSON.订阅转换配置.APPEND_TYPE) config_JSON.订阅转换配置.APPEND_TYPE = false;
 	if (!config_JSON.订阅转换配置.SORT) config_JSON.订阅转换配置.SORT = false;
 	if (typeof config_JSON.订阅转换配置.EXPAND !== 'boolean') config_JSON.订阅转换配置.EXPAND = true;
+	if (config_JSON.优选订阅生成 && typeof config_JSON.优选订阅生成.显示地区 !== 'boolean') config_JSON.优选订阅生成.显示地区 = false;
 	if (!config_JSON.gRPCUserAgent) config_JSON.gRPCUserAgent = UA;
 	config_JSON.HOST = host;
 	if (!config_JSON.HOSTS) config_JSON.HOSTS = [hostname];
