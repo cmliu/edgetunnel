@@ -89,59 +89,66 @@ export default {
 					params.set('token', await MD5MD5(host + userID));
 					return new Response('重定向中...', { status: 302, headers: { 'Location': `/sub?${params.toString()}` } });
 				} else if (访问路径 === 'login') {//处理登录页面和登录请求
-					const cookies = request.headers.get('Cookie') || '';
-					const authCookie = cookies.split(';').find(c => c.trim().startsWith('auth='))?.split('=')[1];
-					if (authCookie == await MD5MD5(UA + 加密秘钥 + 管理员密码)) return new Response('重定向中...', { status: 302, headers: { 'Location': '/admin' } });
+					if (await 验证管理会话(request, env, UA, userIDMD5)) return new Response('重定向中...', { status: 302, headers: { 'Location': '/admin' } });
 					if (request.method === 'POST') {
 						const formData = await request.text();
 						const params = new URLSearchParams(formData);
 						const 输入密码 = params.get('password');
 						if (输入密码 === (typeof 管理员密码 === 'string' ? 管理员密码.replace(/[\r\n]/g, '') : 管理员密码)) {
-							// 密码正确，设置cookie并返回成功标记
+							const 会话令牌 = await 创建管理会话(env, UA, userIDMD5);
 							const 响应 = new Response(JSON.stringify({ success: true }), { status: 200, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
-							响应.headers.set('Set-Cookie', `auth=${await MD5MD5(UA + 加密秘钥 + 管理员密码)}; Path=/; Max-Age=86400; HttpOnly; Secure; SameSite=Lax`);
+							响应.headers.set('Set-Cookie', `auth=${会话令牌}; Path=/; Max-Age=86400; HttpOnly; Secure; SameSite=Lax`);
 							return 响应;
 						}
 					}
 					return fetch(Pages静态页面 + '/login');
-				} else if (访问路径 === 'admin' || 访问路径.startsWith('admin/')) {//验证cookie后响应管理页面
-					const cookies = request.headers.get('Cookie') || '';
-					const authCookie = cookies.split(';').find(c => c.trim().startsWith('auth='))?.split('=')[1];
-					// 没有cookie或cookie错误，跳转到/login页面
-					if (!authCookie || authCookie !== await MD5MD5(UA + 加密秘钥 + 管理员密码)) return new Response('重定向中...', { status: 302, headers: { 'Location': '/login' } });
+				} else if (访问路径 === 'admin' || 访问路径.startsWith('admin/')) {//验证会话后响应管理页面
+					if (!await 验证管理会话(request, env, UA, userIDMD5)) return new Response('重定向中...', { status: 302, headers: { 'Location': '/login' } });
 					if (访问路径 === 'admin/log.json') {// 读取日志内容
 						const 读取日志内容 = await 读取全部日志(env);
 						return new Response(读取日志内容, { status: 200, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
 					} else if (区分大小写访问路径 === 'admin/getCloudflareUsage') {// 查询请求量
+						const JSON响应头 = { 'Content-Type': 'application/json;charset=utf-8' };
+						let Email, GlobalAPIKey, AccountID, APIToken;
+						if (request.method === 'POST' && contentType.includes('application/json')) {
+							let body;
+							try { body = await request.json(); } catch (e) {
+								return new Response(JSON.stringify({ error: '请求体不是合法 JSON' }), { status: 400, headers: JSON响应头 });
+							}
+							if (!body || typeof body !== 'object' || Array.isArray(body)) {
+								return new Response(JSON.stringify({ error: '请求体必须是 JSON 对象' }), { status: 400, headers: JSON响应头 });
+							}
+							const 取字段 = (键) => {
+								const 值 = body[键];
+								if (typeof 值 === 'string') return 值.trim() || undefined;
+								if (typeof 值 === 'number' && Number.isFinite(值)) return String(值);
+								return undefined;
+							};
+							Email = 取字段('Email');
+							GlobalAPIKey = 取字段('GlobalAPIKey');
+							AccountID = 取字段('AccountID');
+							APIToken = 取字段('APIToken');
+						} else {
+							// 兼容旧版面板：忽略 URL 上的凭据参数，只使用 KV 中已保存的配置
+							try {
+								const CF_TXT = await env.KV.get('cf.json');
+								const CF_JSON = CF_TXT ? JSON.parse(CF_TXT) : {};
+								Email = typeof CF_JSON.Email === 'string' ? CF_JSON.Email : undefined;
+								GlobalAPIKey = typeof CF_JSON.GlobalAPIKey === 'string' ? CF_JSON.GlobalAPIKey : undefined;
+								AccountID = typeof CF_JSON.AccountID === 'string' ? CF_JSON.AccountID : undefined;
+								APIToken = typeof CF_JSON.APIToken === 'string' ? CF_JSON.APIToken : undefined;
+							} catch (e) { console.error(`读取cf.json出错: ${e.message}`); }
+						}
+						if (!APIToken && !(Email && GlobalAPIKey)) {
+							return new Response(JSON.stringify({ error: '未配置 Cloudflare 凭据：请通过 POST JSON 提交，或先在面板保存 cf.json' }), { status: 400, headers: JSON响应头 });
+						}
 						try {
-							// 优先从 POST body 读取凭据（避免敏感信息暴露在 URL / 服务器日志中）
-							// 兼容旧版 GET query 参数作为降级方案（已废弃，未来版本将移除）
-							let Email, GlobalAPIKey, AccountID, APIToken;
-							let usingDeprecatedQueryParams = false;
-							if (request.method === 'POST' && (request.headers.get('content-type') || '').includes('application/json')) {
-								try {
-									const body = await request.json();
-									// 统一转换为字符串，防止 GraphQL String! 类型校验失败
-									Email = body.Email != null ? String(body.Email) : undefined;
-									GlobalAPIKey = body.GlobalAPIKey != null ? String(body.GlobalAPIKey) : undefined;
-									AccountID = body.AccountID != null ? String(body.AccountID) : undefined;
-									APIToken = body.APIToken != null ? String(body.APIToken) : undefined;
-								} catch (_) { }
-							}
-							// 降级到 query 参数（已废弃）
-							if (!Email && !GlobalAPIKey && !AccountID && !APIToken) {
-								Email = url.searchParams.get('Email') ?? undefined;
-								GlobalAPIKey = url.searchParams.get('GlobalAPIKey') ?? undefined;
-								AccountID = url.searchParams.get('AccountID') ?? undefined;
-								APIToken = url.searchParams.get('APIToken') ?? undefined;
-								if (Email || GlobalAPIKey || AccountID || APIToken) usingDeprecatedQueryParams = true;
-							}
 							const Usage_JSON = await getCloudflareUsage(Email, GlobalAPIKey, AccountID, APIToken);
-							if (usingDeprecatedQueryParams) Usage_JSON._warning = 'Passing credentials via URL query parameters is deprecated and will be removed in a future version. Please switch to POST with a JSON body.';
+							Usage_JSON._notice = '凭据仅从 POST JSON 或 KV 配置读取，URL 参数已被忽略';
 							return new Response(JSON.stringify(Usage_JSON, null, 2), { status: 200, headers: { 'Content-Type': 'application/json' } });
 						} catch (err) {
 							const errorResponse = { msg: '查询请求量失败，失败原因：' + err.message, error: err.message };
-							return new Response(JSON.stringify(errorResponse, null, 2), { status: 500, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
+							return new Response(JSON.stringify(errorResponse, null, 2), { status: 500, headers: JSON响应头 });
 						}
 					} else if (区分大小写访问路径 === 'admin/getADDAPI') {// 验证优选API
 						if (url.searchParams.get('url')) {
@@ -319,9 +326,10 @@ export default {
 
 					ctx.waitUntil(请求日志记录(env, request, 访问IP, 'Admin_Login', config_JSON));
 					return fetch(Pages静态页面 + '/admin' + url.search);
-				} else if (访问路径 === 'logout' || uuidRegex.test(访问路径)) {//清除cookie并跳转到登录页面
+				} else if (访问路径 === 'logout' || uuidRegex.test(访问路径)) {
+					await 撤销管理会话(request, env);
 					const 响应 = new Response('重定向中...', { status: 302, headers: { 'Location': '/login' } });
-					响应.headers.set('Set-Cookie', 'auth=; Path=/; Max-Age=0; HttpOnly');
+					响应.headers.set('Set-Cookie', 'auth=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax');
 					return 响应;
 				} else if (访问路径 === 'sub') {//处理订阅请求
 					const 订阅TOKEN = await MD5MD5(host + userID), 作为优选订阅生成器 = ['1', 'true'].includes(env.BEST_SUB) && url.searchParams.get('host') === 'example.com' && url.searchParams.get('uuid') === '00000000-0000-4000-8000-000000000000' && UA.toLowerCase().includes('tunnel (https://github.com/' + 特征码字典[1] + '/edge');
@@ -519,9 +527,7 @@ export default {
 						return new Response(订阅内容, { status: 200, headers: responseHeaders });
 					}
 				} else if (访问路径 === 'locations') {//反代locations列表
-					const cookies = request.headers.get('Cookie') || '';
-					const authCookie = cookies.split(';').find(c => c.trim().startsWith('auth='))?.split('=')[1];
-					if (authCookie && authCookie == await MD5MD5(UA + 加密秘钥 + 管理员密码)) return fetch(new Request('https://speed.cloudflare.com/locations', { headers: { 'Referer': 'https://speed.cloudflare.com/' } }));
+					if (await 验证管理会话(request, env, UA, userIDMD5)) return fetch(new Request('https://speed.cloudflare.com/locations', { headers: { 'Referer': 'https://speed.cloudflare.com/' } }));
 				} else if (访问路径 === 'robots.txt') return new Response('User-agent: *\nDisallow: /', { status: 200, headers: { 'Content-Type': 'text/plain; charset=UTF-8' } });
 			} else if (!envUUID) return fetch(Pages静态页面 + '/noKV').then(r => { const headers = new Headers(r.headers); headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate'); headers.set('Pragma', 'no-cache'); headers.set('Expires', '0'); return new Response(r.body, { status: 404, statusText: r.statusText, headers }) });
 		}
@@ -5367,6 +5373,42 @@ function Surge订阅配置文件热补丁(content, url, config_JSON) {
 	return 输出内容;
 }
 
+const 管理会话有效期 = 24 * 60 * 60;
+
+function 读取authCookie(request) {
+	const cookies = request.headers.get('Cookie') || '';
+	const 项 = cookies.split(';').map(c => c.trim()).find(c => c.startsWith('auth='));
+	return 项 ? 项.slice(5) : null;
+}
+
+async function 创建管理会话(env, UA, 凭据指纹) {
+	const 随机字节 = crypto.getRandomValues(new Uint8Array(32));
+	const 会话令牌 = Array.from(随机字节, b => b.toString(16).padStart(2, '0')).join('');
+	await env.KV.put(`auth:${会话令牌}`, JSON.stringify({ UA, 指纹: 凭据指纹, 过期时间: Date.now() + 管理会话有效期 * 1000 }), { expirationTtl: 管理会话有效期 });
+	return 会话令牌;
+}
+
+async function 验证管理会话(request, env, UA, 凭据指纹) {
+	const 会话令牌 = 读取authCookie(request);
+	if (!会话令牌 || !/^[0-9a-f]{64}$/i.test(会话令牌)) return false;
+	try {
+		const 会话文本 = await env.KV.get(`auth:${会话令牌}`);
+		if (!会话文本) return false;
+		const 会话 = JSON.parse(会话文本);
+		if (会话.指纹 !== 凭据指纹 || 会话.UA !== UA || !(会话.过期时间 > Date.now())) {
+			await env.KV.delete(`auth:${会话令牌}`);
+			return false;
+		}
+		return true;
+	} catch (e) { return false; }
+}
+
+async function 撤销管理会话(request, env) {
+	const 会话令牌 = 读取authCookie(request);
+	if (!会话令牌 || !/^[0-9a-f]{64}$/i.test(会话令牌)) return;
+	try { await env.KV.delete(`auth:${会话令牌}`); } catch (e) { console.error(`撤销会话失败: ${e.message}`); }
+}
+
 const 日志写入队列 = new Map(), 日志最大条数 = 500;
 
 async function 读取全部日志(env) {
@@ -6449,17 +6491,16 @@ async function getCloudflareUsage(Email, GlobalAPIKey, AccountID, APIToken) {
 	const cfg = { "Content-Type": "application/json" };
 
 	try {
-		if (!AccountID && (!Email || !GlobalAPIKey)) return { success: false, pages: 0, workers: 0, total: 0, max: 100000 };
+		if (!(APIToken || (Email && GlobalAPIKey))) return { success: false, pages: 0, workers: 0, total: 0, max: 100000, error: '凭据不完整：需要 APIToken 或 Email + GlobalAPIKey' };
 
 		if (!AccountID) {
-			const r = await fetch(`${API}/accounts`, {
-				method: "GET",
-				headers: { ...cfg, "X-AUTH-EMAIL": Email, "X-AUTH-KEY": GlobalAPIKey }
-			});
+			const 账户请求头 = APIToken ? { ...cfg, "Authorization": `Bearer ${APIToken}` } : { ...cfg, "X-AUTH-EMAIL": Email, "X-AUTH-KEY": GlobalAPIKey };
+			const r = await fetch(`${API}/accounts`, { method: "GET", headers: 账户请求头 });
 			if (!r.ok) throw new Error(`账户获取失败: ${r.status}`);
 			const d = await r.json();
 			if (!d?.result?.length) throw new Error("未找到账户");
-			const idx = d.result.findIndex(a => a.name?.toLowerCase().startsWith(Email.toLowerCase()));
+			const 账户名前缀 = typeof Email === 'string' && Email ? Email.toLowerCase() : '';
+			const idx = 账户名前缀 ? d.result.findIndex(a => a.name?.toLowerCase().startsWith(账户名前缀)) : 0;
 			AccountID = d.result[idx >= 0 ? idx : 0]?.id;
 		}
 
