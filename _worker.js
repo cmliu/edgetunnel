@@ -1,5 +1,21 @@
 ﻿const Version = '2026-10-08 22:23:27';
 const textEncoder = new TextEncoder(), textDecoder = new TextDecoder();
+const JSON响应头 = { 'Content-Type': 'application/json;charset=utf-8' };
+
+function 解析16字节IPv6(data, offset) {
+	const 段 = [];
+	for (let i = 0; i < 8; i++) 段.push(((data[offset + i * 2] << 8) | data[offset + i * 2 + 1]).toString(16));
+	return 段.join(':');
+}
+
+function 构造CONNECT请求(targetHost, targetPort, username, password) {
+	const auth = username && password ? `Proxy-Authorization: Basic ${btoa(`${username}:${password}`)}\r\n` : '';
+	return `CONNECT ${targetHost}:${targetPort} HTTP/1.1\r\nHost: ${targetHost}:${targetPort}\r\n${auth}User-Agent: Mozilla/5.0\r\nConnection: keep-alive\r\n\r\n`;
+}
+
+function 查找CRLFCRLF(bytes) {
+	return bytes.findIndex((_, i) => i < bytes.length - 3 && bytes[i] === 0x0d && bytes[i + 1] === 0x0a && bytes[i + 2] === 0x0d && bytes[i + 3] === 0x0a);
+}
 
 function 字节转十六进制(bytes) {
 	const 视图 = bytes instanceof Uint8Array ? bytes : Uint8Array.from(bytes);
@@ -97,7 +113,7 @@ export default {
 					const 目标码 = 目标UUID.charCodeAt(i);
 					目标前8总和 += 目标码 <= 57 ? 目标码 - 48 : 目标码 - 87;
 				}
-				if (请求前8总和 === 目标前8总和 && 请求UUID.slice(-12) === 目标UUID.slice(-12)) return new Response(JSON.stringify({ Version: EDT_版本号 }), { status: 200, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
+				if (请求前8总和 === 目标前8总和 && 请求UUID.slice(-12) === 目标UUID.slice(-12)) return new Response(JSON.stringify({ Version: EDT_版本号 }), { status: 200, headers: JSON响应头 });
 			}
 		} else if (管理员密码 && upgradeHeader === 'websocket') {// WebSocket代理
 			const 反代上下文 = await 反代参数获取(url, userID, 默认反代IP, 默认反代兜底);
@@ -129,7 +145,7 @@ export default {
 						const 输入密码 = params.get('password');
 						if (输入密码 === (typeof 管理员密码 === 'string' ? 管理员密码.replace(/[\r\n]/g, '') : 管理员密码)) {
 							const 会话令牌 = await 创建管理会话(env, UA, userIDMD5);
-							const 响应 = new Response(JSON.stringify({ success: true }), { status: 200, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
+							const 响应 = new Response(JSON.stringify({ success: true }), { status: 200, headers: JSON响应头 });
 							响应.headers.set('Set-Cookie', `auth=${会话令牌}; Path=/; Max-Age=86400; HttpOnly; Secure; SameSite=Lax`);
 							return 响应;
 						}
@@ -139,9 +155,9 @@ export default {
 					if (!await 验证管理会话(request, env, UA, userIDMD5)) return new Response('重定向中...', { status: 302, headers: { 'Location': '/login' } });
 					if (访问路径 === 'admin/log.json') {// 读取日志内容
 						const 读取日志内容 = await 读取全部日志(env);
-						return new Response(读取日志内容, { status: 200, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
+						return new Response(读取日志内容, { status: 200, headers: JSON响应头 });
 					} else if (区分大小写访问路径 === 'admin/getCloudflareUsage') {// 查询请求量
-						const JSON响应头 = { 'Content-Type': 'application/json;charset=utf-8' };
+
 						let Email, GlobalAPIKey, AccountID, APIToken;
 						if (request.method === 'POST' && contentType.includes('application/json')) {
 							let body;
@@ -191,16 +207,16 @@ export default {
 								const 请求优选API内容 = await 请求优选API([待验证优选URL], url.searchParams.get('port') || '443', 本机标识头);
 								let 优选API的IP = 请求优选API内容[0].length > 0 ? 请求优选API内容[0] : 请求优选API内容[1];
 								优选API的IP = 优选API的IP.map(item => item.replace(/#(.+)$/, (_, remark) => '#' + decodeURIComponent(remark)));
-								return new Response(JSON.stringify({ success: true, data: 优选API的IP }, null, 2), { status: 200, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
+								return new Response(JSON.stringify({ success: true, data: 优选API的IP }, null, 2), { status: 200, headers: JSON响应头 });
 							} catch (err) {
 								const errorResponse = { msg: '验证优选API失败，失败原因：' + err.message, error: err.message };
-								return new Response(JSON.stringify(errorResponse, null, 2), { status: 500, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
+								return new Response(JSON.stringify(errorResponse, null, 2), { status: 500, headers: JSON响应头 });
 							}
 						}
-						return new Response(JSON.stringify({ success: false, data: [] }, null, 2), { status: 403, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
+						return new Response(JSON.stringify({ success: false, data: [] }, null, 2), { status: 403, headers: JSON响应头 });
 					} else if (访问路径 === 'admin/check') {// 代理检查
 						const 代理协议 = ['socks5', 'http', 'https', 'turn', 'sstp'].find(类型 => url.searchParams.has(类型)) || null;
-						if (!代理协议) return new Response(JSON.stringify({ error: '缺少代理参数' }), { status: 400, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
+						if (!代理协议) return new Response(JSON.stringify({ error: '缺少代理参数' }), { status: 400, headers: JSON响应头 });
 						const 代理参数 = url.searchParams.get(代理协议);
 						const startTime = Date.now();
 						let 检测代理响应;
@@ -234,7 +250,7 @@ export default {
 										if (value.byteLength === 0) continue;
 										responseBuffer = 拼接字节数据(responseBuffer, value);
 										if (headerEndIndex === -1) {
-											const crlfcrlf = responseBuffer.findIndex((_, i) => i < responseBuffer.length - 3 && responseBuffer[i] === 0x0d && responseBuffer[i + 1] === 0x0a && responseBuffer[i + 2] === 0x0d && responseBuffer[i + 3] === 0x0a);
+											const crlfcrlf = 查找CRLFCRLF(responseBuffer);
 											if (crlfcrlf !== -1) {
 												headerEndIndex = crlfcrlf + 4;
 												const headers = decoder.decode(responseBuffer.slice(0, headerEndIndex));
@@ -265,10 +281,10 @@ export default {
 						} catch (err) {
 							检测代理响应 = { success: false, error: err.message, proxy: 代理协议 + "://" + 代理参数, responseTime: Date.now() - startTime };
 						}
-						return new Response(JSON.stringify(检测代理响应, null, 2), { status: 200, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
+						return new Response(JSON.stringify(检测代理响应, null, 2), { status: 200, headers: JSON响应头 });
 					}
 
-					if (区分大小写访问路径 === 'admin/cf.json' && request.method !== 'POST') return new Response(JSON.stringify(request.cf, null, 2), { status: 200, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
+					if (区分大小写访问路径 === 'admin/cf.json' && request.method !== 'POST') return new Response(JSON.stringify(request.cf, null, 2), { status: 200, headers: JSON响应头 });
 					const 是否重置配置 = 访问路径 === 'admin/init';
 					config_JSON = await 读取config_JSON(env, host, userID, UA, 是否重置配置);
 
@@ -276,25 +292,25 @@ export default {
 						try {
 							ctx.waitUntil(请求日志记录(env, request, 访问IP, 'Init_Config', config_JSON));
 							config_JSON.init = '配置已重置为默认值';
-							return new Response(JSON.stringify(config_JSON, null, 2), { status: 200, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
+							return new Response(JSON.stringify(config_JSON, null, 2), { status: 200, headers: JSON响应头 });
 						} catch (err) {
 							const errorResponse = { msg: '配置重置失败，失败原因：' + err.message, error: err.message };
-							return new Response(JSON.stringify(errorResponse, null, 2), { status: 500, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
+							return new Response(JSON.stringify(errorResponse, null, 2), { status: 500, headers: JSON响应头 });
 						}
 					} else if (request.method === 'POST') {// 处理 KV 操作（POST 请求）
 						if (访问路径 === 'admin/config.json') { // 保存config.json配置
 							try {
 								const newConfig = await request.json();
 								// 验证配置完整性
-								if (!newConfig.UUID || !newConfig.HOST) return new Response(JSON.stringify({ error: '配置不完整' }), { status: 400, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
+								if (!newConfig.UUID || !newConfig.HOST) return new Response(JSON.stringify({ error: '配置不完整' }), { status: 400, headers: JSON响应头 });
 
 								// 保存到 KV
 								await env.KV.put('config.json', JSON.stringify(newConfig, null, 2));
 								ctx.waitUntil(请求日志记录(env, request, 访问IP, 'Save_Config', config_JSON));
-								return new Response(JSON.stringify({ success: true, message: '配置已保存' }), { status: 200, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
+								return new Response(JSON.stringify({ success: true, message: '配置已保存' }), { status: 200, headers: JSON响应头 });
 							} catch (error) {
 								console.error('保存配置失败:', error);
-								return new Response(JSON.stringify({ error: '保存配置失败: ' + error.message }), { status: 500, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
+								return new Response(JSON.stringify({ error: '保存配置失败: ' + error.message }), { status: 500, headers: JSON响应头 });
 							}
 						} else if (访问路径 === 'admin/cf.json') { // 保存cf.json配置
 							try {
@@ -310,17 +326,17 @@ export default {
 									} else if (newConfig.UsageAPI) {
 										CF_JSON.UsageAPI = newConfig.UsageAPI;
 									} else {
-										return new Response(JSON.stringify({ error: '配置不完整' }), { status: 400, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
+										return new Response(JSON.stringify({ error: '配置不完整' }), { status: 400, headers: JSON响应头 });
 									}
 								}
 
 								// 保存到 KV
 								await env.KV.put('cf.json', JSON.stringify(CF_JSON, null, 2));
 								ctx.waitUntil(请求日志记录(env, request, 访问IP, 'Save_Config', config_JSON));
-								return new Response(JSON.stringify({ success: true, message: '配置已保存' }), { status: 200, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
+								return new Response(JSON.stringify({ success: true, message: '配置已保存' }), { status: 200, headers: JSON响应头 });
 							} catch (error) {
 								console.error('保存配置失败:', error);
-								return new Response(JSON.stringify({ error: '保存配置失败: ' + error.message }), { status: 500, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
+								return new Response(JSON.stringify({ error: '保存配置失败: ' + error.message }), { status: 500, headers: JSON响应头 });
 							}
 						} else if (访问路径 === 'admin/tg.json') { // 保存tg.json配置
 							try {
@@ -329,26 +345,26 @@ export default {
 									const TG_JSON = { BotToken: null, ChatID: null };
 									await env.KV.put('tg.json', JSON.stringify(TG_JSON, null, 2));
 								} else {
-									if (!newConfig.BotToken || !newConfig.ChatID) return new Response(JSON.stringify({ error: '配置不完整' }), { status: 400, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
+									if (!newConfig.BotToken || !newConfig.ChatID) return new Response(JSON.stringify({ error: '配置不完整' }), { status: 400, headers: JSON响应头 });
 									await env.KV.put('tg.json', JSON.stringify(newConfig, null, 2));
 								}
 								ctx.waitUntil(请求日志记录(env, request, 访问IP, 'Save_Config', config_JSON));
-								return new Response(JSON.stringify({ success: true, message: '配置已保存' }), { status: 200, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
+								return new Response(JSON.stringify({ success: true, message: '配置已保存' }), { status: 200, headers: JSON响应头 });
 							} catch (error) {
 								console.error('保存配置失败:', error);
-								return new Response(JSON.stringify({ error: '保存配置失败: ' + error.message }), { status: 500, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
+								return new Response(JSON.stringify({ error: '保存配置失败: ' + error.message }), { status: 500, headers: JSON响应头 });
 							}
 						} else if (区分大小写访问路径 === 'admin/ADD.txt') { // 保存自定义优选IP
 							try {
 								const customIPs = await request.text();
 								await env.KV.put('ADD.txt', customIPs);// 保存到 KV
 								ctx.waitUntil(请求日志记录(env, request, 访问IP, 'Save_Custom_IPs', config_JSON));
-								return new Response(JSON.stringify({ success: true, message: '自定义IP已保存' }), { status: 200, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
+								return new Response(JSON.stringify({ success: true, message: '自定义IP已保存' }), { status: 200, headers: JSON响应头 });
 							} catch (error) {
 								console.error('保存自定义IP失败:', error);
-								return new Response(JSON.stringify({ error: '保存自定义IP失败: ' + error.message }), { status: 500, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
+								return new Response(JSON.stringify({ error: '保存自定义IP失败: ' + error.message }), { status: 500, headers: JSON响应头 });
 							}
-						} else return new Response(JSON.stringify({ error: '不支持的POST请求路径' }), { status: 404, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
+						} else return new Response(JSON.stringify({ error: '不支持的POST请求路径' }), { status: 404, headers: JSON响应头 });
 					} else if (访问路径 === 'admin/config.json') {// 处理 admin/config.json 请求，返回JSON
 						return new Response(JSON.stringify(config_JSON, null, 2), { status: 200, headers: { 'Content-Type': 'application/json' } });
 					} else if (区分大小写访问路径 === 'admin/ADD.txt') {// 处理 admin/ADD.txt 请求，返回本地优选IP
@@ -915,12 +931,7 @@ async function 读取叉HTTP首包(reader, token) {
 			headerLen = addressIndex + 1 + domainLen;
 		} else if (addressType === 3) {
 			if (length < addressIndex + 16) return { 状态: 'need_more' };
-			const ipv6 = [];
-			for (let i = 0; i < 8; i++) {
-				const base = addressIndex + i * 2;
-				ipv6.push(((data[base] << 8) | data[base + 1]).toString(16));
-			}
-			hostname = ipv6.join(':');
+			hostname = 解析16字节IPv6(data, addressIndex);
 			headerLen = addressIndex + 16;
 		} else return { 状态: 'invalid' };
 
@@ -972,12 +983,7 @@ async function 读取叉HTTP首包(reader, token) {
 			cursor += 1 + domainLen;
 		} else if (atype === 4) {
 			if (length < cursor + 16) return { 状态: 'need_more' };
-			const ipv6 = [];
-			for (let i = 0; i < 8; i++) {
-				const base = cursor + i * 2;
-				ipv6.push(((data[base] << 8) | data[base + 1]).toString(16));
-			}
-			hostname = ipv6.join(':');
+			hostname = 解析16字节IPv6(data, cursor);
 			cursor += 16;
 		} else return { 状态: 'invalid' };
 
@@ -1672,10 +1678,7 @@ async function 处理WS请求(request, yourUUID, url, 反代上下文 = {}) {
 				cursor += domainLength;
 			} else if (addressType === 4) {
 				if (明文数据.byteLength < cursor + 16 + 2) throw new Error('invalid ss ipv6 length');
-				const ipv6 = [];
-				const ipv6View = new DataView(明文数据.buffer, 明文数据.byteOffset + cursor, 16);
-				for (let i = 0; i < 8; i++) ipv6.push(ipv6View.getUint16(i * 2).toString(16));
-				hostname = ipv6.join(':');
+				hostname = 解析16字节IPv6(明文数据, cursor);
 				cursor += 16;
 			} else {
 				throw new Error(`invalid ss addressType: ${addressType}`);
@@ -1955,12 +1958,7 @@ function 解析木马请求(buffer, passwordPlainText) {
 		case 4: // IPv6
 			addressLength = 16;
 			if (data.byteLength < addressIndex + addressLength + 4) return { hasError: true, message: "invalid S5 request data" };
-			const ipv6 = [];
-			for (let i = 0; i < 8; i++) {
-				const partIndex = addressIndex + i * 2;
-				ipv6.push(((data[partIndex] << 8) | data[partIndex + 1]).toString(16));
-			}
-			address = ipv6.join(":");
+			address = 解析16字节IPv6(data, addressIndex);
 			break;
 		default:
 			return { hasError: true, message: `invalid addressType is ${atype}` };
@@ -2047,12 +2045,7 @@ function 解析魏烈思请求(chunk, token) {
 		case 3:
 			addrLen = 16;
 			if (length < addrValIdx + addrLen) return { hasError: true, message: 'Invalid IPv6 address length' };
-			const ipv6 = [];
-			for (let i = 0; i < 8; i++) {
-				const base = addrValIdx + i * 2;
-				ipv6.push(((data[base] << 8) | data[base + 1]).toString(16));
-			}
-			hostname = ipv6.join(':');
+			hostname = 解析16字节IPv6(data, addrValIdx);
 			break;
 		default:
 			return { hasError: true, message: `Invalid address type: ${addressType}` };
@@ -2265,10 +2258,7 @@ async function forwardataTCP(host, portNum, rawData, ws, respHeader, remoteConnW
 	};
 
 	async function 等待连接建立(remoteSock, timeoutMs = 连接超时毫秒) {
-		await Promise.race([
-			remoteSock.opened,
-			new Promise((_, reject) => setTimeout(() => reject(new Error('连接超时')), timeoutMs))
-		]);
+		await withTimeout(remoteSock.opened, timeoutMs, '连接超时');
 	}
 
 	async function 打开TCP连接(address, port) {
@@ -3229,8 +3219,7 @@ async function httpConnect(targetHost, targetPort, initialData, HTTPS代理 = fa
 	try {
 		if (HTTPS代理) await socket.opened;
 
-		const auth = username && password ? `Proxy-Authorization: Basic ${btoa(`${username}:${password}`)}\r\n` : '';
-		const request = `CONNECT ${targetHost}:${targetPort} HTTP/1.1\r\nHost: ${targetHost}:${targetPort}\r\n${auth}User-Agent: Mozilla/5.0\r\nConnection: keep-alive\r\n\r\n`;
+		const request = 构造CONNECT请求(targetHost, targetPort, username, password);
 		await writer.write(encoder.encode(request));
 		writer.releaseLock();
 
@@ -3238,9 +3227,9 @@ async function httpConnect(targetHost, targetPort, initialData, HTTPS代理 = fa
 		while (headerEndIndex === -1 && bytesRead < 8192) {
 			const { done, value } = await reader.read();
 			if (done || !value) throw new Error(`${HTTPS代理 ? 'HTTPS' : 'HTTP'} 代理在返回 CONNECT 响应前关闭连接`);
-			responseBuffer = new Uint8Array([...responseBuffer, ...value]);
+			responseBuffer = 拼接字节数据(responseBuffer, value);
 			bytesRead = responseBuffer.length;
-			const crlfcrlf = responseBuffer.findIndex((_, i) => i < responseBuffer.length - 3 && responseBuffer[i] === 0x0d && responseBuffer[i + 1] === 0x0a && responseBuffer[i + 2] === 0x0d && responseBuffer[i + 3] === 0x0a);
+			const crlfcrlf = 查找CRLFCRLF(responseBuffer);
 			if (crlfcrlf !== -1) headerEndIndex = crlfcrlf + 4;
 		}
 
@@ -3304,8 +3293,7 @@ async function httpsConnect(targetHost, targetPort, initialData, TCP连接, pars
 			tlsSocket = await 打开HTTPS代理TLS(true);
 		}
 
-		const auth = username && password ? `Proxy-Authorization: Basic ${btoa(`${username}:${password}`)}\r\n` : '';
-		const request = `CONNECT ${targetHost}:${targetPort} HTTP/1.1\r\nHost: ${targetHost}:${targetPort}\r\n${auth}User-Agent: Mozilla/5.0\r\nConnection: keep-alive\r\n\r\n`;
+		const request = 构造CONNECT请求(targetHost, targetPort, username, password);
 		await tlsSocket.write(encoder.encode(request));
 
 		let responseBuffer = new Uint8Array(0), headerEndIndex = -1, bytesRead = 0;
@@ -3314,7 +3302,7 @@ async function httpsConnect(targetHost, targetPort, initialData, TCP连接, pars
 			if (!value) throw new Error('HTTPS 代理在返回 CONNECT 响应前关闭连接');
 			responseBuffer = 拼接字节数据(responseBuffer, value);
 			bytesRead = responseBuffer.length;
-			const crlfcrlf = responseBuffer.findIndex((_, i) => i < responseBuffer.length - 3 && responseBuffer[i] === 0x0d && responseBuffer[i + 1] === 0x0a && responseBuffer[i + 2] === 0x0d && responseBuffer[i + 3] === 0x0a);
+			const crlfcrlf = 查找CRLFCRLF(responseBuffer);
 			if (crlfcrlf !== -1) headerEndIndex = crlfcrlf + 4;
 		}
 
@@ -3419,14 +3407,7 @@ const tlsBytes = (...parts) => {
 const uint16be = value => [value >> 8 & 255, 255 & value];
 const readUint16 = (buffer, offset) => buffer[offset] << 8 | buffer[offset + 1];
 const readUint24 = (buffer, offset) => buffer[offset] << 16 | buffer[offset + 1] << 8 | buffer[offset + 2];
-const concatBytes = (...chunks) => {
-	const nonEmptyChunks = chunks.filter((chunk => chunk && chunk.length > 0)),
-		length = nonEmptyChunks.reduce(((total, chunk) => total + chunk.length), 0),
-		result = new Uint8Array(length);
-	let offset = 0;
-	for (const chunk of nonEmptyChunks) result.set(chunk, offset), offset += chunk.length;
-	return result
-};
+const concatBytes = 拼接字节数据;
 const randomBytes = length => crypto.getRandomValues(new Uint8Array(length));
 const constantTimeEqual = (left, right) => {
 	if (!left || !right || left.length !== right.length) return !1;
@@ -3744,7 +3725,7 @@ class TlsClient {
 	recordHandshake(chunk) { this.handshakeChunks.push(chunk) }
 	transcript() { return 1 === this.handshakeChunks.length ? this.handshakeChunks[0] : concatBytes(...this.handshakeChunks) }
 	getCipherConfig(cipherSuite) { return CIPHER_SUITES_BY_ID.get(cipherSuite) || null }
-	async readChunk(reader) { return this.timeout ? Promise.race([reader.read(), new Promise(((resolve, reject) => setTimeout((() => reject(new Error("TLS read timeout"))), this.timeout)))]) : reader.read() }
+	async readChunk(reader) { return this.timeout ? withTimeout(reader.read(), this.timeout, 'TLS read timeout') : reader.read() }
 	async readRecordsUntil(reader, predicate, closedError) {
 		for (; ;) {
 			let record;
@@ -5892,28 +5873,12 @@ async function 读取config_JSON(env, hostname, userID, UA = "Mozilla/5.0", 重�
 	}
 	if (配置错误信息) config_JSON.配置错误 = 配置错误信息;
 
-	if (!config_JSON.订阅转换配置.SUBLIST) config_JSON.订阅转换配置.SUBLIST = false;
-	if (!config_JSON.订阅转换配置.UDP) config_JSON.订阅转换配置.UDP = false;
-	if (!config_JSON.订阅转换配置.XUDP) config_JSON.订阅转换配置.XUDP = false;
-	if (!config_JSON.订阅转换配置.TLS13) config_JSON.订阅转换配置.TLS13 = false;
-	if (!config_JSON.订阅转换配置.APPEND_TYPE) config_JSON.订阅转换配置.APPEND_TYPE = false;
-	if (!config_JSON.订阅转换配置.SORT) config_JSON.订阅转换配置.SORT = false;
-	if (typeof config_JSON.订阅转换配置.EXPAND !== 'boolean') config_JSON.订阅转换配置.EXPAND = true;
-	if (typeof config_JSON.优选订阅生成.显示地区 !== 'boolean') config_JSON.优选订阅生成.显示地区 = false;
-	if (!config_JSON.gRPCUserAgent) config_JSON.gRPCUserAgent = UA;
 	config_JSON.HOST = host;
-	if (!config_JSON.HOSTS) config_JSON.HOSTS = [hostname];
 	if (env.HOST) config_JSON.HOSTS = (await 整理成数组(env.HOST)).map(h => h.toLowerCase().replace(/^https?:\/\//, '').split('/')[0].split(':')[0]);
 	config_JSON.UUID = userID;
-	if (!config_JSON.随机路径) config_JSON.随机路径 = false;
-	if (!config_JSON.启用0RTT) config_JSON.启用0RTT = false;
 
 	if (env.PATH) config_JSON.PATH = env.PATH.startsWith('/') ? env.PATH : '/' + env.PATH;
 	else if (!config_JSON.PATH) config_JSON.PATH = '/';
-	if (!config_JSON.ALPN) config_JSON.ALPN = "";
-
-	if (!config_JSON.gRPC模式) config_JSON.gRPC模式 = 'gun';
-	if (!config_JSON.SS) config_JSON.SS = { 加密方式: "aes-128-gcm", TLS: false };
 
 	if (!config_JSON.反代.路径模板?.[_p]) {
 		config_JSON.反代.路径模板 = {
@@ -6747,7 +6712,7 @@ async function nginx() {
 async function html1101(host, 访问IP) {
 	const now = new Date();
 	const 格式化时间戳 = now.toISOString().slice(0, 19).replace('T', ' ');
-	const 随机字符串 = 字节转十六进制(crypto.getRandomValues(new Uint8Array(8)));
+	const 随机字符串 = Array.from(crypto.getRandomValues(new Uint8Array(8))).map(b => b.toString(16).padStart(2, '0')).join('');
 
 	return `<!DOCTYPE html>
 <!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
