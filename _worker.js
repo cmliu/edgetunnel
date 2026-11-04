@@ -1329,8 +1329,7 @@ function 解码WS早期数据(header, token) {
 		} catch (_) {
 			return null;
 		}
-		bytes = new Uint8Array(binaryString.length);
-		for (let i = 0; i < binaryString.length; i++) bytes[i] = binaryString.charCodeAt(i);
+		bytes = Uint8Array.from(binaryString, c => c.charCodeAt(0));
 	}
 
 	if (bytes.byteLength > WS早期数据最大字节) throw new Error('early data is too large');
@@ -4815,12 +4814,7 @@ function base64SecretEncode(plaintext, secret) {
 		mixed[i] = data[i] ^ key[i % key.length];
 	}
 
-	// 将 Uint8Array 转换为可被 btoa 处理的字符串
-	let binary = '';
-	for (let i = 0; i < mixed.length; i++) {
-		binary += String.fromCharCode(mixed[i]);
-	}
-	return btoa(binary);
+	return btoa(Array.from(mixed, b => String.fromCharCode(b)).join(''));
 }
 
 /**
@@ -4830,11 +4824,7 @@ function base64SecretEncode(plaintext, secret) {
  * @returns {string} 解码后的原始明文字符串
  */
 function base64SecretDecode(encoded, secret) {
-	const binary = atob(encoded);
-	const mixed = new Uint8Array(binary.length);
-	for (let i = 0; i < binary.length; i++) {
-		mixed[i] = binary.charCodeAt(i);
-	}
+	const mixed = Uint8Array.from(atob(encoded), c => c.charCodeAt(0));
 
 	const encoder = textEncoder;
 	const key = encoder.encode(secret);
@@ -4868,7 +4858,7 @@ function 获取传输协议配置(配置 = {}) {
 function 获取传输路径参数值(配置 = {}, 节点路径 = '/', 作为优选订阅生成器 = false) {
 	const 路径值 = 作为优选订阅生成器 ? '/' : (配置.随机路径 ? 随机路径(节点路径) : 节点路径);
 	if (配置.传输协议 !== 'grpc') return 路径值;
-	return 路径值.split('?')[0] || '/';
+	return new URL(路径值, 'http://x.invalid').pathname || '/';
 }
 
 function log(...args) {
@@ -6757,7 +6747,7 @@ async function nginx() {
 
 async function html1101(host, 访问IP) {
 	const now = new Date();
-	const 格式化时间戳 = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0') + ' ' + String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0') + ':' + String(now.getSeconds()).padStart(2, '0');
+	const 格式化时间戳 = now.toISOString().slice(0, 19).replace('T', ' ');
 	const 随机字符串 = Array.from(crypto.getRandomValues(new Uint8Array(8))).map(b => b.toString(16).padStart(2, '0')).join('');
 
 	return `<!DOCTYPE html>
