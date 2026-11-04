@@ -1,5 +1,24 @@
 ﻿const Version = '2026-10-08 22:23:27';
 const textEncoder = new TextEncoder(), textDecoder = new TextDecoder();
+
+function 安全随机整数(上限) {
+	if (!Number.isInteger(上限) || 上限 <= 0) return 0;
+	const 上限值 = Math.min(上限, 0x100000000);
+	const 取值范围 = 0x100000000 - (0x100000000 % 上限值);
+	const 随机数组 = new Uint32Array(1);
+	let 值;
+	do { crypto.getRandomValues(随机数组); 值 = 随机数组[0]; } while (值 >= 取值范围);
+	return 值 % 上限值;
+}
+
+function 安全洗牌(数组) {
+	const 副本 = Array.from(数组);
+	for (let i = 副本.length - 1; i > 0; i--) {
+		const j = 安全随机整数(i + 1);
+		[副本[i], 副本[j]] = [副本[j], 副本[i]];
+	}
+	return 副本;
+}
 let config_JSON, 缓存SOCKS5白名单 = null, 调试日志打印 = false;
 let SOCKS5白名单 = ['*tapecontent.net', '*cloudatacdn.com', '*loadshare.org', '*cdn-centaurus.com', 'scholar.google.com'];
 const Pages静态页面 = 'https://edt-pages.github.io', EDT_版本号 = Number(String(Version).replace(/\D+/g, ''));
@@ -45,7 +64,7 @@ export default {
 		let 默认反代IP = (`${request.cf.colo}.${特征码字典[0]}.${特征码字典[1]}SsSs.nEt`).toLowerCase(), 默认反代兜底 = true;
 		if (env.PROXYIP) {
 			const proxyIPs = await 整理成数组(env.PROXYIP);
-			默认反代IP = proxyIPs[Math.floor(Math.random() * proxyIPs.length)];
+			默认反代IP = proxyIPs[安全随机整数(proxyIPs.length)];
 			默认反代兜底 = false;
 		};
 		const 访问IP = request.headers.get('CF-Connecting-IP') || request.headers.get('True-Client-IP') || request.headers.get('X-Real-IP') || request.headers.get('X-Forwarded-For') || request.headers.get('Fly-Client-IP') || request.headers.get('X-Appengine-Remote-Addr') || request.headers.get('X-Cluster-Client-IP') || '未知IP';
@@ -501,7 +520,7 @@ export default {
 						}
 
 						if (!ua.includes('subconverter') && 用户客户端请求订阅) {
-							const 打乱后HOSTS = [...config_JSON.HOSTS].sort(() => Math.random() - 0.5);
+							const 打乱后HOSTS = 安全洗牌(config_JSON.HOSTS);
 							let 替换域名计数 = 0, 当前随机HOST = null;
 							订阅内容 = 订阅内容
 								.replace(/00000000-0000-4000-8000-000000000000/g, config_JSON.UUID)
@@ -619,7 +638,7 @@ function 生成叉HTTPPadding串(长度) {
 	const 字符集长度 = 叉HTTPBase62字符集.length;
 	let 结果 = '';
 	for (let i = 0; i < 长度; i++) {
-		结果 += 叉HTTPBase62字符集[Math.floor(Math.random() * 字符集长度)];
+		结果 += 叉HTTPBase62字符集[安全随机整数(字符集长度)];
 	}
 	return 结果;
 }
@@ -658,7 +677,7 @@ async function 处理叉HTTP请求(request, yourUUID, 反代上下文 = {}) {
 
 	try {
 		const 响应URL = new URL('https://x.invalid/');
-		响应URL.searchParams.set(本机标识键, 生成叉HTTPPadding串(100 + Math.floor(Math.random() * 901)));
+		响应URL.searchParams.set(本机标识键, 生成叉HTTPPadding串(100 + 安全随机整数(901)));
 		responseHeaders.set(本机标识头, 响应URL.toString());
 	} catch (e) { }
 
@@ -5084,17 +5103,19 @@ async function Singbox订阅配置文件热补丁(SingBox_原始订阅内容, co
 		const 数组化 = value => value === undefined || value === null ? [] : (Array.isArray(value) ? value : [value]);
 		const 确保Route = () => config.route = config.route && typeof config.route === 'object' ? config.route : {};
 		const 获取DNS规则服务器 = rule => rule && typeof rule === 'object' && !Array.isArray(rule) && typeof rule.server === 'string' ? rule.server : null;
+		const 已存在标签 = new Set(数组化(config.route?.rule_set).map(项 => 项?.tag).filter(Boolean));
 		const 添加规则集 = (type, code) => {
 			if (!code || typeof code !== 'string') return null;
 			const route = 确保Route(), tag = `${type}-${code}`, ruleSet = Array.isArray(route.rule_set) ? route.rule_set : 数组化(route.rule_set);
-			if (!ruleSet.some(item => item?.tag === tag)) {
+			route.rule_set = ruleSet;
+			if (!已存在标签.has(tag)) {
 				const legacyOptions = type === 'geoip' ? route.geoip : route.geosite;
 				ruleSet.push({ tag, type: 'remote', format: 'binary', url: `https://raw.githubusercontent.com/SagerNet/sing-${type}/rule-set/${tag}.srs`, ...(legacyOptions?.download_detour ? { download_detour: legacyOptions.download_detour } : {}) });
+				已存在标签.add(tag);
 				config.experimental = config.experimental && typeof config.experimental === 'object' ? config.experimental : {};
 				config.experimental.cache_file = config.experimental.cache_file && typeof config.experimental.cache_file === 'object' ? config.experimental.cache_file : {};
 				config.experimental.cache_file.enabled ??= true;
 			}
-			route.rule_set = ruleSet;
 			return tag;
 		};
 
@@ -5356,20 +5377,19 @@ async function Singbox订阅配置文件热补丁(SingBox_原始订阅内容, co
 function Surge订阅配置文件热补丁(content, url, config_JSON) {
 	const 每行内容 = content.includes('\r\n') ? content.split('\r\n') : content.split('\n');
 	const 完整节点路径 = config_JSON.随机路径 ? 随机路径(config_JSON.完整节点路径) : config_JSON.完整节点路径;
-	let 输出内容 = "";
-	for (let x of 每行内容) {
+	const 输出行 = [];
+	for (const x of 每行内容) {
 		if (x.includes('= tro' + 'jan,') && !x.includes('ws=true') && !x.includes('ws-path=')) {
 			const host = x.split("sni=")[1].split(",")[0];
 			const 备改内容 = `sni=${host}, skip-cert-verify=${config_JSON.跳过证书验证}`;
 			const 正确内容 = `sni=${host}, skip-cert-verify=${config_JSON.跳过证书验证}, ws=true, ws-path=${完整节点路径.replace(/,/g, '%2C')}, ws-headers=Host:"${host}"`;
-			输出内容 += x.replace(new RegExp(备改内容, 'g'), 正确内容).replace("[", "").replace("]", "") + '\n';
+			输出行.push(x.split(备改内容).join(正确内容).replace("[", "").replace("]", ""));
 		} else {
-			输出内容 += x + '\n';
+			输出行.push(x);
 		}
 	}
-
-	输出内容 = `#!MANAGED-CONFIG ${url} interval=${config_JSON.优选订阅生成.SUBUpdateTime * 60 * 60} strict=false` + 输出内容.substring(输出内容.indexOf('\n'));
-	return 输出内容;
+	const 头部 = `#!MANAGED-CONFIG ${url} interval=${config_JSON.优选订阅生成.SUBUpdateTime * 60 * 60} strict=false`;
+	return [头部, ...输出行.slice(1)].join('\n');
 }
 
 const 管理会话有效期 = 24 * 60 * 60;
@@ -5523,8 +5543,8 @@ async function MD5MD5(文本) {
 
 function 随机路径(完整节点路径 = "/") {
 	const 常用路径目录 = ["about", "account", "acg", "act", "activity", "ad", "ads", "ajax", "album", "albums", "anime", "api", "app", "apps", "archive", "archives", "article", "articles", "ask", "auth", "avatar", "bbs", "bd", "blog", "blogs", "book", "books", "bt", "buy", "cart", "category", "categories", "cb", "channel", "channels", "chat", "china", "city", "class", "classify", "clip", "clips", "club", "cn", "code", "collect", "collection", "comic", "comics", "community", "company", "config", "contact", "content", "course", "courses", "cp", "data", "detail", "details", "dh", "directory", "discount", "discuss", "dl", "dload", "doc", "docs", "document", "documents", "doujin", "download", "downloads", "drama", "edu", "en", "ep", "episode", "episodes", "event", "events", "f", "faq", "favorite", "favourites", "favs", "feedback", "file", "files", "film", "films", "forum", "forums", "friend", "friends", "game", "games", "gif", "go", "go.html", "go.php", "group", "groups", "help", "home", "hot", "htm", "html", "image", "images", "img", "index", "info", "intro", "item", "items", "ja", "jp", "jump", "jump.html", "jump.php", "jumping", "knowledge", "lang", "lesson", "lessons", "lib", "library", "link", "links", "list", "live", "lives", "m", "mag", "magnet", "mall", "manhua", "map", "member", "members", "message", "messages", "mobile", "movie", "movies", "music", "my", "new", "news", "note", "novel", "novels", "online", "order", "out", "out.html", "out.php", "outbound", "p", "page", "pages", "pay", "payment", "pdf", "photo", "photos", "pic", "pics", "picture", "pictures", "play", "player", "playlist", "post", "posts", "product", "products", "program", "programs", "project", "qa", "question", "rank", "ranking", "read", "readme", "redirect", "redirect.html", "redirect.php", "reg", "register", "res", "resource", "retrieve", "sale", "search", "season", "seasons", "section", "seller", "series", "service", "services", "setting", "settings", "share", "shop", "show", "shows", "site", "soft", "sort", "source", "special", "star", "stars", "static", "stock", "store", "stream", "streaming", "streams", "student", "study", "tag", "tags", "task", "teacher", "team", "tech", "temp", "test", "thread", "tool", "tools", "topic", "topics", "torrent", "trade", "travel", "tv", "txt", "type", "u", "upload", "uploads", "url", "urls", "user", "users", "v", "version", "videos", "view", "vip", "vod", "watch", "web", "wenku", "wiki", "work", "www", "zh", "zh-cn", "zh-tw", "zip"];
-	const 随机数 = Math.floor(Math.random() * 3 + 1);
-	const 随机路径 = 常用路径目录.sort(() => 0.5 - Math.random()).slice(0, 随机数).join('/');
+	const 随机数 = 安全随机整数(3) + 1;
+	const 随机路径 = 安全洗牌(常用路径目录).slice(0, 随机数).join('/');
 	if (完整节点路径 === "/") return `/${随机路径}`;
 	else return `/${随机路径 + 完整节点路径.replace('/?', '?')}`;
 }
@@ -5534,7 +5554,7 @@ function 替换星号为随机字符(内容) {
 	const 字符集 = 'abcdefghijklmnopqrstuvwxyz0123456789';
 	return 内容.replace(/\*/g, () => {
 		let s = '';
-		for (let i = 0; i < Math.floor(Math.random() * 14) + 3; i++) s += 字符集[Math.floor(Math.random() * 字符集.length)];
+		for (let i = 0; i < 安全随机整数(14) + 3; i++) s += 字符集[安全随机整数(字符集.length)];
 		return s;
 	});
 }
@@ -6050,6 +6070,38 @@ function 识别运营商(request) {
 	return 命中运营商 || ASN运营商映射[String(cf?.asn || '')] || 'cf';
 }
 
+const CIDR缓存 = new Map(), CIDR缓存有效期 = 6 * 60 * 60 * 1000;
+const CIDR格式正则 = /^(\d{1,3}\.){3}\d{1,3}\/(0|[1-9]|[12]\d|3[0-2])$/;
+
+function 预解析CIDR列表(文本列表) {
+	const 结果 = [];
+	for (const 文本 of 文本列表) {
+		const 条目 = String(文本 || '').trim();
+		if (!CIDR格式正则.test(条目)) continue;
+		const [baseIP, prefixLength] = 条目.split('/');
+		const 段 = baseIP.split('.').map(Number);
+		if (段.some(段值 => !Number.isInteger(段值) || 段值 < 0 || 段值 > 255)) continue;
+		结果.push({ ipInt: (段[0] << 24 | 段[1] << 16 | 段[2] << 8 | 段[3]) >>> 0, prefix: Number(prefixLength) });
+	}
+	return 结果.length ? 结果 : [{ ipInt: (104 << 24 | 16 << 8) >>> 0, prefix: 13 }];
+}
+
+async function 获取CIDR列表(运营商文件标识, cidr_url) {
+	const 现缓存 = CIDR缓存.get(运营商文件标识);
+	if (现缓存 && Date.now() < 现缓存.过期时间) return 现缓存.列表;
+	let 文本列表 = [];
+	try {
+		const { 响应, 结束 } = await 带超时fetch(cidr_url, {}, 5000);
+		try { 文本列表 = 响应.ok ? await 整理成数组(await 响应.text()) : []; }
+		finally { 结束(); }
+	} catch (e) {
+		console.warn(`[生成随机IP] 拉取 CIDR 失败 ${运营商文件标识}: ${e.message}`);
+	}
+	const 列表 = 预解析CIDR列表(文本列表);
+	CIDR缓存.set(运营商文件标识, { 列表, 过期时间: Date.now() + CIDR缓存有效期 });
+	return 列表;
+}
+
 async function 生成随机IP(request, count = 16, 指定端口 = -1) {
 	const url = new URL(request.url);
 	const 查询参数运营商 = String(url.searchParams.get('cnIspCode') || '').toLowerCase();
@@ -6063,20 +6115,19 @@ async function 生成随机IP(request, count = 16, 指定端口 = -1) {
 	const cidr_url = 运营商文件标识 === 'cf' ? `https://raw.githubusercontent.com/${特征码字典[1]}/${特征码字典[1]}/main/CF-CIDR.txt` : `https://raw.githubusercontent.com/${特征码字典[1]}/${特征码字典[1]}/main/CF-CIDR/${运营商文件标识}.txt`;
 	const cfname = 运营商名称映射[运营商文件标识] || 'CF官方优选';
 	const cfport = [443, 2053, 2083, 2087, 2096, 8443];
-	let cidrList = [];
-	try { const res = await fetch(cidr_url); cidrList = res.ok ? await 整理成数组(await res.text()) : ['104.16.0.0/13'] } catch { cidrList = ['104.16.0.0/13'] }
+	const cidrList = await 获取CIDR列表(运营商文件标识, cidr_url);
 
-	const generateRandomIPFromCIDR = (cidr) => {
-		const [baseIP, prefixLength] = cidr.split('/'), prefix = parseInt(prefixLength), hostBits = 32 - prefix;
-		const ipInt = baseIP.split('.').reduce((a, p, i) => a | (parseInt(p) << (24 - i * 8)), 0);
-		const randomOffset = Math.floor(Math.random() * Math.pow(2, hostBits));
-		const mask = (0xFFFFFFFF << hostBits) >>> 0, randomIP = (((ipInt & mask) >>> 0) + randomOffset) >>> 0;
+	const generateRandomIPFromCIDR = ({ ipInt, prefix }) => {
+		const hostBits = 32 - prefix;
+		const mask = hostBits >= 32 ? 0 : (0xFFFFFFFF << hostBits) >>> 0;
+		const randomOffset = 安全随机整数(2 ** hostBits);
+		const randomIP = (((ipInt & mask) >>> 0) + randomOffset) >>> 0;
 		return [(randomIP >>> 24) & 0xFF, (randomIP >>> 16) & 0xFF, (randomIP >>> 8) & 0xFF, randomIP & 0xFF].join('.');
 	};
 	const randomIPs = Array.from({ length: count }, (_, index) => {
-		const ip = generateRandomIPFromCIDR(cidrList[Math.floor(Math.random() * cidrList.length)]);
+		const ip = generateRandomIPFromCIDR(cidrList[安全随机整数(cidrList.length)]);
 		const 目标端口 = 指定端口 === -1
-			? cfport[Math.floor(Math.random() * cfport.length)]
+			? cfport[安全随机整数(cfport.length)]
 			: 指定端口;
 		return `${ip}:${目标端口}#${cfname}${index + 1}`;
 	});
@@ -6494,7 +6545,7 @@ function 获取SOCKS5账号(address, 默认端口 = 80) {
 		}
 	}
 
-	if (isNaN(port)) throw new Error('无效的 SOCKS 地址格式：端口号必须是数字');
+	if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('无效的 SOCKS 地址格式：端口号必须是 1-65535 的数字');
 	if (hostname.includes(":") && !IPv6方括号正则.test(hostname)) throw new Error('无效的 SOCKS 地址格式：IPv6 地址必须用方括号括起来，如 [2001:db8::1]');
 	return { username, password, hostname, port };
 }
