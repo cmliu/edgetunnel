@@ -1,6 +1,19 @@
 ﻿const Version = '2026-10-08 22:23:27';
 const textEncoder = new TextEncoder(), textDecoder = new TextDecoder();
 
+function 字节转十六进制(bytes) {
+	const 视图 = bytes instanceof Uint8Array ? bytes : Uint8Array.from(bytes);
+	if (typeof 视图.toHex === 'function') return 视图.toHex();
+	return Array.from(视图, b => b.toString(16).padStart(2, '0')).join('');
+}
+
+function 十六进制转字节(hex) {
+	if (typeof Uint8Array.fromHex === 'function') return Uint8Array.fromHex(hex);
+	const 结果 = new Uint8Array(hex.length >> 1);
+	for (let i = 0; i < 结果.length; i++) 结果[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+	return 结果;
+}
+
 function 安全随机整数(上限) {
 	if (!Number.isInteger(上限) || 上限 <= 0) return 0;
 	const 上限值 = Math.min(上限, 0x100000000);
@@ -1974,12 +1987,7 @@ function 解析木马请求(buffer, passwordPlainText) {
 const UUID字节缓存 = new Map();
 const 魏烈思文本解码器 = textDecoder;
 
-function 读取十六进制半字节(code) {
-	if (code >= 48 && code <= 57) return code - 48;
-	code |= 32;
-	if (code >= 97 && code <= 102) return code - 87;
-	return -1;
-}
+
 
 function 获取UUID字节(uuid) {
 	const key = String(uuid || '');
@@ -1987,15 +1995,8 @@ function 获取UUID字节(uuid) {
 	if (cached) return cached;
 
 	const clean = key.replace(/-/g, '');
-	if (clean.length !== 32) return null;
-
-	const bytes = new Uint8Array(16);
-	for (let i = 0; i < 16; i++) {
-		const high = 读取十六进制半字节(clean.charCodeAt(i * 2));
-		const low = 读取十六进制半字节(clean.charCodeAt(i * 2 + 1));
-		if (high < 0 || low < 0) return null;
-		bytes[i] = (high << 4) | low;
-	}
+	if (clean.length !== 32 || !/^[0-9a-fA-F]{32}$/.test(clean)) return null;
+	const bytes = 十六进制转字节(clean);
 
 	if (UUID字节缓存.size >= 32) UUID字节缓存.clear();
 	UUID字节缓存.set(key, bytes);
@@ -2563,7 +2564,7 @@ function closeSocketQuietly(socket) {
 }
 
 function formatIdentifier(arr, offset = 0) {
-	const hex = [...arr.slice(offset, offset + 16)].map(b => b.toString(16).padStart(2, '0')).join('');
+	const hex = 字节转十六进制(arr.slice(offset, offset + 16));
 	return `${hex.substring(0, 8)}-${hex.substring(8, 12)}-${hex.substring(12, 16)}-${hex.substring(16, 20)}-${hex.substring(20)}`;
 }
 
@@ -5392,7 +5393,7 @@ function 读取authCookie(request) {
 
 async function 创建管理会话(env, UA, 凭据指纹) {
 	const 随机字节 = crypto.getRandomValues(new Uint8Array(32));
-	const 会话令牌 = Array.from(随机字节, b => b.toString(16).padStart(2, '0')).join('');
+	const 会话令牌 = 字节转十六进制(随机字节);
 	await env.KV.put(`auth:${会话令牌}`, JSON.stringify({ UA, 指纹: 凭据指纹, 过期时间: Date.now() + 管理会话有效期 * 1000 }), { expirationTtl: 管理会话有效期 });
 	return 会话令牌;
 }
@@ -5521,12 +5522,10 @@ async function MD5MD5(文本) {
 	const 编码器 = textEncoder;
 
 	const 第一次哈希 = await crypto.subtle.digest('MD5', 编码器.encode(文本));
-	const 第一次哈希数组 = Array.from(new Uint8Array(第一次哈希));
-	const 第一次十六进制 = 第一次哈希数组.map(字节 => 字节.toString(16).padStart(2, '0')).join('');
+	const 第一次十六进制 = 字节转十六进制(new Uint8Array(第一次哈希));
 
 	const 第二次哈希 = await crypto.subtle.digest('MD5', 编码器.encode(第一次十六进制.slice(7, 27)));
-	const 第二次哈希数组 = Array.from(new Uint8Array(第二次哈希));
-	const 第二次十六进制 = 第二次哈希数组.map(字节 => 字节.toString(16).padStart(2, '0')).join('');
+	const 第二次十六进制 = 字节转十六进制(new Uint8Array(第二次哈希));
 
 	return 第二次十六进制.toLowerCase();
 }
@@ -5692,7 +5691,7 @@ async function 执行DoH查询(域名, 记录类型, DoH解析服务, 缓存键,
 				const [cname] = 解析域名(offset - rdlen);
 				data = cname;
 			} else {
-				data = Array.from(rdata).map(b => b.toString(16).padStart(2, '0')).join('');
+				data = 字节转十六进制(rdata);
 			}
 			answers.push({ name, type, TTL: ttl, data, rdata });
 		}
@@ -6623,11 +6622,11 @@ function sha224(s) {
 		}
 		for (let j = 0; j < 8; j++)h[j] = (h[j] + (j === 0 ? a : j === 1 ? b : j === 2 ? c : j === 3 ? d : j === 4 ? e : j === 5 ? f : j === 6 ? g : h0)) >>> 0;
 	}
-	let hex = '';
+	const 摘要字节 = new Uint8Array(28);
 	for (let i = 0; i < 7; i++) {
-		for (let j = 24; j >= 0; j -= 8)hex += ((h[i] >>> j) & 0xFF).toString(16).padStart(2, '0');
+		for (let j = 0; j < 4; j++) 摘要字节[i * 4 + j] = (h[i] >>> (24 - j * 8)) & 0xFF;
 	}
-	return hex;
+	return 字节转十六进制(摘要字节);
 }
 
 async function 解析地址端口(proxyIP, 目标域名 = 'dash.cloudflare.com', UUID = '00000000-0000-4000-8000-000000000000') {
@@ -6748,7 +6747,7 @@ async function nginx() {
 async function html1101(host, 访问IP) {
 	const now = new Date();
 	const 格式化时间戳 = now.toISOString().slice(0, 19).replace('T', ' ');
-	const 随机字符串 = Array.from(crypto.getRandomValues(new Uint8Array(8))).map(b => b.toString(16).padStart(2, '0')).join('');
+	const 随机字符串 = 字节转十六进制(crypto.getRandomValues(new Uint8Array(8)));
 
 	return `<!DOCTYPE html>
 <!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
