@@ -228,11 +228,12 @@ export default {
 						return new Response(JSON.stringify(检测代理响应, null, 2), { status: 200, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
 					}
 
-					config_JSON = await 读取config_JSON(env, host, userID, UA);
+					if (区分大小写访问路径 === 'admin/cf.json' && request.method !== 'POST') return new Response(JSON.stringify(request.cf, null, 2), { status: 200, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
+					const 是否重置配置 = 访问路径 === 'admin/init';
+					config_JSON = await 读取config_JSON(env, host, userID, UA, 是否重置配置);
 
 					if (访问路径 === 'admin/init') {// 重置配置为默认值
 						try {
-							config_JSON = await 读取config_JSON(env, host, userID, UA, true);
 							ctx.waitUntil(请求日志记录(env, request, 访问IP, 'Init_Config', config_JSON));
 							config_JSON.init = '配置已重置为默认值';
 							return new Response(JSON.stringify(config_JSON, null, 2), { status: 200, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
@@ -314,8 +315,6 @@ export default {
 						let 本地优选IP = await env.KV.get('ADD.txt') || 'null';
 						if (本地优选IP == 'null') 本地优选IP = (await 生成随机IP(request, config_JSON.优选订阅生成.本地IP库.随机数量, config_JSON.优选订阅生成.本地IP库.指定端口))[1];
 						return new Response(本地优选IP, { status: 200, headers: { 'Content-Type': 'text/plain;charset=utf-8', 'asn': request.cf.asn } });
-					} else if (访问路径 === 'admin/cf.json') {// CF配置文件
-						return new Response(JSON.stringify(request.cf, null, 2), { status: 200, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
 					}
 
 					ctx.waitUntil(请求日志记录(env, request, 访问IP, 'Admin_Login', config_JSON));
@@ -5629,7 +5628,41 @@ async function DoH查询(域名, 记录类型, DoH解析服务 = "https://cloudf
 	}
 }
 
+const CF用量缓存 = new Map(), CF用量缓存有效期 = 5 * 60 * 1000;
+
+function 合并配置默认值(默认值, 用户配置) {
+	if (!默认值 || typeof 默认值 !== 'object') return 用户配置;
+	if (Array.isArray(默认值)) return Array.isArray(用户配置) ? 用户配置 : [...默认值];
+	if (!用户配置 || typeof 用户配置 !== 'object' || Array.isArray(用户配置)) return { ...默认值 };
+	const 结果 = { ...默认值, ...用户配置 };
+	for (const 键 of Object.keys(默认值)) {
+		const 默认项 = 默认值[键], 用户项 = 结果[键];
+		if (默认项 && typeof 默认项 === 'object' && !Array.isArray(默认项)) {
+			结果[键] = 合并配置默认值(默认项, (用户项 && typeof 用户项 === 'object' && !Array.isArray(用户项)) ? 用户项 : {});
+		} else if (用户项 === null || 用户项 === undefined ||
+			(typeof 默认项 === 'boolean' && typeof 用户项 !== 'boolean') ||
+			(typeof 默认项 === 'number' && typeof 用户项 !== 'number') ||
+			(typeof 默认项 === 'string' && typeof 用户项 !== 'string')) {
+			结果[键] = 默认项;
+		}
+	}
+	return 结果;
+}
+
+async function 带超时fetch(地址, 选项 = {}, 超时毫秒 = 5000) {
+	const 控制器 = new AbortController();
+	const 定时器 = setTimeout(() => 控制器.abort(), 超时毫秒);
+	try {
+		const 响应 = await fetch(地址, { ...选项, signal: 控制器.signal });
+		return { 响应, 结束: () => clearTimeout(定时器) };
+	} catch (error) {
+		clearTimeout(定时器);
+		throw error;
+	}
+}
+
 async function 读取config_JSON(env, hostname, userID, UA = "Mozilla/5.0", 重置配置 = false) {
+	const 配置TOKEN = await MD5MD5(hostname + userID);
 	const _p = 特征码字典[0];
 	const host = hostname, Ali_DoH = "https://dns.alidns.com/dns-query", ECH_SNI = "cloudflare-ech.com", 占位符 = '{{IP:PORT}}', 初始化开始时间 = performance.now(), 默认配置JSON = {
 		TIME: new Date().toISOString(),
@@ -5667,7 +5700,7 @@ async function 读取config_JSON(env, hostname, userID, UA = "Mozilla/5.0", 重�
 			SUB: null,
 			SUBNAME: "edge" + "tunnel",
 			SUBUpdateTime: 3, // 订阅更新时间（小时）
-			TOKEN: await MD5MD5(hostname + userID),
+			TOKEN: 配置TOKEN,
 		},
 		订阅转换配置: {
 			SUBAPI: `https://SUBAPI.${特征码字典[1]}ssss.net`,
@@ -5734,18 +5767,32 @@ async function 读取config_JSON(env, hostname, userID, UA = "Mozilla/5.0", 重�
 		}
 	};
 
+	let configJSON = null, TG_TXT = null, CF_TXT = null, 配置错误信息 = null;
 	try {
-		let configJSON = await env.KV.get('config.json');
-		if (!configJSON || 重置配置 == true) {
+		[configJSON, TG_TXT, CF_TXT] = await Promise.all([
+			env.KV.get('config.json'),
+			env.KV.get('tg.json'),
+			env.KV.get('cf.json'),
+		]);
+	} catch (error) {
+		配置错误信息 = `KV 读取失败: ${error.message}`;
+		console.error(`读取config_JSON出错: ${配置错误信息}`);
+	}
+	try {
+		if (配置错误信息) {
+			config_JSON = 合并配置默认值(默认配置JSON, null);
+		} else if (!configJSON || 重置配置 == true) {
 			await env.KV.put('config.json', JSON.stringify(默认配置JSON, null, 2));
-			config_JSON = 默认配置JSON;
+			config_JSON = 合并配置默认值(默认配置JSON, null);
 		} else {
-			config_JSON = JSON.parse(configJSON);
+			config_JSON = 合并配置默认值(默认配置JSON, JSON.parse(configJSON));
 		}
 	} catch (error) {
-		console.error(`读取config_JSON出错: ${error.message}`);
-		config_JSON = 默认配置JSON;
+		配置错误信息 = `config.json 处理失败: ${error.message}`;
+		console.error(`读取config_JSON出错: ${配置错误信息}`);
+		config_JSON = 合并配置默认值(默认配置JSON, null);
 	}
+	if (配置错误信息) config_JSON.配置错误 = 配置错误信息;
 
 	if (!config_JSON.订阅转换配置.SUBLIST) config_JSON.订阅转换配置.SUBLIST = false;
 	if (!config_JSON.订阅转换配置.UDP) config_JSON.订阅转换配置.UDP = false;
@@ -5754,7 +5801,7 @@ async function 读取config_JSON(env, hostname, userID, UA = "Mozilla/5.0", 重�
 	if (!config_JSON.订阅转换配置.APPEND_TYPE) config_JSON.订阅转换配置.APPEND_TYPE = false;
 	if (!config_JSON.订阅转换配置.SORT) config_JSON.订阅转换配置.SORT = false;
 	if (typeof config_JSON.订阅转换配置.EXPAND !== 'boolean') config_JSON.订阅转换配置.EXPAND = true;
-	if (config_JSON.优选订阅生成 && typeof config_JSON.优选订阅生成.显示地区 !== 'boolean') config_JSON.优选订阅生成.显示地区 = false;
+	if (typeof config_JSON.优选订阅生成.显示地区 !== 'boolean') config_JSON.优选订阅生成.显示地区 = false;
 	if (!config_JSON.gRPCUserAgent) config_JSON.gRPCUserAgent = UA;
 	config_JSON.HOST = host;
 	if (!config_JSON.HOSTS) config_JSON.HOSTS = [hostname];
@@ -5830,12 +5877,11 @@ async function 读取config_JSON(env, hostname, userID, UA = "Mozilla/5.0", 重�
 	config_JSON.LINK = config_JSON.协议类型 === 'ss'
 		? `${config_JSON.协议类型}://${btoa(config_JSON.SS.加密方式 + ':' + userID)}@${host}:${config_JSON.SS.TLS ? '443' : '80'}?plugin=v2${encodeURIComponent(`ray-plugin;mode=websocket;host=${host};path=${((config_JSON.完整节点路径.includes('?') ? config_JSON.完整节点路径.replace('?', '?enc=' + config_JSON.SS.加密方式 + '&') : (config_JSON.完整节点路径 + '?enc=' + config_JSON.SS.加密方式)) + (config_JSON.SS.TLS ? ';tls' : ''))};mux=0`) + ECHLINK参数}#${encodeURIComponent(config_JSON.优选订阅生成.SUBNAME)}`
 		: `${config_JSON.协议类型}://${userID}@${host}:443?security=tls&type=${传输协议 + ECHLINK参数}&${域名字段名}=${host}&fp=${config_JSON.Fingerprint}&sni=${host}&${路径字段名}=${encodeURIComponent(传输路径参数值) + TLS分片参数}&encryption=none#${encodeURIComponent(config_JSON.优选订阅生成.SUBNAME)}`;
-	config_JSON.优选订阅生成.TOKEN = await MD5MD5(hostname + userID);
+	config_JSON.优选订阅生成.TOKEN = 配置TOKEN;
 
 	const 初始化TG_JSON = { BotToken: null, ChatID: null };
 	config_JSON.TG = { 启用: config_JSON.TG.启用 ? config_JSON.TG.启用 : false, ...初始化TG_JSON };
 	try {
-		const TG_TXT = await env.KV.get('tg.json');
 		if (!TG_TXT) {
 			await env.KV.put('tg.json', JSON.stringify(初始化TG_JSON, null, 2));
 		} else {
@@ -5850,27 +5896,31 @@ async function 读取config_JSON(env, hostname, userID, UA = "Mozilla/5.0", 重�
 	const 初始化CF_JSON = { Email: null, GlobalAPIKey: null, AccountID: null, APIToken: null, UsageAPI: null };
 	config_JSON.CF = { ...初始化CF_JSON, Usage: { success: false, pages: 0, workers: 0, total: 0, max: 100000 } };
 	try {
-		const CF_TXT = await env.KV.get('cf.json');
 		if (!CF_TXT) {
 			await env.KV.put('cf.json', JSON.stringify(初始化CF_JSON, null, 2));
 		} else {
 			const CF_JSON = JSON.parse(CF_TXT);
 			if (CF_JSON.UsageAPI) {
+				const { 响应, 结束 } = await 带超时fetch(CF_JSON.UsageAPI, {}, 5000);
 				try {
-					const response = await fetch(CF_JSON.UsageAPI);
-					const Usage = await response.json();
-					config_JSON.CF.Usage = Usage;
-				} catch (err) {
-					console.error(`请求 CF_JSON.UsageAPI 失败: ${err.message}`);
-				}
+					config_JSON.CF.Usage = await 响应.json();
+				} finally { 结束(); }
 			} else {
 				config_JSON.CF.Email = CF_JSON.Email ? CF_JSON.Email : null;
 				config_JSON.CF.GlobalAPIKey = CF_JSON.GlobalAPIKey ? 掩码敏感信息(CF_JSON.GlobalAPIKey) : null;
 				config_JSON.CF.AccountID = CF_JSON.AccountID ? 掩码敏感信息(CF_JSON.AccountID) : null;
 				config_JSON.CF.APIToken = CF_JSON.APIToken ? 掩码敏感信息(CF_JSON.APIToken) : null;
 				config_JSON.CF.UsageAPI = null;
-				const Usage = await getCloudflareUsage(CF_JSON.Email, CF_JSON.GlobalAPIKey, CF_JSON.AccountID, CF_JSON.APIToken);
-				config_JSON.CF.Usage = Usage;
+				const 用量缓存键 = await MD5MD5([CF_JSON.Email, CF_JSON.GlobalAPIKey, CF_JSON.AccountID, CF_JSON.APIToken].map(v => v ?? '').join('|'));
+				const 缓存项 = CF用量缓存.get(用量缓存键);
+				if (缓存项 && Date.now() < 缓存项.过期时间) {
+					config_JSON.CF.Usage = 缓存项.数据;
+				} else {
+					const Usage = await getCloudflareUsage(CF_JSON.Email, CF_JSON.GlobalAPIKey, CF_JSON.AccountID, CF_JSON.APIToken);
+					config_JSON.CF.Usage = Usage;
+					CF用量缓存.set(用量缓存键, { 数据: Usage, 过期时间: Date.now() + CF用量缓存有效期 });
+					if (CF用量缓存.size > 32) CF用量缓存.delete(CF用量缓存.keys().next().value);
+				}
 			}
 		}
 	} catch (error) {
