@@ -110,7 +110,7 @@ export default {
 					// 没有cookie或cookie错误，跳转到/login页面
 					if (!authCookie || authCookie !== await MD5MD5(UA + 加密秘钥 + 管理员密码)) return new Response('重定向中...', { status: 302, headers: { 'Location': '/login' } });
 					if (访问路径 === 'admin/log.json') {// 读取日志内容
-						const 读取日志内容 = await env.KV.get('log.json') || '[]';
+						const 读取日志内容 = await 读取全部日志(env);
 						return new Response(读取日志内容, { status: 200, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
 					} else if (区分大小写访问路径 === 'admin/getCloudflareUsage') {// 查询请求量
 						try {
@@ -5367,6 +5367,34 @@ function Surge订阅配置文件热补丁(content, url, config_JSON) {
 	return 输出内容;
 }
 
+const 日志写入队列 = new Map(), 日志最大条数 = 500;
+
+async function 读取全部日志(env) {
+	const 日志条目 = [];
+	try {
+		const 分片列表 = await env.KV.list({ prefix: 'log.json:' });
+		const 分片内容 = await Promise.all(分片列表.keys.map(键 => env.KV.get(键.name)));
+		for (const 文本 of 分片内容) {
+			if (!文本) continue;
+			try {
+				const 解析 = JSON.parse(文本);
+				if (Array.isArray(解析)) 日志条目.push(...解析);
+			} catch (e) { }
+		}
+	} catch (error) {
+		console.error(`列举日志分片失败: ${error.message}`);
+	}
+	try {
+		const 旧日志 = await env.KV.get('log.json');
+		if (旧日志) {
+			const 解析 = JSON.parse(旧日志);
+			if (Array.isArray(解析)) 日志条目.push(...解析);
+		}
+	} catch (e) { }
+	日志条目.sort((a, b) => (a?.TIME || 0) - (b?.TIME || 0));
+	return JSON.stringify(日志条目);
+}
+
 async function 请求日志记录(env, request, 访问IP, 请求类型 = "Get_SUB", config_JSON, 是否写入KV日志 = true) {
 	try {
 		const 当前时间 = new Date();
@@ -5388,37 +5416,42 @@ async function 请求日志记录(env, request, 访问IP, 请求类型 = "Get_SU
 						`🤖 <b>UA：</b><code>${日志内容.UA}</code>\n` +
 						`📅 <b>时间：</b>${请求时间}\n` +
 						`${config_JSON.CF.Usage.success ? `📊 <b>请求用量：</b>${config_JSON.CF.Usage.total}/${config_JSON.CF.Usage.max} <b>${((config_JSON.CF.Usage.total / config_JSON.CF.Usage.max) * 100).toFixed(2)}%</b>\n` : ''}`;
-					await fetch(`https://api.telegram.org/bot${TG_JSON.BotToken}/sendMessage?chat_id=${TG_JSON.ChatID}&parse_mode=HTML&text=${encodeURIComponent(msg)}`, {
+					const { 响应, 结束 } = await 带超时fetch(`https://api.telegram.org/bot${TG_JSON.BotToken}/sendMessage?chat_id=${TG_JSON.ChatID}&parse_mode=HTML&text=${encodeURIComponent(msg)}`, {
 						method: 'GET',
 						headers: {
 							'Accept': 'text/html,application/xhtml+xml,application/xml;',
 							'Accept-Encoding': 'gzip, deflate, br',
 							'User-Agent': 日志内容.UA || 'Unknown',
 						}
-					});
+					}, 5000);
+					try { await 响应.arrayBuffer(); } finally { 结束(); }
 				}
 			} catch (error) { console.error(`读取tg.json出错: ${error.message}`) }
 		}
 		是否写入KV日志 = ['1', 'true'].includes(env.OFF_LOG) ? false : 是否写入KV日志;
 		if (!是否写入KV日志) return;
-		let 日志数组 = [];
-		const 现有日志 = await env.KV.get('log.json'), KV容量限制 = 4;//MB
-		if (现有日志) {
+		const 日志分片键 = 'log.json:' + 当前时间.toISOString().slice(0, 10);
+		const 前次写入 = 日志写入队列.get(日志分片键) || Promise.resolve();
+		const 本次写入 = 前次写入.catch(() => { }).then(async () => {
+			let 日志数组 = [];
 			try {
-				日志数组 = JSON.parse(现有日志);
-				if (!Array.isArray(日志数组)) { 日志数组 = [日志内容] }
-				else if (请求类型 !== "Get_SUB") {
-					const 三十分钟前时间戳 = 当前时间.getTime() - 30 * 60 * 1000;
-					if (日志数组.some(log => log.TYPE !== "Get_SUB" && log.IP === 访问IP && log.URL === request.url && log.UA === (request.headers.get('User-Agent') || 'Unknown') && log.TIME >= 三十分钟前时间戳)) return;
-					日志数组.push(日志内容);
-					while (JSON.stringify(日志数组, null, 2).length > KV容量限制 * 1024 * 1024 && 日志数组.length > 0) 日志数组.shift();
-				} else {
-					日志数组.push(日志内容);
-					while (JSON.stringify(日志数组, null, 2).length > KV容量限制 * 1024 * 1024 && 日志数组.length > 0) 日志数组.shift();
+				const 现有日志 = await env.KV.get(日志分片键);
+				if (现有日志) {
+					日志数组 = JSON.parse(现有日志);
+					if (!Array.isArray(日志数组)) 日志数组 = [];
 				}
-			} catch (e) { 日志数组 = [日志内容] }
-		} else { 日志数组 = [日志内容] }
-		await env.KV.put('log.json', JSON.stringify(日志数组, null, 2));
+			} catch (e) { 日志数组 = []; }
+			if (请求类型 !== "Get_SUB") {
+				const 三十分钟前时间戳 = 当前时间.getTime() - 30 * 60 * 1000;
+				if (日志数组.some(log => log.TYPE !== "Get_SUB" && log.IP === 访问IP && log.URL === request.url && log.UA === (request.headers.get('User-Agent') || 'Unknown') && log.TIME >= 三十分钟前时间戳)) return;
+			}
+			日志数组.push(日志内容);
+			if (日志数组.length > 日志最大条数) 日志数组 = 日志数组.slice(-日志最大条数);
+			await env.KV.put(日志分片键, JSON.stringify(日志数组, null, 2));
+		});
+		日志写入队列.set(日志分片键, 本次写入);
+		try { await 本次写入; }
+		finally { if (日志写入队列.get(日志分片键) === 本次写入) 日志写入队列.delete(日志分片键); }
 	} catch (error) { console.error(`日志记录失败: ${error.message}`) }
 }
 
@@ -6002,7 +6035,7 @@ async function 整理成数组(内容) {
 	return 地址数组;
 }
 
-async function 获取优选订阅生成器数据(优选订阅生成器HOST, uid = "000000") {
+async function 获取优选订阅生成器数据(优选订阅生成器HOST, uid = "000000", 超时时间 = 5000) {
 	let 优选IP = [], 其他节点LINK = '', 格式化HOST = 优选订阅生成器HOST.replace(/^sub:\/\//i, 'https://').split('#')[0].split('?')[0];
 	if (!/^https?:\/\//i.test(格式化HOST)) 格式化HOST = `https://${格式化HOST}`;
 
@@ -6010,34 +6043,32 @@ async function 获取优选订阅生成器数据(优选订阅生成器HOST, uid 
 		const url = new URL(格式化HOST);
 		格式化HOST = url.origin;
 	} catch (error) {
-		优选IP.push(`127.0.0.1:1234#${优选订阅生成器HOST}优选订阅生成器格式化异常:${error.message}`);
-		return [优选IP, 其他节点LINK];
+		return [[], '', `优选订阅生成器地址无效 ${优选订阅生成器HOST}: ${error.message}`];
 	}
 
 	const 优选订阅生成器URL = `${格式化HOST}/sub?host=example.com&uuid=00000000-0000-4000-8000-000000000000`;
 
 	try {
-		const response = await fetch(优选订阅生成器URL, {
+		const { 响应, 结束 } = await 带超时fetch(优选订阅生成器URL, {
 			headers: { 'User-Agent': 汇聚订阅_UA + ' Uid/0x' + uid + ' Version/' + EDT_版本号 }
-		});
+		}, 超时时间);
+		let 订阅文本 = '';
+		try {
+			if (!响应.ok) return [[], '', `优选订阅生成器返回 HTTP ${响应.status} ${优选订阅生成器HOST}`];
+			订阅文本 = await 响应.text();
+		} finally { 结束(); }
 
-		if (!response.ok) {
-			优选IP.push(`127.0.0.1:1234#${优选订阅生成器HOST}优选订阅生成器异常:${response.statusText}`);
-			return [优选IP, 其他节点LINK];
-		}
-
-		const 优选订阅生成器返回订阅内容 = atob(await response.text());
+		const 优选订阅生成器返回订阅内容 = atob(订阅文本);
 		const 订阅行列表 = 优选订阅生成器返回订阅内容.includes('\r\n')
 			? 优选订阅生成器返回订阅内容.split('\r\n')
 			: 优选订阅生成器返回订阅内容.split('\n');
 
 		for (const 行内容 of 订阅行列表) {
-			if (!行内容.trim()) continue; // 跳过空行
+			if (!行内容.trim()) continue;
 			if (行内容.includes('00000000-0000-4000-8000-000000000000') && 行内容.includes('example.com')) {
-				// 这是优选IP行，提取 域名:端口#备注
 				const 地址匹配 = 行内容.match(/:\/\/[^@]+@([^?]+)/);
 				if (地址匹配) {
-					let 地址端口 = 地址匹配[1], 备注 = ''; // 域名:端口 或 IP:端口
+					let 地址端口 = 地址匹配[1], 备注 = '';
 					const 备注匹配 = 行内容.match(/#(.+)$/);
 					if (备注匹配) 备注 = '#' + decodeURIComponent(备注匹配[1]);
 					优选IP.push(地址端口 + 备注);
@@ -6047,10 +6078,10 @@ async function 获取优选订阅生成器数据(优选订阅生成器HOST, uid 
 			}
 		}
 	} catch (error) {
-		优选IP.push(`127.0.0.1:1234#${优选订阅生成器HOST}优选订阅生成器异常:${error.message}`);
+		return [[], '', `优选订阅生成器请求失败 ${优选订阅生成器HOST}: ${error.message}`];
 	}
 
-	return [优选IP, 其他节点LINK];
+	return [优选IP, 其他节点LINK, null];
 }
 
 async function 请求优选API(urls, 默认端口 = '443', uid = "000000", 超时时间 = 3000) {
@@ -6065,7 +6096,8 @@ async function 请求优选API(urls, 默认端口 = '443', uid = "000000", 超�
 		const 优选IP作为反代IP = url.toLowerCase().includes('proxyip=true');
 		if (urlWithoutHash.toLowerCase().startsWith('sub://')) {
 			try {
-				const [优选IP, 其他节点LINK] = await 获取优选订阅生成器数据(urlWithoutHash, uid);
+				const [优选IP, 其他节点LINK, 错误信息] = await 获取优选订阅生成器数据(urlWithoutHash, uid, 超时时间);
+				if (错误信息) { console.warn(`[请求优选API] ${错误信息}`); return; }
 				// 处理第一个数组 - 优选IP
 				if (API备注名) {
 					for (const ip of 优选IP) {
@@ -6093,60 +6125,35 @@ async function 请求优选API(urls, 默认端口 = '443', uid = "000000", 超�
 				} else if (其他节点LINK && typeof 其他节点LINK === 'string') {
 					订阅链接响应的明文LINK内容 += 其他节点LINK;
 				}
-			} catch (e) { }
+			} catch (e) { console.warn(`[请求优选API] sub 源处理失败 ${urlWithoutHash}: ${e.message}`); }
 			return;
 		}
 
+		let text = '';
 		try {
-			const controller = new AbortController();
-			const timeoutId = setTimeout(() => controller.abort(), 超时时间);
-			const response = await fetch(urlWithoutHash, { signal: controller.signal, headers: { 'User-Agent': 汇聚订阅_UA + ' Uid/0x' + uid + ' Version/' + EDT_版本号 } });
-			clearTimeout(timeoutId);
-			let text = '';
+			const { 响应, 结束 } = await 带超时fetch(urlWithoutHash, { headers: { 'User-Agent': 汇聚订阅_UA + ' Uid/0x' + uid + ' Version/' + EDT_版本号 } }, 超时时间);
 			try {
-				const buffer = await response.arrayBuffer();
-				const contentType = (response.headers.get('content-type') || '').toLowerCase();
+				const buffer = await 响应.arrayBuffer();
+				const contentType = (响应.headers.get('content-type') || '').toLowerCase();
 				const charset = contentType.match(/charset=([^\s;]+)/i)?.[1]?.toLowerCase() || '';
-
-				// 根据 Content-Type 响应头判断编码优先级
-				let decoders = ['utf-8', 'gb2312']; // 默认优先 UTF-8
+				let decoders = ['utf-8', 'gb2312'];
 				if (charset.includes('gb') || charset.includes('gbk') || charset.includes('gb2312')) {
-					decoders = ['gb2312', 'utf-8']; // 如果明确指定 GB 系编码，优先尝试 GB2312
+					decoders = ['gb2312', 'utf-8'];
 				}
-
-				// 尝试多种编码解码
 				let decodeSuccess = false;
 				for (const decoder of decoders) {
 					try {
 						const decoded = new TextDecoder(decoder).decode(buffer);
-						// 验证解码结果的有效性
 						if (decoded && decoded.length > 0 && !decoded.includes('\ufffd')) {
 							text = decoded;
 							decodeSuccess = true;
 							break;
-						} else if (decoded && decoded.length > 0) {
-							// 如果有替换字符 (U+FFFD)，说明编码不匹配，继续尝试下一个编码
-							continue;
 						}
-					} catch (e) {
-						// 该编码解码失败，尝试下一个
-						continue;
-					}
+					} catch (e) { }
 				}
-
-				// 如果所有编码都失败或无效，尝试 response.text()
-				if (!decodeSuccess) {
-					text = await response.text();
-				}
-
-				// 如果返回的是空或无效数据，返回
-				if (!text || text.trim().length === 0) {
-					return;
-				}
-			} catch (e) {
-				console.error('Failed to decode response:', e);
-				return;
-			}
+				if (!decodeSuccess) text = new TextDecoder('utf-8').decode(buffer);
+				if (!text || text.trim().length === 0) return;
+			} finally { 结束(); }
 
 			// 预处理订阅内容
 			/*
@@ -6160,9 +6167,13 @@ async function 请求优选API(urls, 默认端口 = '443', uid = "000000", 超�
 			const cleanText = typeof text === 'string' ? text.replace(/\s/g, '') : '';
 			if (cleanText.length > 0 && cleanText.length % 4 === 0 && /^[A-Za-z0-9+/]+={0,2}$/.test(cleanText)) {
 				try {
-					const bytes = new Uint8Array(atob(cleanText).split('').map(c => c.charCodeAt(0)));
+					const 解码文本 = atob(cleanText);
+					const bytes = Uint8Array.from(解码文本, c => c.charCodeAt(0));
 					预处理订阅明文内容 = new TextDecoder('utf-8').decode(bytes);
-				} catch { }
+				} catch (e) {
+					console.warn(`[请求优选API] base64 解码失败 ${urlWithoutHash}: ${e.message}`);
+					return;
+				}
 			}
 			if (预处理订阅明文内容.split('#')[0].includes('://')) {
 				// 处理LINK内容
@@ -6250,7 +6261,7 @@ async function 请求优选API(urls, 默认端口 = '443', uid = "000000", 超�
 					});
 				}
 			}
-		} catch (e) { }
+		} catch (e) { console.warn(`[请求优选API] 处理失败 ${urlWithoutHash}: ${e.message}`); }
 	}));
 	// 将LINK内容转换为数组并去重
 	const LINK数组 = 订阅链接响应的明文LINK内容.trim() ? [...new Set(订阅链接响应的明文LINK内容.split(/\r?\n/).filter(line => line.trim() !== ''))] : [];
