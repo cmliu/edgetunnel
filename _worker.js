@@ -1,4 +1,5 @@
 ﻿const Version = '2026-10-08 22:23:27';
+const textEncoder = new TextEncoder(), textDecoder = new TextDecoder();
 let config_JSON, 缓存SOCKS5白名单 = null, 调试日志打印 = false;
 let SOCKS5白名单 = ['*tapecontent.net', '*cloudatacdn.com', '*loadshare.org', '*cdn-centaurus.com', 'scholar.google.com'];
 const Pages静态页面 = 'https://edt-pages.github.io', EDT_版本号 = Number(String(Version).replace(/\D+/g, ''));
@@ -176,7 +177,7 @@ export default {
 							const { username, password, hostname, port } = checkParsed;
 							const 完整代理参数 = username && password ? `${username}:${password}@${hostname}:${port}` : `${hostname}:${port}`;
 							try {
-								const 检测主机 = 'cloudflare.com', 检测端口 = 443, encoder = new TextEncoder(), decoder = new TextDecoder();
+								const 检测主机 = 'cloudflare.com', 检测端口 = 443, encoder = textEncoder, decoder = textDecoder;
 								const TCP连接 = 创建请求TCP连接器(request);
 								let tcpSocket = null, tlsSocket = null;
 								try {
@@ -584,7 +585,7 @@ function 获取本机标识(yourUUID) {
 }
 
 function 计算HPACKHuffman字节长度(字符串) {
-	const 字节 = new TextEncoder().encode(字符串);
+	const 字节 = textEncoder.encode(字符串);
 	let 总位数 = 0;
 	for (let i = 0; i < 字节.length; i++) {
 		总位数 += HPACKHuffman码长[字节[i]];
@@ -909,7 +910,7 @@ async function 读取叉HTTP首包(reader, token) {
 
 	const 尝试解析木马首包 = (data) => {
 		const 密码哈希 = sha224(token);
-		const 密码哈希字节 = new TextEncoder().encode(密码哈希);
+		const 密码哈希字节 = textEncoder.encode(密码哈希);
 		const length = data.byteLength;
 		if (length < 58) return { 状态: 'need_more' };
 		if (data[56] !== 0x0d || data[57] !== 0x0a) return { 状态: 'invalid' };
@@ -1817,7 +1818,7 @@ async function 处理WS请求(request, yourUUID, url, 反代上下文 = {}) {
 	return new Response(null, { status: 101, webSocket: clientSock, headers: { 'Sec-WebSocket-Extensions': '' } });
 }
 
-const 木马文本解码器 = new TextDecoder();
+const 木马文本解码器 = textDecoder;
 
 function 解析木马反代地址(address) {
 	const raw = String(address || '').trim();
@@ -1953,7 +1954,7 @@ function 解析木马请求(buffer, passwordPlainText) {
 }
 
 const UUID字节缓存 = new Map();
-const 魏烈思文本解码器 = new TextDecoder();
+const 魏烈思文本解码器 = textDecoder;
 
 function 读取十六进制半字节(code) {
 	if (code >= 48 && code <= 57) return code - 48;
@@ -2048,8 +2049,8 @@ const SS支持加密配置 = {
 };
 
 const SSAEAD标签长度 = 16, SSNonce长度 = 12;
-const SS子密钥信息 = new TextEncoder().encode('ss-subkey');
-const SS文本编码器 = new TextEncoder(), SS文本解码器 = new TextDecoder(), SS主密钥缓存 = new Map();
+const SS子密钥信息 = textEncoder.encode('ss-subkey');
+const SS文本编码器 = textEncoder, SS文本解码器 = textDecoder, SS主密钥缓存 = new Map();
 
 function 数据转Uint8Array(data) {
 	if (data instanceof Uint8Array) return data;
@@ -3131,7 +3132,7 @@ function isSpeedTestSite(hostname) {
 }
 
 function 构造本地204响应(respHeader = null) {
-	const 本地204响应 = new TextEncoder().encode(
+	const 本地204响应 = textEncoder.encode(
 		'HTTP/1.1 204 No Content\r\n' +
 		'Content-Length: 0\r\n' +
 		'Connection: close\r\n' +
@@ -3147,7 +3148,7 @@ function 构造本地204响应(respHeader = null) {
 }
 
 function 构造WS本地204响应(respHeader = null) {
-	const WS本地204响应 = new TextEncoder().encode(
+	const WS本地204响应 = textEncoder.encode(
 		'HTTP/1.1 204 No Content\r\n' +
 		'Content-Length: 0\r\n' +
 		'Connection: keep-alive\r\n' +
@@ -3174,14 +3175,14 @@ async function socks5Connect(targetHost, targetPort, initialData, TCP连接, par
 		const selectedMethod = new Uint8Array(response.value)[1];
 		if (selectedMethod === 0x02) {
 			if (!username || !password) throw new Error('S5 requires authentication');
-			const userBytes = new TextEncoder().encode(username), passBytes = new TextEncoder().encode(password);
+			const userBytes = textEncoder.encode(username), passBytes = textEncoder.encode(password);
 			const authPacket = new Uint8Array([0x01, userBytes.length, ...userBytes, passBytes.length, ...passBytes]);
 			await writer.write(authPacket);
 			response = await reader.read();
 			if (response.done || new Uint8Array(response.value)[1] !== 0x00) throw new Error('S5 authentication failed');
 		} else if (selectedMethod !== 0x00) throw new Error(`S5 unsupported auth method: ${selectedMethod}`);
 
-		const hostBytes = new TextEncoder().encode(targetHost);
+		const hostBytes = textEncoder.encode(targetHost);
 		const connectPacket = new Uint8Array([0x05, 0x01, 0x00, 0x03, hostBytes.length, ...hostBytes, targetPort >> 8, targetPort & 0xff]);
 		await writer.write(connectPacket);
 		response = await reader.read();
@@ -3204,8 +3205,8 @@ async function httpConnect(targetHost, targetPort, initialData, HTTPS代理 = fa
 		? TCP连接({ hostname, port }, { secureTransport: 'on', allowHalfOpen: false })
 		: TCP连接({ hostname, port });
 	const writer = socket.writable.getWriter(), reader = socket.readable.getReader();
-	const encoder = new TextEncoder();
-	const decoder = new TextDecoder();
+	const encoder = textEncoder;
+	const decoder = textDecoder;
 	try {
 		if (HTTPS代理) await socket.opened;
 
@@ -3258,8 +3259,8 @@ async function httpConnect(targetHost, targetPort, initialData, HTTPS代理 = fa
 
 async function httpsConnect(targetHost, targetPort, initialData, TCP连接, parsedSocks5) {
 	const { username, password, hostname, port } = parsedSocks5 || {};
-	const encoder = new TextEncoder();
-	const decoder = new TextDecoder();
+	const encoder = textEncoder;
+	const decoder = textDecoder;
 	let tlsSocket = null;
 	const tlsServerName = isIPHostname(hostname) ? '' : stripIPv6Brackets(hostname);
 	const 打开HTTPS代理TLS = async (allowChacha = false) => {
@@ -3376,8 +3377,6 @@ const EXT_SERVER_NAME = 0, EXT_SUPPORTED_GROUPS = 10, EXT_EC_POINT_FORMATS = 11,
 const ALERT_CLOSE_NOTIFY = 0, ALERT_LEVEL_WARNING = 1, ALERT_UNRECOGNIZED_NAME = 112;
 const shouldIgnoreTlsAlert = fragment => fragment?.[0] === ALERT_LEVEL_WARNING && fragment?.[1] === ALERT_UNRECOGNIZED_NAME;
 
-const textEncoder = new TextEncoder();
-const textDecoder = new TextDecoder();
 const EMPTY_BYTES = new Uint8Array(0);
 
 const CIPHER_SUITES_BY_ID = new Map([
@@ -4788,7 +4787,7 @@ async function sstpConnect(proxy, targetHost, targetPort, TCP连接) {
  * @returns {string} 经过秘钥处理的 Base64 字符串
  */
 function base64SecretEncode(plaintext, secret) {
-	const encoder = new TextEncoder();
+	const encoder = textEncoder;
 	const data = encoder.encode(plaintext);
 	const key = encoder.encode(secret);
 	const mixed = new Uint8Array(data.length);
@@ -4818,7 +4817,7 @@ function base64SecretDecode(encoded, secret) {
 		mixed[i] = binary.charCodeAt(i);
 	}
 
-	const encoder = new TextEncoder();
+	const encoder = textEncoder;
 	const key = encoder.encode(secret);
 	const data = new Uint8Array(mixed.length);
 
@@ -4826,7 +4825,7 @@ function base64SecretDecode(encoded, secret) {
 		data[i] = mixed[i] ^ key[i % key.length];
 	}
 
-	const decoder = new TextDecoder();
+	const decoder = textDecoder;
 	return decoder.decode(data);
 }
 
@@ -5509,7 +5508,7 @@ function 掩码敏感信息(文本, 前缀长度 = 3, 后缀长度 = 2) {
 }
 
 async function MD5MD5(文本) {
-	const 编码器 = new TextEncoder();
+	const 编码器 = textEncoder;
 
 	const 第一次哈希 = await crypto.subtle.digest('MD5', 编码器.encode(文本));
 	const 第一次哈希数组 = Array.from(new Uint8Array(第一次哈希));
@@ -5540,20 +5539,30 @@ function 替换星号为随机字符(内容) {
 	});
 }
 
-const DoH缓存 = {};
-const DoH缓存最大条目 = 256;
+const DoH缓存 = new Map(), DoH进行中 = new Map(), DoH缓存最大条目 = 256;
 const DoH记录类型映射 = { A: 1, NS: 2, CNAME: 5, MX: 15, TXT: 16, AAAA: 28, SRV: 33, HTTPS: 65 };
+
 async function DoH查询(域名, 记录类型, DoH解析服务 = "https://cloudflare-dns.com/dns-query") {
 	const 规范化域名 = String(域名 || '').trim().toLowerCase().replace(/\.$/, '');
 	const 规范化记录类型 = String(记录类型 || '').trim().toUpperCase();
-	const 缓存键 = `${规范化域名}:${规范化记录类型}`;
+	const 缓存键 = `${DoH解析服务}|${规范化域名}:${规范化记录类型}`;
 	const qtype = DoH记录类型映射[规范化记录类型] || 1;
-	const 当前时间戳 = Date.now();
-	const 现缓存项 = DoH缓存[缓存键];
-	if (现缓存项 && 当前时间戳 < 现缓存项.过期时间) {
+	const 现缓存项 = DoH缓存.get(缓存键);
+	if (现缓存项 && Date.now() < 现缓存项.过期时间) {
 		log(`[DoH查询] 命中缓存 ${域名} ${记录类型} via ${DoH解析服务}`);
 		return 现缓存项.data.map(data => ({ type: qtype, data }));
 	}
+	DoH缓存.delete(缓存键);
+	const 进行中任务 = DoH进行中.get(缓存键);
+	if (进行中任务) return 进行中任务;
+	const 查询任务 = 执行DoH查询(域名, 记录类型, DoH解析服务, 缓存键, qtype);
+	DoH进行中.set(缓存键, 查询任务);
+	try { return await 查询任务; }
+	finally { if (DoH进行中.get(缓存键) === 查询任务) DoH进行中.delete(缓存键); }
+}
+
+async function 执行DoH查询(域名, 记录类型, DoH解析服务, 缓存键, qtype) {
+	const 规范化域名 = String(域名 || '').trim().toLowerCase().replace(/\.$/, '');
 	const 开始时间 = performance.now();
 	log(`[DoH查询] 开始查询 ${域名} ${记录类型} via ${DoH解析服务}`);
 	try {
@@ -5563,7 +5572,7 @@ async function DoH查询(域名, 记录类型, DoH解析服务 = "https://cloudf
 			const parts = name.endsWith('.') ? name.slice(0, -1).split('.') : name.split('.');
 			const bufs = [];
 			for (const label of parts) {
-				const enc = new TextEncoder().encode(label);
+				const enc = textEncoder.encode(label);
 				bufs.push(new Uint8Array([enc.length]), enc);
 			}
 			bufs.push(new Uint8Array([0]));
@@ -5587,21 +5596,24 @@ async function DoH查询(域名, 记录类型, DoH解析服务 = "https://cloudf
 
 		// 通过 POST 发送 dns-message 请求
 		log(`[DoH查询] 发送查询报文 ${域名} via ${DoH解析服务} (type=${qtype}, ${query.length}字节)`);
-		const response = await fetch(DoH解析服务, {
+		const { 响应: response, 结束 } = await 带超时fetch(DoH解析服务, {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/dns-message',
 				'Accept': 'application/dns-message',
 			},
 			body: query,
-		});
-		if (!response.ok) {
-			console.warn(`[DoH查询] 请求失败 ${域名} ${记录类型} via ${DoH解析服务} 响应代码:${response.status}`);
-			return [];
-		}
+		}, 5000);
+		let buf;
+		try {
+			if (!response.ok) {
+				console.warn(`[DoH查询] 请求失败 ${域名} ${记录类型} via ${DoH解析服务} 响应代码:${response.status}`);
+				return [];
+			}
+			buf = new Uint8Array(await response.arrayBuffer());
+		} finally { 结束(); }
 
 		// 解析 DNS 响应报文
-		const buf = new Uint8Array(await response.arrayBuffer());
 		const dv = new DataView(buf.buffer);
 		const qdcount = dv.getUint16(4);
 		const ancount = dv.getUint16(6);
@@ -5620,7 +5632,7 @@ async function DoH查询(域名, 记录类型, DoH解析服务 = "https://cloudf
 					jumped = true;
 					continue;
 				}
-				labels.push(new TextDecoder().decode(buf.slice(p + 1, p + 1 + len)));
+				labels.push(textDecoder.decode(buf.slice(p + 1, p + 1 + len)));
 				p += len + 1;
 			}
 			if (endPos === -1) endPos = p + 1;
@@ -5661,7 +5673,7 @@ async function DoH查询(域名, 记录类型, DoH解析服务 = "https://cloudf
 				const parts = [];
 				while (tOff < rdlen) {
 					const tLen = rdata[tOff++];
-					parts.push(new TextDecoder().decode(rdata.slice(tOff, tOff + tLen)));
+					parts.push(textDecoder.decode(rdata.slice(tOff, tOff + tLen)));
 					tOff += tLen;
 				}
 				data = parts.join('');
@@ -5675,7 +5687,7 @@ async function DoH查询(域名, 记录类型, DoH解析服务 = "https://cloudf
 			answers.push({ name, type, TTL: ttl, data, rdata });
 		}
 		const 耗时 = (performance.now() - 开始时间).toFixed(2);
-		log(`[DoH查询] 查询完成 ${域名} ${记录类型} via ${DoH解析服务} ${耗时}ms 共${answers.length}条结果${answers.length > 0 ? '\n' + answers.map((a, i) => `  ${i + 1}. ${a.name} type=${a.type} TTL=${a.TTL} data=${a.data}`).join('\n') : ''}`);
+		if (调试日志打印) log(`[DoH查询] 查询完成 ${域名} ${记录类型} via ${DoH解析服务} ${耗时}ms 共${answers.length}条结果${answers.length > 0 ? '\n' + answers.map((a, i) => `  ${i + 1}. ${a.name} type=${a.type} TTL=${a.TTL} data=${a.data}`).join('\n') : ''}`);
 		// DoH 缓存至少保留 5 分钟，响应 TTL 更长时尊重响应 TTL；空响应使用 5 分钟负缓存
 		const 相关记录 = answers.filter(answer => answer.type === qtype);
 		const 最小TTL = 相关记录.length > 0 ? Math.min(...相关记录.map(a => a.TTL)) : 0;
@@ -5683,16 +5695,18 @@ async function DoH查询(域名, 记录类型, DoH解析服务 = "https://cloudf
 		const 缓存过期时间 = Date.now() + 缓存TTL * 1000;
 		const 缓存数据 = 相关记录.map(answer => answer.data);
 		if (缓存数据.length > 0 || answers.length === 0) {
-			if (Object.keys(DoH缓存).length >= DoH缓存最大条目) {
+			if (DoH缓存.size >= DoH缓存最大条目) {
 				const 清理时间戳 = Date.now();
-				for (const [缓存条目键, 缓存条目] of Object.entries(DoH缓存)) {
-					if (清理时间戳 >= 缓存条目.过期时间) delete DoH缓存[缓存条目键];
+				for (const [缓存条目键, 缓存条目] of DoH缓存) {
+					if (清理时间戳 >= 缓存条目.过期时间) DoH缓存.delete(缓存条目键);
 				}
-				if (Object.keys(DoH缓存).length >= DoH缓存最大条目) {
-					delete DoH缓存[Object.keys(DoH缓存)[0]];
+				if (DoH缓存.size >= DoH缓存最大条目) {
+					const 最旧键 = DoH缓存.keys().next().value;
+					if (最旧键 !== undefined) DoH缓存.delete(最旧键);
 				}
 			}
-			DoH缓存[缓存键] = { data: 缓存数据, 过期时间: 缓存过期时间 };
+			DoH缓存.set(缓存键, { data: 缓存数据, 过期时间: 缓存过期时间 });
+			log(`[DoH查询] 写入缓存 ${域名} ${记录类型} TTL=${缓存TTL}s${缓存数据.length === 0 ? '（空结果）' : ''}`);
 			log(`[DoH查询] 写入缓存 ${域名} ${记录类型} TTL=${缓存TTL}s${缓存数据.length === 0 ? '（空结果）' : ''}`);
 		}
 		return answers;
@@ -6193,7 +6207,7 @@ async function 请求优选API(urls, 默认端口 = '443', uid = "000000", 超�
 						}
 					} catch (e) { }
 				}
-				if (!decodeSuccess) text = new TextDecoder('utf-8').decode(buffer);
+				if (!decodeSuccess) text = textDecoder.decode(buffer);
 				if (!text || text.trim().length === 0) return;
 			} finally { 结束(); }
 
@@ -6211,7 +6225,7 @@ async function 请求优选API(urls, 默认端口 = '443', uid = "000000", 超�
 				try {
 					const 解码文本 = atob(cleanText);
 					const bytes = Uint8Array.from(解码文本, c => c.charCodeAt(0));
-					预处理订阅明文内容 = new TextDecoder('utf-8').decode(bytes);
+					预处理订阅明文内容 = textDecoder.decode(bytes);
 				} catch (e) {
 					console.warn(`[请求优选API] base64 解码失败 ${urlWithoutHash}: ${e.message}`);
 					return;
