@@ -4799,7 +4799,14 @@ function 获取传输协议配置(配置 = {}) {
 		"xPaddingMethod": "tokenish",
 		"xPaddingPlacement": "queryInHeader",
 		"xPaddingHeader": 本机标识头,
-		"xPaddingKey": 本机标识键
+		"xPaddingKey": 本机标识键,
+		"xmux": {
+			"maxConnections": 4,
+			"cMaxReuseTimes": 0,
+			"hMaxRequestTimes": 0,
+			"hMaxReusableSecs": 3600,
+			"hKeepAlivePeriod": 0
+		}
 	};
 	return {
 		type: 是gRPC ? (配置.gRPC模式 === 'multi' ? 'grpc&mode=multi' : 'grpc&mode=gun') : (配置.传输协议 === 'xhttp' ? `xhttp&mode=stream-one&extra=${encodeURIComponent(JSON.stringify(叉混淆JSON))}` : 'ws'),
