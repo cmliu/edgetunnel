@@ -1,4 +1,4 @@
-﻿const Version = '2026-10-08 22:23:27';
+﻿const Version = '2026-11-10 23:26:46';
 let config_JSON, 缓存SOCKS5白名单 = null, 调试日志打印 = false;
 let SOCKS5白名单 = ['*tapecontent.net', '*cloudatacdn.com', '*loadshare.org', '*cdn-centaurus.com', 'scholar.google.com'];
 const Pages静态页面 = 'https://edt-pages.github.io', EDT_版本号 = Number(String(Version).replace(/\D+/g, ''));
@@ -4801,6 +4801,7 @@ function 获取传输协议配置(配置 = {}) {
 		"xPaddingHeader": 本机标识头,
 		"xPaddingKey": 本机标识键
 	};
+	if (配置.连接复用.启用 === true) 叉混淆JSON.xmux = 配置.连接复用.xmux;
 	return {
 		type: 是gRPC ? (配置.gRPC模式 === 'multi' ? 'grpc&mode=multi' : 'grpc&mode=gun') : (配置.传输协议 === 'xhttp' ? `xhttp&mode=stream-one&extra=${encodeURIComponent(JSON.stringify(叉混淆JSON))}` : 'ws'),
 		路径字段名: 是gRPC ? 'serviceName' : 'path',
@@ -5597,6 +5598,14 @@ async function DoH查询(域名, 记录类型, DoH解析服务 = "https://cloudf
 
 async function 读取config_JSON(env, hostname, userID, UA = "Mozilla/5.0", 重置配置 = false) {
 	const _p = 特征码字典[0];
+	const xmux默认值 = {
+		maxConnections: 4,
+		maxConcurrency: 0,
+		cMaxReuseTimes: 0,
+		hMaxRequestTimes: 0,
+		hMaxReusableSecs: 3600,
+		hKeepAlivePeriod: 0
+	}
 	const host = hostname, Ali_DoH = "https://dns.alidns.com/dns-query", ECH_SNI = "cloudflare-ech.com", 占位符 = '{{IP:PORT}}', 初始化开始时间 = performance.now(), 默认配置JSON = {
 		TIME: new Date().toISOString(),
 		HOST: host,
@@ -5616,6 +5625,10 @@ async function 读取config_JSON(env, hostname, userID, UA = "Mozilla/5.0", 重�
 		ECHConfig: {
 			DNS: Ali_DoH,
 			SNI: ECH_SNI,
+		},
+		连接复用: {
+			启用: false,
+			xmux: xmux默认值
 		},
 		SS: {
 			加密方式: "aes-128-gcm",
@@ -5712,6 +5725,7 @@ async function 读取config_JSON(env, hostname, userID, UA = "Mozilla/5.0", 重�
 		config_JSON = 默认配置JSON;
 	}
 
+	if (!config_JSON.连接复用) config_JSON.连接复用 = { 启用: false, xmux: xmux默认值 };
 	if (!config_JSON.订阅转换配置.SUBLIST) config_JSON.订阅转换配置.SUBLIST = false;
 	if (!config_JSON.订阅转换配置.UDP) config_JSON.订阅转换配置.UDP = false;
 	if (!config_JSON.订阅转换配置.XUDP) config_JSON.订阅转换配置.XUDP = false;
