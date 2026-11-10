@@ -4799,7 +4799,7 @@ function 获取传输协议配置(配置 = {}) {
 		"xPaddingMethod": "tokenish",
 		"xPaddingPlacement": "queryInHeader",
 		"xPaddingHeader": 本机标识头,
-		"xPaddingKey": 本机标识键,
+		"xPaddingKey": 本机标识键
 	};
 	if (配置.连接复用.启用 === true) 叉混淆JSON.xmux = 配置.连接复用.xmux;
 	return {
