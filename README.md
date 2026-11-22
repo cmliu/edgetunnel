@@ -30,7 +30,7 @@
 
 ## 💡 快速部署
 >[!TIP]
-> 📖 **详尽图文教程**：[edgetunnel 部署指南](https://cmliussss.com/p/edt2/)
+> 📖 ***详尽图文教程***：[edgetunnel 部署指南](https://cmliussss.com/p/edt2/)
 
 >[!WARNING]
 > ⚠️ **Error 1101问题**：[视频解析](https://www.youtube.com/watch?v=r4uVTEJptdE)
