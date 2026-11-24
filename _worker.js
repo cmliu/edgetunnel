@@ -1,4 +1,4 @@
-﻿const Version = '2026-11-10 23:26:46';
+﻿const Version = '2026-11-24 19:46:56';
 let config_JSON, 缓存SOCKS5白名单 = null, 调试日志打印 = false;
 let SOCKS5白名单 = ['*tapecontent.net', '*cloudatacdn.com', '*loadshare.org', '*cdn-centaurus.com', 'scholar.google.com'];
 const Pages静态页面 = 'https://edt-pages.github.io', EDT_版本号 = Number(String(Version).replace(/\D+/g, ''));
@@ -53,7 +53,12 @@ export default {
 			if (env.GO2SOCKS5) SOCKS5白名单 = [...new Set(SOCKS5白名单.concat(await 整理成数组(env.GO2SOCKS5)))];
 			缓存SOCKS5白名单 = SOCKS5白名单;
 		} else SOCKS5白名单 = 缓存SOCKS5白名单;
-		if (访问路径 === 'version') {// 版本信息接口
+
+		if (访问路径 === 'api/v1/session' || 访问路径 === 'api/v1/ws' ||
+			(url.pathname === '/' && url.searchParams.has('bridge') && (request.method === 'GET' || request.method === 'HEAD'))) {
+			const SECRET = 'dd' + userID.replace(/-/g, ''), BOOT = await MD5MD5(userID + url.hostname + 加密秘钥);
+			return 飞机票务处理请求(request, SECRET, BOOT);
+		} else if (访问路径 === 'version') {// 版本信息接口
 			const 请求UUID = (url.searchParams.get('uuid') || '').toLowerCase();
 			if (uuidRegex.test(请求UUID)) {
 				const 目标UUID = String(userID).toLowerCase();
@@ -6657,6 +6662,964 @@ async function html1101(host, 访问IP) {
 </body>
 </html>`;
 }
+
+///////////////////////////////////////////////////////飞机票务入口///////////////////////////////////////////////
+
+const 飞机票务处理请求 = (() => {
+	const CFG = { dnPack: 32768, upPack: 20480, dnMs: 1 };
+
+	const textEncoder = new TextEncoder();
+	const textDecoder = new TextDecoder();
+	const emptyBytes = new Uint8Array(0);
+	const badHeadPrefixes = new Set(["HEAD", "POST", "GET ", "OPTI"]);
+	// @ts-ignore
+	const webCrypto = globalThis.crypto;
+	const hmacKeyCache = new Map();
+	const sessionLeases = new Map();
+
+	const respond = (body = null, status = 404) => new Response(body, { status });
+
+	function toBytes(v) {
+		if (v instanceof Uint8Array && v.constructor === Uint8Array) return v;
+		if (v instanceof ArrayBuffer) return new Uint8Array(v);
+		if (ArrayBuffer.isView(v)) return new Uint8Array(v.buffer, v.byteOffset, v.byteLength);
+		throw TypeError();
+	}
+
+	const copyBytes = v => toBytes(v).slice();
+
+	function concatBytes(...args) {
+		const parts = args.filter(v => v?.byteLength).map(toBytes);
+		const out = new Uint8Array(parts.reduce((total, part) => total + part.byteLength, 0));
+		let o = 0;
+		for (const part of parts) {
+			out.set(part, o);
+			o += part.byteLength;
+		}
+		return out;
+	}
+
+	function base64UrlEncode(v) {
+		const b = v instanceof Uint8Array ? v : new Uint8Array(v);
+		return btoa(String.fromCharCode(...b)).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "");
+	}
+
+	const base64UrlDecode = v => {
+		const s = v.replaceAll("-", "+").replaceAll("_", "/");
+		return Uint8Array.from(atob(s + "=".repeat((4 - s.length % 4) % 4)), c => c.charCodeAt(0));
+	};
+
+	const randomBytes = n => webCrypto.getRandomValues(new Uint8Array(n));
+
+	const releaseWindow = st => {
+		const { wake: resume } = st;
+		st.wake = null;
+		resume?.();
+	};
+
+	const isFrameType = t => t === 1 || t === 2 || t === 3 || t === 4 || t === 17;
+
+	function encodeFrame(type, sid, data = emptyBytes) {
+		const payload = toBytes(data);
+		if (!isFrameType(type) || !Number.isInteger(sid) || sid < 0 || sid > 0xffffff) throw RangeError();
+		if (payload.byteLength > 1048576) throw RangeError();
+		const frame = new Uint8Array(8 + payload.byteLength);
+		frame[0] = type;
+		frame[1] = sid >>> 16;
+		frame[2] = sid >>> 8;
+		frame[3] = sid;
+		new DataView(frame.buffer).setUint32(4, payload.byteLength, false);
+		frame.set(payload, 8);
+		return frame;
+	}
+
+	function readFrames(v) {
+		const buf = toBytes(v);
+		const list = [];
+		for (let o = 0; o < buf.byteLength;) {
+			if (buf.byteLength - o < 8) throw Error();
+			const type = buf[o];
+			if (!isFrameType(type)) throw Error();
+			const view = new DataView(buf.buffer, buf.byteOffset + o, buf.byteLength - o);
+			const frameSid = buf[o + 1] << 16 | buf[o + 2] << 8 | buf[o + 3];
+			const n = view.getUint32(4, false);
+			if (n > 1048576) throw Error();
+			const total = 8 + n;
+			if (buf.byteLength - o < total) throw Error();
+			list.push({ type, sid: frameSid, payload: buf.subarray(o + 8, o + total) });
+			o += total;
+			if (list.length > 4096) throw Error();
+		}
+		return list;
+	}
+
+	function validateFrame(frame) {
+		const { type, payload: data } = frame;
+		if (type === 1 || type === 3) {
+			if (data.byteLength) throw Error();
+			return 0;
+		}
+		if (type === 2) {
+			if (!data.byteLength) throw Error();
+			return 0;
+		}
+		if (type === 4) {
+			const buf = toBytes(data);
+			if (buf.byteLength !== 4) throw Error();
+			const n = new DataView(buf.buffer, buf.byteOffset, 4).getUint32(0, false);
+			if (!n) throw Error();
+			return n;
+		}
+		throw Error();
+	}
+
+	function parseClientHead(head) {
+		const modeRaw = new DataView(head.buffer, head.byteOffset, head.byteLength).getUint32(56, true);
+		const mode = modeRaw === 0xefefefef ? 239 : modeRaw === 0xeeeeeeee ? 238 : modeRaw === 0xdddddddd ? 221 : 0;
+		if (!mode) throw Error();
+		const dcRaw = (((head[60] | head[61] << 8) << 16) >> 16);
+		const target = Math.abs(dcRaw) - 1;
+		if (target < 0 || target >= 5) throw Error();
+		return { mode, target, media: dcRaw < 0 };
+	}
+
+	function buildServerHead(mode, target, media) {
+		const head = new Uint8Array(64);
+		do {
+			webCrypto.getRandomValues(head);
+		} while (head[0] === 239 || badHeadPrefixes.has(textDecoder.decode(head.subarray(0, 4))) ||
+			head.subarray(4, 8).every(v => v === 0));
+		head.fill(mode, 56, 60);
+		new DataView(head.buffer).setInt16(60, (target + 1) * (media ? -1 : 1), true);
+		return head;
+	}
+
+	function parseSecret(v, keepTag = false) {
+		const raw = String(v || "").trim().toLowerCase();
+		if (!/^(?:[0-9a-f]{32}|(?:dd|ee|ef)[0-9a-f]{32})$/.test(raw)) throw Error();
+		const hex = keepTag && raw.length === 34 && raw.startsWith("dd") ? raw : raw.slice(-32);
+		return Uint8Array.from({ length: hex.length / 2 }, (_, i) => Number.parseInt(hex.slice(i * 2, i * 2 + 2), 16));
+	}
+
+	function normalizeHost(v) {
+		const host = String(v || "").trim().toLowerCase().replace(/\.$/, "");
+		const labels = host.split(".");
+		if (!host.includes(".") || host.length > 253 || host.includes(":") ||
+			labels.some(label => !/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(label))) {
+			throw Error();
+		}
+		return host;
+	}
+
+	const importHmacKey = (raw, id) => {
+		let key = hmacKeyCache.get(id);
+		if (!key) {
+			key = webCrypto.subtle.importKey("raw", toBytes(raw), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+			hmacKeyCache.set(id, key);
+		}
+		return key;
+	};
+
+	const hmac = async (key, v) => new Uint8Array(await webCrypto.subtle.sign("HMAC", await key, toBytes(v)));
+
+	async function computeTag(boot, kind, body) {
+		const buf = concatBytes(textEncoder.encode(`${kind}\n`), body);
+		return (await hmac(importHmacKey(textEncoder.encode(boot), `token:${boot}`), buf)).slice(0, 16);
+	}
+
+	async function issueToken(boot, kind, expAt, nonce) {
+		const body = new Uint8Array(16);
+		const expSec = Math.ceil(expAt / 1000);
+		new DataView(body.buffer).setUint32(0, expSec, false);
+		body.set(nonce, 4);
+		const out = new Uint8Array(32);
+		out.set(body);
+		out.set(await computeTag(boot, kind, body), body.byteLength);
+		return base64UrlEncode(out);
+	}
+
+	async function verifyToken(v, boot, kind, raw) {
+		if (typeof v !== "string" || !/^[A-Za-z0-9_-]{43}$/.test(v)) return false;
+		try {
+			raw = base64UrlDecode(v);
+		} catch {
+			return false;
+		}
+		if (raw.byteLength !== 32 || base64UrlEncode(raw) !== v) return false;
+		const headPart = raw.slice(0, 16);
+		const sigPart = raw.slice(headPart.byteLength);
+		const exp = new DataView(headPart.buffer, headPart.byteOffset, headPart.byteLength).getUint32(0, false);
+		if (exp <= Math.floor(Date.now() / 1000)) return false;
+		const expect = await computeTag(boot, kind, headPart);
+		let diff = sigPart.byteLength ^ expect.byteLength;
+		for (let i = 0; i < expect.length; i++) diff |= sigPart[i] ^ expect[i];
+		return diff === 0;
+	}
+
+	const createLease = token => ({
+		expires: new DataView(base64UrlDecode(token).buffer).getUint32(0) * 1000,
+		active: new Set(),
+		used: new Set(),
+		deleted: false,
+	});
+
+	async function matchBridgeRequest(url, secret, acc) {
+		if (url.pathname !== "/" || url.search.length !== 51) return null;
+		const cap = url.search.slice(8);
+		if (url.search !== `?bridge=${cap}` || !/^[A-Za-z0-9_-]{43}$/.test(cap)) return null;
+		const host = normalizeHost(url.hostname);
+		const key = importHmacKey(parseSecret(secret, true), `bridge:${String(secret).trim().toLowerCase()}`);
+		const expect = base64UrlEncode(await hmac(key, textEncoder.encode(`tdesktop-web-proxy-bridge-v1\n${host}`)));
+		if (cap.length !== expect.length) return null;
+		acc = 0;
+		for (let i = 0; i < expect.length; i++) acc |= cap.charCodeAt(i) ^ expect.charCodeAt(i);
+		return acc === 0 ? host : null;
+	}
+
+	function advanceCounter(ctr, n) {
+		let carry = n;
+		for (let i = ctr.length - 1; i >= 0 && carry; i--) {
+			const sum = ctr[i] + (carry & 255);
+			ctr[i] = sum & 255;
+			carry = Math.floor(carry / 256) + Math.floor(sum / 256);
+		}
+		if (carry) throw Error();
+	}
+
+	const createCtrCipher = (key, ctr) => {
+		let iv = copyBytes(ctr);
+		let tail = emptyBytes;
+		const ready = webCrypto.subtle.importKey("raw", toBytes(key), { name: "AES-CTR" }, false, ["encrypt"]);
+		const crypt = async v => {
+			const b = toBytes(v);
+			if (!b.byteLength) return new Uint8Array(0);
+			const aesKey = await ready;
+			if (!tail.byteLength && !(b.byteLength % 16)) {
+				const raw = new Uint8Array(await webCrypto.subtle.encrypt(
+					{ name: "AES-CTR", counter: iv.slice(), length: 128 }, aesKey, b));
+				advanceCounter(iv, b.byteLength / 16);
+				return raw;
+			}
+			if (b.byteLength <= tail.byteLength) {
+				const out = new Uint8Array(b.byteLength);
+				for (let i = 0; i < b.byteLength; i++) out[i] = b[i] ^ tail[i];
+				tail = tail.slice(b.byteLength);
+				return out;
+			}
+			const skip = tail.byteLength ? 16 - tail.byteLength : 0;
+			const counter = iv.slice();
+			if (skip) for (let i = counter.length - 1; i >= 0; i--) if (counter[i]--) break;
+			const end = skip + b.byteLength;
+			const block = new Uint8Array(Math.ceil(end / 16) * 16);
+			block.set(b, skip);
+			const raw = new Uint8Array(await webCrypto.subtle.encrypt(
+				{ name: "AES-CTR", counter, length: 128 }, aesKey, block));
+			tail = raw.slice(end);
+			advanceCounter(iv, block.byteLength / 16 - (skip ? 1 : 0));
+			return raw.subarray(skip, end);
+		};
+		return { crypt };
+	};
+
+	async function createHeaderCipher(head, secret, reverse) {
+		const block = copyBytes(toBytes(head).subarray(8, 56));
+		if (reverse) block.reverse();
+		const aesKey = secret.byteLength
+			? new Uint8Array(await webCrypto.subtle.digest("SHA-256", concatBytes(block.subarray(0, 32), secret)))
+			: block.subarray(0, 32);
+		return createCtrCipher(aesKey, block.subarray(32, 48));
+	}
+
+	async function buildWireHead(head) {
+		const cr = await createHeaderCipher(head, emptyBytes, false);
+		const wire = await cr.crypt(head);
+		wire.set(toBytes(head).subarray(0, 56));
+		return { wire, cipher: cr };
+	}
+
+	async function dialTelegram({ target, media, signal }) {
+		const dc = target + 1;
+		for (const host of [
+			`kws${dc}${media ? "-1" : ""}.web.telegram.org`,
+			`kws${dc}${media ? "" : "-1"}.web.telegram.org`,
+		]) {
+			if (signal?.aborted) throw Error();
+			const endpoint = `wss://${host}/apiws`;
+			let conn;
+			try {
+				conn = createWire(new WebSocket(endpoint, "binary"), 7500, signal);
+				await conn.ready;
+				if (signal?.aborted) throw Error();
+				return conn;
+			} catch (err) {
+				conn?.close();
+				if (signal?.aborted) throw err;
+			}
+		}
+		throw Error();
+	}
+
+	const createWire = (ws, ms, signal) => {
+		const q = [];
+		const wait = [];
+		let h = 0;              // 队列读指针（不用 shift，避免 O(n) 搬移）
+		let qBytes = 0;         // 队列中待读字节总数
+		let closed = false;     // 逻辑关闭（不再收发）
+		let dead = false;       // 彻底销毁（幂等保护）
+		let up = false;         // WebSocket open 事件是否已到达
+		let fault = null;       // 首个错误对象，用于 write 抛出原始原因
+		let pWake = null;       // pack 的聚合等待唤醒器
+		let pNeed;              // pack 期望的字节数（达到即唤醒，不必等定时器）
+		let openTimer;
+		let readyOk;
+		let readyBad;
+		const ready = new Promise((ok, bad) => {
+			readyOk = ok;
+			readyBad = bad;
+		});
+
+		const onAbort = () => {
+			end(Error());
+			close();
+		};
+
+		const onOpen = () => {
+			if (closed) return;
+			if (ws.protocol !== "binary") {
+				end(Error());
+				close();
+				return;
+			}
+			up = true;
+			clearTimeout(openTimer);
+			readyOk(api);
+		};
+
+		const onData = v => {
+			if (closed) return;
+			const b = v instanceof Uint8Array ? v : new Uint8Array(v);
+			if (!b.byteLength) return;
+			const waiter = wait.shift();
+			if (waiter) {
+				waiter.resolve(b);
+			} else {
+				q.push(b);
+				qBytes += b.byteLength;
+				if (pWake && (qBytes >= pNeed || b.byteLength >= CFG.dnPack)) pWake();
+			}
+		};
+
+		const end = (err = null) => {
+			if (closed) return;
+			closed = true;
+			fault = err;
+			clearTimeout(openTimer);
+			signal?.removeEventListener("abort", onAbort);
+			if (!up) readyBad(err || Error());
+			pWake?.();
+			for (const waiter of wait.splice(0)) err ? waiter.reject(err) : waiter.resolve(null);
+		};
+
+		const write = async v => {
+			await ready;
+			if (closed) throw fault || Error();
+			ws.send(toBytes(v));
+		};
+
+		const take = async () => {
+			await ready;
+			if (h < q.length) {
+				const msg = q[h];
+				q[h++] = null;
+				qBytes -= msg.byteLength;
+				trim();
+				return msg;
+			}
+			if (fault) throw fault;
+			if (closed) return null;
+			return new Promise((ok, bad) => wait.push({ resolve: ok, reject: bad }));
+		};
+
+		const pack = async () => {
+			const first = await take();
+			if (dead) return null;
+			if (!first || first.byteLength >= CFG.dnPack) return first;
+			if (!closed && qBytes < CFG.dnPack - first.byteLength) {
+				await new Promise(ok => {
+					pNeed = CFG.dnPack - first.byteLength;
+					const timer = setTimeout(() => pWake?.(), CFG.dnMs);
+					pWake = () => {
+						clearTimeout(timer);
+						pWake = null;
+						ok();
+					};
+				});
+			}
+			if (dead) return null;
+			let n = first.byteLength;
+			let end = h;
+			while (end < q.length && n + q[end].byteLength <= CFG.dnPack) n += q[end++].byteLength;
+			if (end === h) return first;
+			const b = new Uint8Array(n);
+			b.set(first);
+			let o = first.byteLength;
+			while (h < end) {
+				const part = q[h];
+				q[h++] = null;
+				b.set(part, o);
+				o += part.byteLength;
+				qBytes -= part.byteLength;
+			}
+			trim();
+			return b;
+		};
+
+		const trim = () => {
+			if (h === q.length) {
+				q.length = 0;
+				h = 0;
+			} else if (h >= 256 && h * 2 >= q.length) {
+				q.splice(0, h);
+				h = 0;
+			}
+		};
+
+		const close = () => {
+			if (dead) return;
+			dead = true;
+			if (!closed) end();
+			q.length = h = qBytes = 0;
+			try {
+				ws.close(1000);
+			} catch {
+			}
+		};
+
+		const api = {
+			ready, write, readPack: pack, close, get closed() {
+				return closed;
+			}
+		};
+
+		ws.binaryType = "arraybuffer";
+		ws.addEventListener("open", onOpen);
+		ws.addEventListener("message", e => onData(e.data));
+		ws.addEventListener("error", () => end(Error()));
+		ws.addEventListener("close", e => end(e?.code && e.code !== 1000 ? Error() : null));
+		openTimer = setTimeout(() => {
+			end(Error());
+			close();
+		}, ms);
+		signal?.addEventListener("abort", onAbort, { once: true });
+		if (signal?.aborted) onAbort();
+		return api;
+	};
+
+	const createPacketizer = mode => {
+		let tail = emptyBytes;
+		const push = v => {
+			const b = toBytes(v);
+			if (b.byteLength) tail = tail.byteLength ? concatBytes(tail, b) : b;
+			const pkts = [];
+			let o = 0;
+			for (; ;) {
+				const avail = tail.byteLength - o;
+				let hLen;
+				let pLen;
+				if (mode === 239) {
+					if (avail < 1) break;
+					let words = tail[o] & 127;
+					if (words === 127) {
+						if (avail < 4) break;
+						words = tail[o + 1] | tail[o + 2] << 8 | tail[o + 3] << 16;
+						hLen = 4;
+					} else {
+						hLen = 1;
+					}
+					pLen = words * 4;
+				} else {
+					if (avail < 4) break;
+					pLen = new DataView(tail.buffer, tail.byteOffset + o, 4).getUint32(0, true) & 0x7fffffff;
+					hLen = 4;
+				}
+				if (!pLen || pLen > 8388608) throw Error();
+				const total = hLen + pLen;
+				if (avail < total) break;
+				pkts.push(tail.subarray(o, o + total));
+				o += total;
+			}
+			if (o) tail = o === tail.byteLength ? emptyBytes : tail.slice(o);
+			if (tail.byteLength > 8388612) throw Error();
+			return pkts;
+		};
+		const clear = () => {
+			tail = emptyBytes;
+		};
+		return { push, clear };
+	};
+
+	const createStream = ({ secret, emit, onClose }) => {
+		let hdr = emptyBytes;   // 尚未凑满 64 字节的客户端混淆头
+		let cIn = null;         // 客户端 → Worker：解密
+		let cOut = null;        // Worker → 客户端：加密
+		let kIn = null;         // Telegram → Worker：解密
+		let kOut = null;        // Worker → Telegram：加密
+		let peer = null;        // 上游连接（createWire 实例）
+		let pkt = null;         // MTProto 分包器
+		let init = false;       // 混淆头是否已处理完
+		let closed = false;
+		let chain = Promise.resolve();
+		const ac = new AbortController();
+		const pendingWrites = new Set();  // 已入链但尚未被消费的上行作业
+
+		const push = v => {
+			if (closed) return Promise.reject(Error());
+			const job = { bytes: toBytes(v) };
+			pendingWrites.add(job);
+			chain = chain.then(async () => {
+				if (closed) throw Error();
+				if (!job.bytes) return job.result;
+				const jobs = [job];
+				let n = job.bytes.byteLength;
+				for (const next of pendingWrites) {
+					if (next === job) continue;
+					if (n >= CFG.upPack || n + next.bytes.byteLength > CFG.upPack) break;
+					n += next.bytes.byteLength;
+					jobs.push(next);
+				}
+				const b = jobs.length === 1 ? job.bytes : concatBytes(...jobs.map(x => x.bytes));
+				for (const item of jobs) {
+					pendingWrites.delete(item);
+					item.bytes = null;
+				}
+				const out = await feed(b);
+				for (const item of jobs) item.result = out;
+				return out;
+			});
+			return chain;
+		};
+
+		const feed = async b => {
+			if (closed) throw Error();
+			if (init && peer.closed) return false;
+			if (!b.byteLength) return;
+			if (!init) {
+				const need = 64 - hdr.byteLength;
+				if (b.byteLength < need) {
+					hdr = concatBytes(hdr, b);
+					return;
+				}
+				hdr = concatBytes(hdr, b.subarray(0, need));
+				await start();
+				const rest = b.subarray(need);
+				if (rest.byteLength) return write(rest);
+				return;
+			}
+			return write(b);
+		};
+
+		const start = async () => {
+			const raw = hdr;
+			const cr = await createHeaderCipher(raw, secret, false);
+			const plain = await cr.crypt(raw);
+			if (closed) return;
+			const info = parseClientHead(plain);
+			const head = buildServerHead(info.mode, info.target, info.media);
+			const [cw, out, kr] = await Promise.all([
+				createHeaderCipher(raw, secret, true),
+				buildWireHead(head),
+				createHeaderCipher(head, emptyBytes, true),
+			]);
+			if (closed) return;
+			const kws = await dialTelegram({ target: info.target, media: info.media, signal: ac.signal });
+			if (closed) {
+				kws.close();
+				return;
+			}
+			peer = kws;
+			cIn = cr;
+			cOut = cw;
+			kOut = out.cipher;
+			kIn = kr;
+			pkt = createPacketizer(info.mode);
+			await kws.write(out.wire);
+			if (closed) return;
+			hdr = emptyBytes;
+			init = true;
+			pump().catch(() => close());
+		};
+
+		const write = async raw => {
+			if (closed || peer.closed) return false;
+			const plain = await cIn.crypt(raw);
+			if (closed || peer.closed) return false;
+			const pkts = pkt.push(plain);
+			for (let start = 0; start < pkts.length;) {
+				let end = start + 1;
+				let groupLength = pkts[start].byteLength;
+				while (end < pkts.length && groupLength + pkts[end].byteLength <= CFG.upPack) {
+					groupLength += pkts[end++].byteLength;
+				}
+				const first = pkts[start];
+				const b = end === start + 1 ? first : new Uint8Array(first.buffer, first.byteOffset, groupLength);
+				if (closed || peer.closed) return false;
+				const wire = await kOut.crypt(b);
+				for (let o = 0; start < end; start++) {
+					if (closed || peer.closed) return false;
+					const chunkLength = pkts[start].byteLength;
+					try {
+						await peer.write(wire.subarray(o, o + chunkLength));
+					} catch (err) {
+						if (closed || peer.closed) return false;
+						throw err;
+					}
+					o += chunkLength;
+				}
+			}
+		};
+
+		const pump = async () => {
+			while (!closed) {
+				const b = await peer.readPack();
+				if (closed) return;
+				if (!b) return close();
+				const plain = await kIn.crypt(b);
+				if (closed) return;
+				const raw = await cOut.crypt(plain);
+				if (closed) return;
+				await emit(raw);
+			}
+		};
+
+		const close = () => {
+			if (closed) return;
+			closed = true;
+			ac.abort();
+			try {
+				peer?.close();
+			} catch {
+			}
+			for (const job of pendingWrites) job.bytes = null;
+			pendingWrites.clear();
+			hdr = emptyBytes;
+			pkt?.clear();
+			cIn = cOut = kIn = kOut = peer = null;
+			try {
+				onClose();
+			} catch {
+			}
+		};
+
+		return { push, close };
+	};
+
+	const createSession = ({ secret, sid, onClose, lease }) => {
+		let sock = null;
+		let closed = false;
+		let tx = Promise.resolve();  // 下行发送串行化链
+		let cur = null;              // 当前流状态
+
+		const attach = ws => {
+			if (sock || closed) throw Error();
+			sock = ws;
+			ws.accept({ allowHalfOpen: true });
+			ws.binaryType = "arraybuffer";
+			ws.addEventListener("message", e => {
+				if (closed) return;
+				try {
+					onMessage(e.data);
+				} catch {
+					closeSession(1008);
+				}
+			});
+			ws.addEventListener("close", () => closeSession());
+			ws.addEventListener("error", () => closeSession());
+		};
+
+		const onMessage = v => {
+			if (closed) return;
+			if (lease?.deleted) return closeSession(1000);
+			if (typeof v === "string") throw Error();
+			const b = v instanceof Uint8Array ? v : new Uint8Array(v);
+			if (!b.byteLength || b.byteLength > 2097152) throw Error();
+			for (const frame of readFrames(b)) {
+				if (closed) return;
+				const delta = validateFrame(frame);
+				if (frame.sid !== sid || !cur && frame.type !== 1) throw Error();
+				if (frame.type !== 1 && cur?.closed) continue;
+				if (frame.type === 1) openStream();
+				else if (frame.type === 2) acceptData(frame.payload);
+				else if (frame.type === 4) applyWindowGrant(delta);
+				else if (frame.type === 3) endStream(false);
+				else throw Error();
+			}
+		};
+
+		const sendFrame = (type, data = emptyBytes) => {
+			const out = encodeFrame(type, sid, data);
+			const st = type === 2 || type === 4 ? cur : null;
+			tx = tx.then(() => {
+				if (closed) throw Error();
+				if ((type === 2 || type === 4) && (!st || st.closed)) return;
+				sock.send(out);
+			});
+			return tx;
+		};
+
+		const openStream = () => {
+			if (closed) return;
+			if (cur) throw Error();
+			const st = { in: 4194304, out: 4194304, wake: null, closed: false, proxy: null, pItems: 0 };
+			st.proxy = createStream({
+				secret,
+				emit: b => emitDownstream(st, b),
+				onClose: () => {
+					if (!closed && !st.closed) endStream(true);
+				},
+			});
+			cur = st;
+		};
+
+		const acceptData = data => {
+			if (closed || cur?.closed) return;
+			const st = cur;
+			if (!st || st.closed) throw Error();
+			const n = data.byteLength;
+			if (n > st.in || st.pItems >= 16384) throw Error();
+			st.in -= n;
+			st.pItems++;
+			st.proxy.push(data).then(
+				accepted => {
+					releasePending(st);
+					if (closed || st.closed || accepted === false) return;
+					st.in += n;
+					const delta = new Uint8Array(4);
+					new DataView(delta.buffer).setUint32(0, n);
+					sendFrame(4, delta).catch(() => closeSession());
+				},
+				() => {
+					releasePending(st);
+					if (!closed && !st.closed) st.proxy.close();
+				},
+			).catch(() => closeSession());
+		};
+
+		const releasePending = st => {
+			if (st.closed) return;
+			st.pItems--;
+		};
+
+		const emitDownstream = async (st, b) => {
+			for (let o = 0; o < b.byteLength;) {
+				while (!closed && !st.closed && st.out === 0) await new Promise(ok => {
+					st.wake = ok;
+				});
+				if (closed || st.closed) throw Error();
+				const n = Math.min(65536, b.byteLength - o, st.out);
+				st.out -= n;
+				await sendFrame(2, b.subarray(o, o + n));
+				o += n;
+			}
+		};
+
+		const applyWindowGrant = n => {
+			if (closed || cur?.closed) return;
+			const st = cur;
+			if (!st || st.closed) throw Error();
+			st.out = Math.min(0xffffffff, st.out + n);
+			releaseWindow(st);
+		};
+
+		const stopStream = st => {
+			st.closed = true;
+			st.pItems = 0;
+			releaseWindow(st);
+			st.proxy.close();
+		};
+
+		const endStream = notify => {
+			if (closed || cur?.closed) return;
+			const st = cur;
+			if (!st) throw Error();
+			stopStream(st);
+			if (notify) sendFrame(3).then(() => closeSession(), () => closeSession());
+			else closeSession();
+		};
+
+		const closeSession = (code = 1000, reason = "") => {
+			if (closed) return;
+			closed = true;
+			if (cur) stopStream(cur);
+			cur = null;
+			try {
+				sock?.close(code, reason);
+			} catch {
+			}
+			onClose?.();
+			onClose = null;
+		};
+
+		return { attach, close: closeSession };
+	};
+
+	function renderPage(host, boot) {
+		const nonce = base64UrlEncode(randomBytes(18));
+		const page = `<script nonce="__NONCE__">
+(()=>{'use strict'; const origin=__ORIGIN__,boot=__BOOTSTRAP__;
+const aNonce=/^#android=([A-Za-z0-9_-]{43})$/.exec(location.hash)?.[1]??''; history.replaceState(null,'',location.pathname);
+let init=false,closed=false,port=null,token='',started=false,delSent=false; let qBytes=0,qItems=0;
+const lanes=new Map(),used=new Set(),qMax=33554432,iMax=16384,msgMax=2097152; const laneMax=8388608,laneItems=1024;
+const state=st=>port&&!closed&&port.postMessage({t:'status',state:st});
+const opts=(method,token,body,keepalive)=>({ method,body,keepalive:!!keepalive,mode:'same-origin',credentials:'omit',cache:'no-store',redirect:'error',referrerPolicy:'no-referrer', headers:{...(token&&{Authorization:'Bearer '+token}),...(body&&{'Content-Type':'application/octet-stream'})} });
+function check(v){ if(!(v instanceof ArrayBuffer)||!v.byteLength||v.byteLength>msgMax)throw Error(); const view=new DataView(v);let o=0,frames=0; while(o<v.byteLength){ if(v.byteLength-o<8||frames++>=4096)throw Error(); const type=view.getUint8(o),n=view.getUint32(o+4),end=o+8+n; if(n>1048576||end>v.byteLength||(type===2&&!n))throw Error(); o=end; } return v; }
+function split(v){ check(v);const view=new DataView(v),out=[];let o=0; while(o<v.byteLength){ const end=o+8+view.getUint32(o+4); out.push(o===0&&end===v.byteLength?v:v.slice(o,end));o=end; } return out; }
+function sid(v){const b=new Uint8Array(v);return (b[1]<<16)|(b[2]<<8)|b[3];}
+function hold(lane,v){ let buffered=0;for(const {ws} of lanes.values())buffered+=ws?.bufferedAmount??0; const own=lane.ws?.bufferedAmount??0; if(qBytes+buffered>qMax-v.byteLength||qItems>=iMax ||lane.bytes+own>laneMax-v.byteLength||lane.items>=laneItems)return false; qBytes+=v.byteLength;qItems++;lane.bytes+=v.byteLength;lane.items++;return true; }
+function free(lane,v){qBytes-=v.byteLength;qItems--;lane.bytes-=v.byteLength;lane.items--;}
+function fail(){ if(closed)return;state('failed');port?.postMessage({t:'close'});close(true); }
+function drop(){ if(delSent||!token)return;delSent=true; fetch(origin+'/api/v1/session',opts('DELETE',token,null,true)).catch(()=>{}); }
+function pump(lane){ const ws=lane.ws; if(closed||lane.done||!ws||ws.readyState!==WebSocket.OPEN||!lane.pending.length)return; if(ws.bufferedAmount>=msgMax){lane.timer ||= setTimeout(()=>{lane.timer=0;pump(lane);},10);return;} try{ const v=lane.pending.shift();ws.send(v);free(lane,v); port.postMessage({t:'traffic',up:v.byteLength,down:0}); if(lane.pending.length)queueMicrotask(()=>pump(lane)); }catch{fail();} }
+function push(v){ try{for(const frame of split(v))pushLane(frame);} catch{fail();} }
+function end(lane,notify){ if(lane.done)return;lane.done=true;if(lane.timer)clearTimeout(lane.timer); qBytes-=lane.bytes;qItems-=lane.items;lane.bytes=lane.items=0;lane.pending.length=0;lanes.delete(lane.id); try{lane.ws?.close();}catch{} if(notify&&port&&!closed){const frame=new ArrayBuffer(8),b=new Uint8Array(frame);b[0]=3;b[1]=lane.id>>>16;b[2]=lane.id>>>8;b[3]=lane.id;port.postMessage(frame,[frame]);} }
+function open(lane){ const target=origin.replace(/^https:/,'wss:')+'/api/v1/ws'; const ws=lane.ws=new WebSocket(target,'tproxy-lane-v1.'+token+'.'+lane.id);ws.binaryType='arraybuffer'; ws.onopen=()=>{if(closed||lane.done){ws.close();return;}lane.opened=true;state('connected');pump(lane);}; ws.onmessage=e=>{ if(closed||lane.done)return; try{ const frames=split(e.data); if(frames.some(frame=>sid(frame)!==lane.id))throw Error(); const ended=frames.some(frame=>new Uint8Array(frame)[0]===3); if(ended)lane.rClosed=true; port.postMessage({t:'traffic',up:0,down:e.data.byteLength});port.postMessage(e.data,[e.data]);state('connected'); if(ended)end(lane,false); }catch{fail();} }; ws.onerror=()=>{}; ws.onclose=()=>{if(closed||lane.done)return;if(!lane.opened){fail();return;}end(lane,!lane.lClosed&&!lane.rClosed);}; }
+function pushLane(v){ const id=sid(v),type=new Uint8Array(v)[0];let lane=lanes.get(id); if(!id)throw Error(); if(!lane&&(type===2||type===3||type===4))return; if(!lane){ if(type!==1||used.has(id)||lanes.size>=128||used.size>=4096)throw Error(); used.add(id);lane={id,ws:null,pending:[],bytes:0,items:0,timer:0,opened:false,done:false,lClosed:false,rClosed:false};lanes.set(id,lane); } if(lane.lClosed)return; if(type===3&&!lane.opened){end(lane,false);return;} if(!hold(lane,v))throw Error(); lane.pending.push(v);if(type===3)lane.lClosed=true; if(token){if(!lane.ws)open(lane);else pump(lane);} }
+async function create(first){ try{ state('connecting'); const res=await fetch(origin+'/api/v1/session',opts('POST',boot,first)); if(res.status!==200||res.headers.get('X-Carrier-Mode')!=='websocket-lanes')throw Error(); token=res.headers.get('X-Session-Token')??''; if(!token)throw Error(); const welcome=await res.arrayBuffer();check(welcome); if(closed){drop();return;} port.postMessage(welcome,[welcome]);state('connected'); for(const lane of lanes.values())if(!lane.ws)open(lane); }catch{fail();} }
+function close(notify){ if(closed)return;closed=true; for(const lane of [...lanes.values()])end(lane,false);used.clear(); if(notify)drop(); port?.close(); }
+function start(next){ init=true;port=next; port.onmessage=msg=>{ const data=msg.data; if(data instanceof ArrayBuffer){ if(!started){ try{check(data);}catch{fail();return;} started=true;create(data); }else push(data); }else if(data&&data.t==='close')close(true); }; port.start();state('connecting'); }
+addEventListener('message',e=>{ if(init||e.source!==parent||e.data===null||typeof e.data!=='object')return; const keys=Object.keys(e.data).sort(); if(keys.length!==2||keys[0]!=='t'||keys[1]!=='v'||e.data.t!=='tproxy-init'||e.data.v!==1||e.ports.length!==1)return; let src;try{src=new URL(e.origin);}catch{return;} if(src.protocol!=='http:'||src.hostname!=='127.0.0.1'||!src.port||src.origin!==e.origin)return; start(e.ports[0]); }); const android=globalThis.TelegramWebProxy;
+if(!init&&aNonce&&android&&typeof android.postMessage==='function'){ const aPort={onmessage:null,start(){},close(){android.onmessage=null;},postMessage(v){ if(v instanceof ArrayBuffer){for(const frame of split(v))android.postMessage(frame);} else android.postMessage(JSON.stringify(v)); }}; android.onmessage=e=>{ let data=e.data;if(typeof data==='string'){try{data=JSON.parse(data);}catch{return;}} aPort.onmessage?.({data}); }; start(aPort);android.postMessage(JSON.stringify({t:'tproxy-android-init',v:1,nonce:aNonce})); } addEventListener('pagehide',()=>close(true),{once:true}); })();
+</script>`
+			.replaceAll("__NONCE__", nonce)
+			.replace("__ORIGIN__", JSON.stringify(`https://${host}`))
+			.replace("__BOOTSTRAP__", JSON.stringify(String(boot)));
+		const csp = `default-src 'none'; base-uri 'none'; child-src 'none'; connect-src 'self' wss://${host}; font-src 'none'; form-action 'none'; frame-ancestors http://127.0.0.1:*; frame-src 'none'; img-src 'none'; manifest-src 'none'; media-src 'none'; object-src 'none'; script-src 'nonce-${nonce}'; style-src 'none'; worker-src 'none'; sandbox allow-same-origin allow-scripts`;
+		return { body: page, csp };
+	}
+
+	const handleRequest = async (req, secret, boot) => {
+		const url = new URL(req.url);
+		const { pathname: path, origin } = url;
+		const { method, headers } = req;
+
+		let cfg;
+		try {
+			const s = String(secret || "").trim();
+			const b = String(boot || "").trim();
+			if (!s || !b) throw Error();
+			cfg = { secret: s, key: parseSecret(s), boot: b };
+		} catch {
+			return ["/", "/api/v1/session", "/api/v1/ws"].includes(path) ? respond(null, 500) : respond();
+		}
+
+		if (path === "/" && (method === "GET" || method === "HEAD")) {
+			let host = null;
+			if (method === "GET") {
+				try {
+					host = await matchBridgeRequest(url, cfg.secret);
+				} catch {
+				}
+			}
+			if (host) {
+				const boot = await issueToken(cfg.boot, "bootstrap", Date.now() + 120000, randomBytes(12));
+				const page = renderPage(host, boot);
+				return new Response(page.body, {
+					status: 200,
+					headers: {
+						"Content-Type": "text/html; charset=utf-8",
+						"Content-Security-Policy": page.csp,
+						"Cache-Control": "no-store",
+						"Referrer-Policy": "no-referrer",
+						"X-Content-Type-Options": "nosniff",
+						"Permissions-Policy": "accelerometer=(), autoplay=(), camera=(), clipboard-read=(), clipboard-write=(), display-capture=(), encrypted-media=(), fullscreen=(), geolocation=(), gyroscope=(), hid=(), idle-detection=(), magnetometer=(), microphone=(), midi=(), payment=(), picture-in-picture=(), publickey-credentials-create=(), publickey-credentials-get=(), screen-wake-lock=(), serial=(), usb=(), web-share=(), xr-spatial-tracking=()",
+					},
+				});
+			}
+			return new Response(
+				method === "HEAD" ? null : "<!doctype html><meta charset=\"utf-8\"><title>Connection</title>",
+				{ status: 200, headers: { "Content-Type": "text/html; charset=utf-8" } },
+			);
+		}
+
+		if (path === "/api/v1/session") {
+			const auth = /^Bearer ([^\s]+)$/.exec(headers.get("Authorization") || "")?.[1] ?? null;
+			if (method === "DELETE") {
+				if (!auth || !(await verifyToken(auth, cfg.boot, "session"))) return respond();
+				let lease = sessionLeases.get(auth);
+				if (!lease) sessionLeases.set(auth, lease = createLease(auth));
+				lease.deleted = true;
+				return respond(null, 204);
+			}
+			if (method !== "POST" || !auth ||
+				headers.get("Content-Type")?.trim().toLowerCase() !== "application/octet-stream") return respond();
+			if (!(auth === cfg.boot || (await verifyToken(auth, cfg.boot, "bootstrap")))) return respond();
+			try {
+				const body = new Uint8Array(await req.arrayBuffer());
+				if (body.byteLength !== 9 || body[0] !== 16 || body[1] || body[2] || body[3] ||
+					new DataView(body.buffer, body.byteOffset, body.byteLength).getUint32(4, false) !== 1 || body[8] !== 1) {
+					throw Error();
+				}
+				const token = await issueToken(cfg.boot, "session", Date.now() + 300000, randomBytes(12));
+				return new Response(encodeFrame(17, 0), {
+					status: 200,
+					headers: {
+						"Content-Type": "application/octet-stream",
+						"Cache-Control": "no-store",
+						"X-Session-Token": token,
+						"X-Carrier-Mode": "websocket-lanes",
+					},
+				});
+			} catch {
+				return respond();
+			}
+		}
+
+		if (path !== "/api/v1/ws" || method !== "GET" ||
+			headers.get("Upgrade")?.toLowerCase() !== "websocket" ||
+			headers.has("Origin") && headers.get("Origin") !== origin) {
+			return respond();
+		}
+
+		const offers = (headers.get("Sec-WebSocket-Protocol") ?? "").split(",").map(v => v.trim()).filter(Boolean);
+		const proto = offers.length === 1 ? offers[0] : null;
+		const parts = proto?.split(".") ?? [];
+		const [kind, token = "", id] = parts;
+		const sid = Number(id);
+		if (parts.length !== 3 || kind !== "tproxy-lane-v1" || !/^[1-9][0-9]{0,7}$/.test(id) ||
+			sid > 0xffffff || !(await verifyToken(token, cfg.boot, "session"))) {
+			return respond();
+		}
+
+		const now = Date.now();
+		for (const [key, candidate] of sessionLeases) {
+			if (candidate.expires <= now && !candidate.active.size) sessionLeases.delete(key);
+		}
+		let lease = sessionLeases.get(token);
+		if (!lease) {
+			if (sessionLeases.size >= 4096) return respond(null, 503);
+			sessionLeases.set(token, lease = createLease(token));
+		}
+		if (lease.deleted || lease.used.has(sid) || lease.active.size >= 128 || lease.used.size >= 4096) {
+			return respond(null, 409);
+		}
+		lease.used.add(sid);
+		lease.active.add(sid);
+
+		const sess = createSession({ secret: cfg.key, sid, lease, onClose: () => lease.active.delete(sid) });
+		const { 0: client, 1: server } = new WebSocketPair();
+		try {
+			sess.attach(server);
+		} catch {
+			sess.close();
+			return respond(null, 409);
+		}
+		return new Response(null, {
+			status: 101,
+			webSocket: client,
+			headers: { "Sec-WebSocket-Protocol": proto, "Sec-WebSocket-Extensions": "" },
+		});
+	};
+	return handleRequest;
+})();
 
 /*
 
