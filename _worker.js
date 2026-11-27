@@ -6688,18 +6688,29 @@ function 提取节点IP(地址) {
 	return null;
 }
 
+// 带超时的 fetch（防止外部 geoIP API 挂起导致整个 Worker 请求超时 → Error 522）
+async function 带超时fetch(url, 超时毫秒 = 3000) {
+	const controller = new AbortController();
+	const timer = setTimeout(() => controller.abort(), 超时毫秒);
+	try {
+		return await fetch(url, { headers: { 'User-Agent': 'edge' + 'tunnel/1.1.0' }, signal: controller.signal });
+	} finally {
+		clearTimeout(timer);
+	}
+}
+
 // 检测单个 IP 的国家/地区（免费 geoIP API，ipwho.is 优先，ipinfo.io 兜底）
-async function 检测单个IP地区(ip) {
+async function 检测单个IP地区(ip, 超时毫秒 = 3000) {
 	const 接口列表 = [
 		async () => {
-			const res = await fetch(`https://ipwho.is/${encodeURIComponent(ip)}`, { headers: { 'User-Agent': 'edge' + 'tunnel/1.1.0' } });
+			const res = await 带超时fetch(`https://ipwho.is/${encodeURIComponent(ip)}`, 超时毫秒);
 			if (!res.ok) return null;
 			const d = await res.json();
 			if (!d || d.success === false || !d.country) return null;
 			return { country: String(d.country), country_code: String(d.country_code || d.country).toUpperCase(), region: String(d.region || ''), city: String(d.city || '') };
 		},
 		async () => {
-			const res = await fetch(`https://ipinfo.io/${encodeURIComponent(ip)}/json`);
+			const res = await 带超时fetch(`https://ipinfo.io/${encodeURIComponent(ip)}/json`, 超时毫秒);
 			if (!res.ok) return null;
 			const d = await res.json();
 			if (!d || !d.country) return null;
@@ -6760,7 +6771,7 @@ async function 获取节点IP列表(env, config_JSON, request = null) {
 }
 
 // 检测节点地区并写入缓存（限流并发，缺失的IP按需补检，结果缓存到 KV）
-async function 检测节点地区(env, config_JSON, request = null, 强制刷新 = false) {
+async function 检测节点地区(env, config_JSON, request = null, 强制刷新 = false, 总预算毫秒 = 30000) {
 	const 缓存 = await 读取节点地区缓存(env);
 	const 节点列表 = await 获取节点IP列表(env, config_JSON, request);
 	const 需检测IP = [];
@@ -6773,10 +6784,11 @@ async function 检测节点地区(env, config_JSON, request = null, 强制刷新
 		}
 	}
 	if (需检测IP.length > 0) {
-		for (let i = 0; i < 需检测IP.length; i += 4) {
+		const 截止时间 = Date.now() + 总预算毫秒;
+		for (let i = 0; i < 需检测IP.length && Date.now() < 截止时间; i += 4) {
 			const 批次 = 需检测IP.slice(i, i + 4);
 			await Promise.all(批次.map(async (ip) => {
-				const 结果 = await 检测单个IP地区(ip);
+				const 结果 = await 检测单个IP地区(ip, 3000);
 				if (结果) 缓存.节点[ip] = 结果;
 			}));
 		}
@@ -6799,10 +6811,11 @@ async function 按国家地区过滤节点(节点列表, 国家, 地区, env, co
 		}
 	}
 	if (需检测.length > 0) {
-		for (let i = 0; i < 需检测.length; i += 4) {
+		const 截止时间 = Date.now() + 8000;
+		for (let i = 0; i < 需检测.length && Date.now() < 截止时间; i += 4) {
 			const 批次 = 需检测.slice(i, i + 4);
 			await Promise.all(批次.map(async (ip) => {
-				const 结果 = await 检测单个IP地区(ip);
+				const 结果 = await 检测单个IP地区(ip, 3000);
 				if (结果) 缓存.节点[ip] = 结果;
 			}));
 		}
