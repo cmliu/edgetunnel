@@ -3,6 +3,11 @@ main = "_worker.js"
 compatibility_date = "2025-11-04"
 keep_vars = true
 
+# 定时检测节点IP地区（1.1.0 新增）：每小时执行一次 scheduled 处理器
+[triggers]
+crons = ["0 * * * *"]
+
+# KV 命名空间绑定（节点地区检测/订阅需要 KV，请取消注释并填入你的 KV id）
 #[[kv_namespaces]]
 #binding = "KV"			#KV绑定名默认不可修改
 #id = ""				#KV数据库id

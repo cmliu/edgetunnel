@@ -1,4 +1,5 @@
-﻿const Version = '2026-09-22 20:01:17';
+const Version = '2026-11-27 23:30:00';
+const 项目版本 = '1.1.0';
 let config_JSON, 缓存SOCKS5白名单 = null, 调试日志打印 = false;
 let SOCKS5白名单 = ['*tapecontent.net', '*cloudatacdn.com', '*loadshare.org', '*cdn-centaurus.com', 'scholar.google.com'];
 const Pages静态页面 = 'https://edt-pages.github.io';
@@ -63,7 +64,7 @@ export default {
 					const 目标码 = 目标UUID.charCodeAt(i);
 					目标前8总和 += 目标码 <= 57 ? 目标码 - 48 : 目标码 - 87;
 				}
-				if (请求前8总和 === 目标前8总和 && 请求UUID.slice(-12) === 目标UUID.slice(-12)) return new Response(JSON.stringify({ Version: Number(String(Version).replace(/\D+/g, '')) }), { status: 200, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
+				if (请求前8总和 === 目标前8总和 && 请求UUID.slice(-12) === 目标UUID.slice(-12)) return new Response(JSON.stringify({ Version: Number(String(Version).replace(/\D+/g, '')), 版本号: 项目版本 }), { status: 200, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
 			}
 		} else if (管理员密码 && upgradeHeader === 'websocket') {// WebSocket代理
 			const 反代上下文 = await 反代参数获取(url, userID, 默认反代IP, 默认反代兜底);
@@ -284,6 +285,14 @@ export default {
 								console.error('保存自定义IP失败:', error);
 								return new Response(JSON.stringify({ error: '保存自定义IP失败: ' + error.message }), { status: 500, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
 							}
+						} else if (访问路径 === 'admin/geo-check') {// 强制重新检测节点地区（1.1.0 新增）
+							try {
+								const 地区数据 = await 获取节点地区数据(env, config_JSON, request, true);
+								ctx.waitUntil(请求日志记录(env, request, 访问IP, 'Check_Geo', config_JSON));
+								return new Response(JSON.stringify(地区数据, null, 2), { status: 200, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
+							} catch (err) {
+								return new Response(JSON.stringify({ msg: '检测节点地区失败，失败原因：' + err.message, error: err.message }), { status: 500, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
+							}
 						} else return new Response(JSON.stringify({ error: '不支持的POST请求路径' }), { status: 404, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
 					} else if (访问路径 === 'admin/config.json') {// 处理 admin/config.json 请求，返回JSON
 						return new Response(JSON.stringify(config_JSON, null, 2), { status: 200, headers: { 'Content-Type': 'application/json' } });
@@ -293,6 +302,17 @@ export default {
 						return new Response(本地优选IP, { status: 200, headers: { 'Content-Type': 'text/plain;charset=utf-8', 'asn': request.cf.asn } });
 					} else if (访问路径 === 'admin/cf.json') {// CF配置文件
 						return new Response(JSON.stringify(request.cf, null, 2), { status: 200, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
+					} else if (访问路径 === 'admin/geo.json') {// 节点地区数据（1.1.0 新增）
+						try {
+							const 地区数据 = await 获取节点地区数据(env, config_JSON, request);
+							return new Response(JSON.stringify(地区数据, null, 2), { status: 200, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
+						} catch (err) {
+							return new Response(JSON.stringify({ msg: '获取节点地区失败，失败原因：' + err.message, error: err.message }), { status: 500, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
+						}
+					} else if (访问路径 === 'admin/geo') {// 节点地区选择页（1.1.0 新增）
+						const 订阅TOKEN = await MD5MD5(host + userID);
+						ctx.waitUntil(请求日志记录(env, request, 访问IP, 'Geo_Page', config_JSON));
+						return new Response(地区选择页(订阅TOKEN, config_JSON.优选订阅生成.SUBNAME), { status: 200, headers: { 'Content-Type': 'text/html;charset=utf-8' } });
 					}
 
 					ctx.waitUntil(请求日志记录(env, request, 访问IP, 'Admin_Login', config_JSON));
@@ -397,6 +417,11 @@ export default {
 								const [优选生成器IP数组, 优选生成器其他节点] = await 获取优选订阅生成器数据(优选订阅生成器HOST);
 								完整优选IP = 完整优选IP.concat(优选生成器IP数组);
 								其他节点LINK += 优选生成器其他节点;
+							}
+							const 国家过滤参数 = url.searchParams.get('country') || url.searchParams.get('cc');
+							const 地区过滤参数 = url.searchParams.get('region') || url.searchParams.get('province');
+							if (国家过滤参数 || 地区过滤参数) {// 按国家/地区过滤节点（1.1.0 新增）
+								完整优选IP = await 按国家地区过滤节点(完整优选IP, 国家过滤参数, 地区过滤参数, env, config_JSON, request);
 							}
 							const ECHLINK参数 = config_JSON.ECH ? `&ech=${encodeURIComponent((config_JSON.ECHConfig.SNI ? config_JSON.ECHConfig.SNI + '+' : '') + config_JSON.ECHConfig.DNS)}` : '';
 							const isLoonOrSurge = ua.includes('loon') || ua.includes('surge');
@@ -526,6 +551,9 @@ export default {
 			return 反代响应;
 		} catch (error) { }
 		return new Response(await nginx(), { status: 200, headers: { 'Content-Type': 'text/html; charset=UTF-8' } });
+	},
+	async scheduled(event, env, ctx) {// 定时检测节点IP地区（1.1.0 新增）
+		await 定时检测任务(event, env, ctx);
 	}
 };
 ///////////////////////////////////////////////////////////////////////叉HTTP传输数据///////////////////////////////////////////////
@@ -6640,6 +6668,438 @@ async function html1101(host, 访问IP) {
 
 
   </script>
+</body>
+</html>`;
+}
+
+///////////////////////////////////////////////////////////////////节点IP地区检测（1.1.0 新增）///////////////////////////////////////////////
+
+// 从节点地址中提取纯 IP（支持 ip:port#备注、[ipv6]:port#备注；域名无法直接检测返回 null）
+function 提取节点IP(地址) {
+	if (!地址) return null;
+	const 备注位置 = 地址.indexOf('#');
+	const 无备注 = 备注位置 > -1 ? 地址.slice(0, 备注位置) : 地址;
+	if (无备注.startsWith('[')) {
+		const m = 无备注.match(/^\[([\da-fA-F:]+)\]/);
+		return m ? m[1] : null;
+	}
+	const 无端口 = 无备注.split(':')[0];
+	if (/^[\d.]+$/.test(无端口) && 无端口.split('.').length === 4) return 无端口;
+	return null;
+}
+
+// 检测单个 IP 的国家/地区（免费 geoIP API，ipwho.is 优先，ipinfo.io 兜底）
+async function 检测单个IP地区(ip) {
+	const 接口列表 = [
+		async () => {
+			const res = await fetch(`https://ipwho.is/${encodeURIComponent(ip)}`, { headers: { 'User-Agent': 'edge' + 'tunnel/1.1.0' } });
+			if (!res.ok) return null;
+			const d = await res.json();
+			if (!d || d.success === false || !d.country) return null;
+			return { country: String(d.country), country_code: String(d.country_code || d.country).toUpperCase(), region: String(d.region || ''), city: String(d.city || '') };
+		},
+		async () => {
+			const res = await fetch(`https://ipinfo.io/${encodeURIComponent(ip)}/json`);
+			if (!res.ok) return null;
+			const d = await res.json();
+			if (!d || !d.country) return null;
+			return { country: String(d.country), country_code: String(d.country).toUpperCase(), region: String(d.region || ''), city: String(d.city || '') };
+		}
+	];
+	for (const 检测 of 接口列表) {
+		try {
+			const 结果 = await 检测();
+			if (结果 && 结果.country) return 结果;
+		} catch (e) { }
+	}
+	return null;
+}
+
+// 读取节点地区缓存（KV key: geo.json）
+async function 读取节点地区缓存(env) {
+	try {
+		const raw = await env.KV.get('geo.json');
+		if (raw) {
+			const data = JSON.parse(raw);
+			if (data && typeof data.节点 === 'object') return data;
+		}
+	} catch (e) { }
+	return { 更新时间: 0, 节点: {} };
+}
+
+// 获取当前节点 IP 列表（自定义优选IP + 优选API；无 request 上下文时不使用随机IP兜底）
+async function 获取节点IP列表(env, config_JSON, request = null) {
+	let 节点列表 = [];
+	const 自定义IP = await env.KV.get('ADD.txt');
+	const 优选API = [];
+	if (自定义IP) {
+		for (const 元素 of await 整理成数组(自定义IP)) {
+			if (元素.toLowerCase().startsWith('sub://') || 元素.toLowerCase().startsWith('https://')) {
+				优选API.push(元素);
+			} else if (/sub\s*=\s*([^\s&#]+)/i.test(元素)) {
+				优选API.push('sub://' + 元素.match(/sub\s*=\s*([^\s&#]+)/i)[1].trim());
+			} else if (元素.includes('://')) {
+				// 完整的其它节点链接，跳过
+			} else {
+				节点列表.push(元素);
+			}
+		}
+	}
+	if (优选API.length > 0) {
+		try {
+			const 请求优选API内容 = await 请求优选API(优选API, '443');
+			节点列表 = 节点列表.concat(请求优选API内容[0]);
+		} catch (e) { }
+	}
+	if (节点列表.length === 0 && request) {
+		try {
+			节点列表 = (await 生成随机IP(request, config_JSON.优选订阅生成.本地IP库.随机数量, config_JSON.优选订阅生成.本地IP库.指定端口))[0];
+		} catch (e) { }
+	}
+	return [...new Set(节点列表)];
+}
+
+// 检测节点地区并写入缓存（限流并发，缺失的IP按需补检，结果缓存到 KV）
+async function 检测节点地区(env, config_JSON, request = null, 强制刷新 = false) {
+	const 缓存 = await 读取节点地区缓存(env);
+	const 节点列表 = await 获取节点IP列表(env, config_JSON, request);
+	const 需检测IP = [];
+	const 已见 = new Set();
+	for (const 地址 of 节点列表) {
+		const ip = 提取节点IP(地址);
+		if (ip && !已见.has(ip)) {
+			已见.add(ip);
+			if (强制刷新 || !缓存.节点[ip]) 需检测IP.push(ip);
+		}
+	}
+	if (需检测IP.length > 0) {
+		for (let i = 0; i < 需检测IP.length; i += 4) {
+			const 批次 = 需检测IP.slice(i, i + 4);
+			await Promise.all(批次.map(async (ip) => {
+				const 结果 = await 检测单个IP地区(ip);
+				if (结果) 缓存.节点[ip] = 结果;
+			}));
+		}
+		缓存.更新时间 = Date.now();
+		await env.KV.put('geo.json', JSON.stringify(缓存));
+	}
+	return 缓存;
+}
+
+// 按国家/地区过滤节点列表（缺失的IP按需补检兜底）
+async function 按国家地区过滤节点(节点列表, 国家, 地区, env, config_JSON, request) {
+	const 缓存 = await 读取节点地区缓存(env);
+	const 需检测 = [];
+	const 已见 = new Set();
+	for (const 地址 of 节点列表) {
+		const ip = 提取节点IP(地址);
+		if (ip && !缓存.节点[ip] && !已见.has(ip)) {
+			已见.add(ip);
+			需检测.push(ip);
+		}
+	}
+	if (需检测.length > 0) {
+		for (let i = 0; i < 需检测.length; i += 4) {
+			const 批次 = 需检测.slice(i, i + 4);
+			await Promise.all(批次.map(async (ip) => {
+				const 结果 = await 检测单个IP地区(ip);
+				if (结果) 缓存.节点[ip] = 结果;
+			}));
+		}
+		缓存.更新时间 = Date.now();
+		await env.KV.put('geo.json', JSON.stringify(缓存));
+	}
+	const 国家小写 = (国家 || '').toLowerCase();
+	const 地区小写 = (地区 || '').toLowerCase();
+	return 节点列表.filter(地址 => {
+		const ip = 提取节点IP(地址);
+		const 信息 = ip ? 缓存.节点[ip] : null;
+		if (!信息) return !国家 && !地区;
+		if (国家) {
+			const 码 = (信息.country_code || '').toLowerCase();
+			const 名 = (信息.country || '').toLowerCase();
+			if (码 !== 国家小写 && 名 !== 国家小写 && !名.includes(国家小写) && !码.includes(国家小写)) return false;
+		}
+		if (地区 && !(信息.region || '').toLowerCase().includes(地区小写)) return false;
+		return true;
+	});
+}
+
+// 汇总节点地区数据（供选择页 / geo.json / geo-check 使用）
+async function 获取节点地区数据(env, config_JSON, request, 强制刷新 = false) {
+	const 节点列表 = await 获取节点IP列表(env, config_JSON, request);
+	const 缓存 = await 检测节点地区(env, config_JSON, request, 强制刷新);
+	const 节点明细 = [];
+	const 国家统计 = {};
+	const 地区统计 = {};
+	for (const 地址 of 节点列表) {
+		const ip = 提取节点IP(地址);
+		const 信息 = ip ? 缓存.节点[ip] : null;
+		if (信息) {
+			节点明细.push({ 地址, ip, country: 信息.country, country_code: 信息.country_code, region: 信息.region, city: 信息.city });
+			if (!国家统计[信息.country_code]) 国家统计[信息.country_code] = { country: 信息.country, country_code: 信息.country_code, 数量: 0 };
+			国家统计[信息.country_code].数量++;
+			if (信息.region) {
+				const 键 = 信息.country_code + '|' + 信息.region;
+				if (!地区统计[键]) 地区统计[键] = { country_code: 信息.country_code, region: 信息.region, 数量: 0 };
+				地区统计[键].数量++;
+			}
+		}
+	}
+	return {
+		更新时间: 缓存.更新时间,
+		节点总数: 节点明细.length,
+		国家: Object.values(国家统计).sort((a, b) => b.数量 - a.数量),
+		地区: Object.values(地区统计).sort((a, b) => b.数量 - a.数量),
+		节点: 节点明细
+	};
+}
+
+// cron 定时检测任务
+async function 定时检测任务(event, env, ctx) {
+	try {
+		const 管理员密码 = env.ADMIN || env.admin || env.PASSWORD || env.password || env.pswd || env.TOKEN || env.KEY || env.UUID || env.uuid;
+		const 加密秘钥 = env.KEY || '勿动此默认密钥，有需求请自行通过添加变量KEY进行修改';
+		if (!管理员密码) return;
+		if (!env.KV || typeof env.KV.get !== 'function') return;
+		const userIDMD5 = await MD5MD5(管理员密码 + 加密秘钥);
+		const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/;
+		const envUUID = env.UUID || env.uuid;
+		const userID = (envUUID && uuidRegex.test(envUUID)) ? envUUID.toLowerCase() : [userIDMD5.slice(0, 8), userIDMD5.slice(8, 12), '4' + userIDMD5.slice(13, 16), '8' + userIDMD5.slice(17, 20), userIDMD5.slice(20)].join('-');
+		const hosts = env.HOST ? (await 整理成数组(env.HOST)).map(h => h.toLowerCase().replace(/^https?:\/\//, '').split('/')[0].split(':')[0]) : ['edge' + 'tunnel'];
+		const host = hosts[0];
+		const config_JSON = await 读取config_JSON(env, host, userID);
+		await 检测节点地区(env, config_JSON, null, false);
+		log('[节点地区检测] 定时任务完成');
+	} catch (error) {
+		console.error('[节点地区检测] 定时任务失败:', error && error.message ? error.message : error);
+	}
+}
+
+// 节点地区选择页（自建独立页面，风格仿现有后台）
+function 地区选择页(订阅TOKEN, SUBNAME) {
+	return `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>节点地区选择 - ${SUBNAME}</title>
+<style>
+	:root {
+		--bg: #0f1115;
+		--card: #1a1d24;
+		--card2: #20242e;
+		--border: #2a2f3a;
+		--text: #e6e9ef;
+		--muted: #9aa3b2;
+		--accent: #5b8cff;
+		--accent2: #3ddc97;
+		--danger: #ff6b6b;
+	}
+	* { box-sizing: border-box; margin: 0; padding: 0; }
+	body {
+		background: var(--bg);
+		color: var(--text);
+		font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+		min-height: 100vh;
+		padding: 24px;
+	}
+	.container { max-width: 860px; margin: 0 auto; }
+	h1 { font-size: 20px; margin-bottom: 4px; }
+	.subtitle { color: var(--muted); font-size: 13px; margin-bottom: 20px; }
+	.card {
+		background: var(--card);
+		border: 1px solid var(--border);
+		border-radius: 12px;
+		padding: 20px;
+		margin-bottom: 16px;
+	}
+	.card h2 { font-size: 15px; margin-bottom: 14px; }
+	.row { margin-bottom: 14px; }
+	.row label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+	select, input[type="text"] {
+		width: 100%;
+		background: var(--card2);
+		color: var(--text);
+		border: 1px solid var(--border);
+		border-radius: 8px;
+		padding: 10px 12px;
+		font-size: 14px;
+		outline: none;
+	}
+	select:focus, input[type="text"]:focus { border-color: var(--accent); }
+	.actions { display: flex; gap: 10px; flex-wrap: wrap; }
+	button {
+		background: var(--accent);
+		color: #fff;
+		border: none;
+		border-radius: 8px;
+		padding: 10px 18px;
+		font-size: 14px;
+		cursor: pointer;
+		transition: opacity .15s;
+	}
+	button:hover { opacity: .88; }
+	button.secondary { background: var(--card2); border: 1px solid var(--border); color: var(--text); }
+	button:disabled { opacity: .5; cursor: not-allowed; }
+	.result { margin-top: 14px; display: flex; gap: 10px; }
+	.result input { flex: 1; font-family: ui-monospace, "SFMono-Regular", Consolas, monospace; font-size: 12px; }
+	.result button { background: var(--accent2); color: #08150d; }
+	table { width: 100%; border-collapse: collapse; font-size: 13px; }
+	th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+	th { color: var(--muted); font-weight: 500; }
+	td code { font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
+	.badge {
+		display: inline-block; padding: 2px 8px; border-radius: 10px;
+		background: var(--card2); border: 1px solid var(--border); font-size: 11px; color: var(--muted);
+	}
+	.hint { color: var(--muted); font-size: 12px; margin-top: 10px; line-height: 1.6; }
+	.toast {
+		position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+		background: var(--accent2); color: #08150d; padding: 10px 20px; border-radius: 8px;
+		font-size: 14px; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 99;
+	}
+	.toast.show { opacity: 1; }
+	.loading { color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+<div class="container">
+	<h1>节点地区选择</h1>
+	<div class="subtitle">定时检测节点 IP 的国家/地区，选择后生成过滤的订阅链接</div>
+
+	<div class="card">
+		<h2>生成订阅链接</h2>
+		<div class="row">
+			<label>国家/地区</label>
+			<select id="country"><option value="">全部（不过滤）</option></select>
+		</div>
+		<div class="row">
+			<label>地区（省份/州，可选）</label>
+			<select id="region"><option value="">全部</option></select>
+		</div>
+		<div class="row">
+			<label>订阅类型</label>
+			<select id="target">
+				<option value="">mixed（通用）</option>
+				<option value="clash">clash</option>
+				<option value="singbox">sing-box</option>
+				<option value="surge">surge</option>
+				<option value="quanx">quantumult</option>
+				<option value="loon">loon</option>
+			</select>
+		</div>
+		<div class="actions">
+			<button id="gen">生成订阅链接</button>
+			<button id="refresh" class="secondary">重新检测节点</button>
+		</div>
+		<div class="result">
+			<input type="text" id="link" readonly placeholder="选择国家/地区后点击生成">
+			<button id="copy">复制</button>
+		</div>
+		<div class="hint">订阅链接会在原 /sub 链接基础上追加 country / region 参数；选择国家后仅保留该国家/地区的节点。</div>
+	</div>
+
+	<div class="card">
+		<h2>节点列表</h2>
+		<div id="nodeList" class="loading">加载中…</div>
+	</div>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+	var TOKEN = ${JSON.stringify(订阅TOKEN)};
+	var GEO_URL = 'geo.json';
+	var countrySel = document.getElementById('country');
+	var regionSel = document.getElementById('region');
+	var targetSel = document.getElementById('target');
+	var linkInput = document.getElementById('link');
+	var nodeList = document.getElementById('nodeList');
+	var toast = document.getElementById('toast');
+	var allRegions = [];
+	var currentCountry = '';
+
+	function showToast(msg) {
+		toast.textContent = msg;
+		toast.classList.add('show');
+		setTimeout(function () { toast.classList.remove('show'); }, 2000);
+	}
+
+	function buildLink() {
+		var country = countrySel.value;
+		var region = regionSel.value;
+		var target = targetSel.value;
+		var link = '/sub?token=' + encodeURIComponent(TOKEN);
+		if (country) link += '&country=' + encodeURIComponent(country);
+		if (region) link += '&region=' + encodeURIComponent(region);
+		if (target === 'clash') link += '&clash=1';
+		else if (target === 'singbox') link += '&sb=1';
+		else if (target === 'surge') link += '&surge=1';
+		else if (target === 'quanx') link += '&quanx=1';
+		else if (target === 'loon') link += '&loon=1';
+		linkInput.value = window.location.origin + link;
+	}
+
+	function renderCountries(data) {
+		var html = '<option value="">全部（不过滤）</option>';
+		(data.国家 || []).forEach(function (c) {
+			html += '<option value="' + c.country_code + '">' + c.country + ' (' + c.country_code + ') · ' + c.数量 + '</option>';
+		});
+		countrySel.innerHTML = html;
+		allRegions = data.地区 || [];
+		updateRegions();
+	}
+
+	function updateRegions() {
+		currentCountry = countrySel.value;
+		var html = '<option value="">全部</option>';
+		allRegions.forEach(function (r) {
+			if (!currentCountry || r.country_code === currentCountry) {
+				html += '<option value="' + r.region + '">' + r.region + ' · ' + r.数量 + '</option>';
+			}
+		});
+		regionSel.innerHTML = html;
+	}
+
+	function renderNodes(data) {
+		if (!data.节点 || data.节点.length === 0) {
+			nodeList.innerHTML = '<div class="loading">暂无节点数据，请先配置自定义优选IP或优选API。</div>';
+			return;
+		}
+		var html = '<table><thead><tr><th>节点地址</th><th>国家</th><th>地区</th><th>城市</th></tr></thead><tbody>';
+		data.节点.forEach(function (n) {
+			html += '<tr><td><code>' + n.地址.replace(/</g, '&lt;') + '</code></td><td>' + n.country + ' <span class="badge">' + n.country_code + '</span></td><td>' + (n.region || '-') + '</td><td>' + (n.city || '-') + '</td></tr>';
+		});
+		html += '</tbody></table>';
+		var t = data.更新时间 ? new Date(data.更新时间) : null;
+		if (t) html += '<div class="hint">最后检测时间：' + t.toLocaleString() + '</div>';
+		nodeList.innerHTML = html;
+	}
+
+	function loadGeo(force) {
+		nodeList.innerHTML = '<div class="loading">正在检测节点地区…</div>';
+		var url = GEO_URL;
+		if (force) url = 'geo-check';
+		fetch(url, { method: force ? 'POST' : 'GET' })
+			.then(function (r) { return r.json(); })
+			.then(function (data) {
+				renderCountries(data);
+				renderNodes(data);
+			})
+			.catch(function () { nodeList.innerHTML = '<div class="loading">加载失败</div>'; });
+	}
+
+	document.getElementById('gen').addEventListener('click', buildLink);
+	document.getElementById('refresh').addEventListener('click', function () { loadGeo(true); });
+	document.getElementById('copy').addEventListener('click', function () {
+		if (!linkInput.value) { showToast('请先生成链接'); return; }
+		navigator.clipboard.writeText(linkInput.value).then(function () { showToast('已复制到剪贴板'); });
+	});
+	countrySel.addEventListener('change', function () { updateRegions(); buildLink(); });
+	regionSel.addEventListener('change', buildLink);
+	targetSel.addEventListener('change', buildLink);
+
+	loadGeo(false);
+</script>
 </body>
 </html>`;
 }

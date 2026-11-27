@@ -1,4 +1,4 @@
-# 🚀 edgetunnel 2.1
+# 🚀 edgetunnel 1.1.0
 ![后台页面](./img.png)
 
 [![Stars](https://img.shields.io/github/stars/cmliu/edgetunnel?style=flat-square&logo=github)](https://github.com/cmliu/edgetunnel/stargazers)
@@ -24,6 +24,7 @@
 - 🛠️ **部署灵活**：完整适配 CF Workers 及 CF Pages (GitHub / 上传)。
 - 🔄 **订阅系统**：内置自动订阅生成及混淆转换，适配主流客户端（Clash, Sing-box, Surge 等）。
 - ⚡ **性能加速**：支持自定义 ProxyIP、SOCKS5/HTTP 链式代理及优选 API，优化网络延迟。
+- 🌍 **地区选择**：定时检测节点 IP 的国家/地区，后台自建选择页一键生成过滤后的订阅链接（`/admin/geo`）。
 - 🌐 **多台适配**：完美适配 Windows, Android, iOS, MacOS 及各种软路由固件。
 
 ---
